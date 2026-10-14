@@ -2,7 +2,7 @@ const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const fs = require('fs');
 
-const dir = path.join(__dirname, '..', 'data');
+const dir = require('./paths').dataDir;
 fs.mkdirSync(dir, { recursive: true });
 const db = new DatabaseSync(path.join(dir, 'app.db'));
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');

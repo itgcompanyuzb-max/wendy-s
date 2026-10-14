@@ -42,3 +42,10 @@ customer orders -> nearest OPEN branch inside its delivery radius that has every
 3. `npm start` - the database is created automatically and filled from `server/menu.seed.json` (the real menu, branches, banners).
    After changing the menu in the admin panel you can refresh that seed with `node server/export-seed.js`.
 Customers, orders, chats and POS keys are NOT in the repository (they live in `data/app.db`). Back that file up.
+
+## Deploying (Render, Docker)
+1. Push this repo to GitHub, then in Render: New -> Blueprint -> pick the repo (it reads `render.yaml`).
+2. In the service's Environment tab fill `TELEGRAM_GATEWAY_TOKEN` and `ADMIN_PHONE` (+998XXXXXXXXX). Optional: `YANDEX_MAPS_KEY`.
+3. Open the given `https://...onrender.com` link: customer app `/`, admin `/admin/`, courier `/courier/`, POS terminal `/pos/`.
+The persistent disk (`/storage`) holds the database and uploaded files, so deploys do not erase customers or orders.
+Any VPS with Docker works the same way: `docker build -t wendys . && docker run -p 3000:3000 -v wendys:/storage --env-file .env wendys`.

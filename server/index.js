@@ -14,6 +14,7 @@ const CODE_TTL = 5 * 60; // seconds
 const RESEND_COOLDOWN = 60; // seconds
 
 const app = express();
+app.set('trust proxy', 1); // behind the host's HTTPS proxy: real client IP for rate limits
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -25,8 +26,10 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.get('/healthz', (req, res) => res.type('text').send('ok'));
 app.use(express.json({ limit: '12mb' }));
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+const paths = require('./paths');
+app.use('/uploads', express.static(paths.uploadsDir), express.static(paths.repoUploads));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -162,7 +165,7 @@ app.delete('/api/me', auth, (req, res) => {
     return fail(res, 400, 'Нельзя удалить аккаунт, пока есть незавершённые заказы. Дождитесь их выполнения');
   }
   for (const m of db.prepare("SELECT image FROM chat_messages WHERE user_id=? AND image<>''").all(uid)) {
-    try { fs.unlinkSync(path.join(__dirname, '..', 'uploads', 'chat', path.basename(m.image))); } catch { /* already gone */ }
+    try { fs.unlinkSync(path.join(paths.uploadsDir, 'chat', path.basename(m.image))); } catch { /* already gone */ }
   }
   db.exec('BEGIN');
   try {
@@ -451,7 +454,7 @@ function saveChatImage(dataUrl) {
   const magic = buf.subarray(0, 4).toString('hex');
   const okMagic = magic.startsWith('89504e47') || magic.startsWith('ffd8ff') || buf.subarray(0, 4).toString() === 'RIFF';
   if (!okMagic) return null;
-  const dir = path.join(__dirname, '..', 'uploads', 'chat');
+  const dir = path.join(paths.uploadsDir, 'chat');
   fs.mkdirSync(dir, { recursive: true });
   const name = `${Date.now()}-${crypto.randomBytes(5).toString('hex')}.${CHAT_EXT[m[1]]}`;
   fs.writeFileSync(path.join(dir, name), buf);

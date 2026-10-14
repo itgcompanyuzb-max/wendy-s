@@ -358,7 +358,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     const hex = buf.subarray(0, 4).toString('hex');
     if (!(hex.startsWith('89504e47') || hex.startsWith('ffd8ff') || hex === '52494646' || hex.startsWith('47494638'))) return fail(res, 400, 'Файл не похож на изображение');
     const name = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${EXT[m[1]]}`;
-    fs.writeFileSync(path.join(__dirname, '..', 'uploads', name), buf);
+    fs.mkdirSync(require('./paths').uploadsDir, { recursive: true });
+    fs.writeFileSync(path.join(require('./paths').uploadsDir, name), buf);
     audit(req, 'upload', 'file', name); res.json({ url: `/uploads/${name}` });
   });
 
