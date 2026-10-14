@@ -1,0 +1,14 @@
+body { padding-bottom: 40px; }
+.cwrap { max-width: 640px; margin: 0 auto; padding: 14px; }
+.chead { display: flex; align-items: center; gap: 12px; margin: 6px 4px 14px; }
+.chead .logo { width: 44px; height: 44px; object-fit: contain; }
+.chead .sp { flex: 1; }
+.stat3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat3 .glass { padding: 14px; text-align: center; border-radius: 22px; } .stat3 b { display: block; font-size: 24px; } .stat3 small { color: var(--tx2); }
+#cmap { height: 300px; border-radius: 22px; margin-bottom: 14px; }
+.ocard { padding: 18px; margin-bottom: 14px; }
+.ocard h3 { font-size: 20px; margin-bottom: 6px; }
+.ocard ul { margin: 8px 0; padding-left: 18px; color: var(--tx2); }
+.ocard .kv { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--stroke-soft); font-size: 15px; }
+.ocard .btn { width: 100%; margin-top: 10px; height: 52px; font-size: 17px; }
+.links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
