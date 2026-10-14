@@ -4,7 +4,7 @@
   let lang = 'ru';
   try { lang = localStorage.getItem('lang') === 'uz' ? 'uz' : 'ru'; } catch { /* ignore */ }
   window.LANG = lang;
-  window.loc = (o, f) => ((lang === 'uz' && o && o[f + '_uz']) ? o[f + '_uz'] : (o ? o[f] : ''));
+  window.loc = (o, f) => ((!o || !o[f]) ? '' : ((lang === 'uz' && o[f + '_uz']) ? o[f + '_uz'] : o[f])); // an emptied Russian text hides the Uzbek one too
   window.setLang = l => { try { localStorage.setItem('lang', l); } catch { /* ignore */ } location.reload(); };
   if (lang !== 'uz') return;
   document.documentElement.lang = 'uz';

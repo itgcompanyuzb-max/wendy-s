@@ -271,6 +271,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
       out[f] = NUMERIC.has(f) ? Number(body[f]) || 0 : String(body[f]).slice(0, 1000);
     }
     if (out.code) out.code = out.code.trim().toUpperCase();
+    if (table === 'banners' && out.title !== undefined && out.title.trim() === '') out.title_uz = '';
     if (out.color && !/^#[0-9a-fA-F]{6}$/.test(out.color)) out.color = '#ff6900';
     if (out.valid_until !== undefined && out.valid_until !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(out.valid_until)) throw new Error('Дата в формате ГГГГ-ММ-ДД');
     if (out.image !== undefined) { out.image = out.image.trim(); if (!imageOk(out.image)) throw new Error('Неверная ссылка на изображение'); }

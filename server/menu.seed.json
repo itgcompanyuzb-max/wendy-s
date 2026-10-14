@@ -1166,40 +1166,40 @@
  ],
  "banners": [
   {
-   "title": "Новые бургеры",
-   "image": "",
+   "title": "",
+   "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT9beZgUI-RaopS7Qs93wbBukJCGTwbxF0kdLaSPQbgdg&s=10",
    "color": "#e2133d",
    "text": "Новинка",
    "sort": 0,
    "active": 1,
-   "title_uz": "Yangi burgerlar"
+   "title_uz": ""
   },
   {
-   "title": "Халяль",
-   "image": "",
+   "title": "",
+   "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtO2uArlf11miflf448-UyI9sjldcGELpRbSZf1IBOjg&s=10",
    "color": "#0f9d58",
    "text": "Халяль",
    "sort": 1,
    "active": 1,
-   "title_uz": "Halol"
+   "title_uz": ""
   },
   {
-   "title": "Комбо недели",
-   "image": "",
+   "title": "",
+   "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRFxFWCUwBW9nuLY1eR8gvcbrHN00PFcYR-oY1G2g4aSg&s=10",
    "color": "#ff6900",
    "text": "Выгодно",
    "sort": 2,
    "active": 1,
-   "title_uz": "Hafta kombosi"
+   "title_uz": ""
   },
   {
-   "title": "Напиток в подарок",
-   "image": "",
+   "title": "",
+   "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_seUERTpOylo4u00OqPCTkYusy0ic8KQkCz0dl0Tzeg&s=10",
    "color": "#6a3df0",
    "text": "Подарок",
    "sort": 3,
    "active": 1,
-   "title_uz": "Sovg'a ichimlik"
+   "title_uz": ""
   }
  ],
  "promos": [
