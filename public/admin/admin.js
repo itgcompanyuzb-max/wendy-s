@@ -6,6 +6,7 @@ const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 const S = { token: sessionStorage.getItem('atoken') || '', me: null, branch: null, tab: null, sub: 'products', branchId: '', branches: [], cats: [], lastOrderIds: null, timer: null, idle: null };
 
 const ICON = {
+  analytics: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
   dashboard: '<path d="M4 13h6V4H4zM14 20h6V11h-6zM14 4h6v4h-6zM4 20h6v-4H4z"/>',
   orders: '<path d="M6 3h12l1 18-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   branches: '<path d="M12 21s7-6 7-11.5A7 7 0 0 0 5 9.5C5 15 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
@@ -29,8 +30,8 @@ const ICON = {
 const icon = (k, w = 22) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ''}</svg>`;
 const ROLE_NAMES = { super: 'Администратор', manager: 'Менеджер филиала', staff: 'Сотрудник', courier: 'Курьер' };
 const NAV = {
-  super: [['dashboard', 'Дашборд'], ['orders', 'Заказы'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
-  manager: [['dashboard', 'Дашборд'], ['orders', 'Заказы'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
+  super: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
+  manager: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
   staff: [['orders', 'Заказы'], ['security', 'Безопасность']],
 };
 const STATUS = { new: 'Новый', cooking: 'Готовится', ready: 'Готов', delivering: 'В пути', done: 'Выдан', cancelled: 'Отменён' };
@@ -74,10 +75,11 @@ function render(msg) {
   if (!S.token) { renderLogin(msg); return; }
   if (!S.me) { api('auth/me').then(r => { S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
   bumpIdle();
+  if (new URLSearchParams(location.search).get('next') === 'analytics' && ['super', 'manager'].includes(S.me.role)) { location.replace('/analytics/'); return; }
   const nav = NAV[S.me.role];
   if (!nav.some(n => n[0] === S.tab)) S.tab = nav[0][0];
   root.innerHTML = `<div class="app"><aside class="glass side"><div class="brand"><img class="logo" src="/img/brand.png" alt=""><span>Wendy's</span></div>
-    ${nav.map(([k, t]) => `<button class="nav ${k === S.tab ? 'on' : ''}" data-act="nav" data-tab="${k}">${icon(k)}<span>${t}</span>${k === 'orders' ? '<span class="dot" id="obadge" hidden></span>' : ''}</button>`).join('')}
+    ${nav.map(([k, t]) => (k === 'analytics' ? `<a class="nav" href="/analytics/">${icon(k)}<span>${t}</span></a>` : `<button class="nav ${k === S.tab ? 'on' : ''}" data-act="nav" data-tab="${k}">${icon(k)}<span>${t}</span>${k === 'orders' ? '<span class="dot" id="obadge" hidden></span>' : ''}</button>`)).join('')}
     <div class="sp"></div>
     ${S.me.role === 'super' ? '' : `<div class="who"><b>${esc(S.me.name || '')}</b><span class="muted">${ROLE_NAMES[S.me.role]}${S.branch ? ' · ' + esc(S.branch.name) : ''}</span></div>`}
     <button class="nav" data-act="theme">${icon('theme')}<span>Тема</span></button>
