@@ -64,7 +64,7 @@ const anyOpen = () => branches().some(isOpen);
 /* ============ cart ============ */
 const prod = id => St.menu.products.find(p => p.id === id);
 const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
-const coinsInCart = () => St.cart.reduce((n, c) => n + (c.coin ? (prod(c.id)?.coin_price || 0) * c.qty : 0), 0);
+const coinsInCart = () => St.cart.reduce((n, c) => n + (c.coin ? (prod(c.id)?.coin_cost || 0) * c.qty : 0), 0);
 const cartCount = () => St.cart.reduce((s, c) => s + c.qty, 0);
 function saveCart() { LS.set('cart', St.cart); }
 function totals() {
@@ -83,7 +83,7 @@ A.del = id => { St.cart = St.cart.filter(x => x.id !== id || x.coin); cartChange
 A.addCoin = id => {
   const p = prod(id);
   if (!St.user) return go('login');
-  if (coinsInCart() + p.coin_price > (St.user.coins || 0)) return toast('Недостаточно WendyCoin');
+  if (coinsInCart() + p.coin_cost > (St.user.coins || 0)) return toast('Недостаточно WendyCoin');
   const c = St.cart.find(x => x.id === id && x.coin);
   if (c) c.qty = Math.min(50, c.qty + 1); else St.cart.push({ id, qty: 1, coin: true });
   cartChanged();
@@ -96,7 +96,7 @@ function cartChanged() {
   document.querySelectorAll('[data-pill]').forEach(el => { el.innerHTML = pillInner(prod(Number(el.dataset.pill))); });
   renderFab();
   if (St.promo && totals().sub === 0) { St.promo = null; LS.del('promo'); }
-  Sh.refresh('cart');
+  Sh.refresh('cart'); Sh.refresh('coinshop');
   if (Sh.stack.checkout) Sh.refresh('checkout');
   if (St.mode === 'delivery' && St.addrId) { // the nearest branch (and so the delivery price) depends on the basket
     clearTimeout(cartChanged.t);
@@ -492,7 +492,7 @@ function productCard(p) {
     <div class="im" ${imgOf(p)}>${p.image ? '' : ph(p)}</div>
     <div class="bigb">${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}<h3>${esc(loc(p, 'name'))}</h3><p>${esc(loc(p, 'description'))}</p>
     <div class="prow" onclick="event.stopPropagation()">${p.old_price ? `<s>${money(p.old_price)}</s>` : ''}<div data-pill="${p.id}" style="min-width:180px">${pillInner(p)}</div></div></div></div>`;
-  return `<div class="pc" onclick="A.product(${p.id})">${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}${p.coin_price > 0 ? `<span class="cbadge">${I.coin(16)} ${p.coin_price}</span>` : ''}
+  return `<div class="pc" onclick="A.product(${p.id})">${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}
     <div class="im" ${imgOf(p)}>${p.image ? '' : ph(p)}</div><h3>${esc(loc(p, 'name'))}</h3><p>${esc(loc(p, 'description'))}</p>
     <div data-pill="${p.id}" onclick="event.stopPropagation()">${pillInner(p)}</div></div>`;
 }
@@ -512,7 +512,7 @@ function homeView() {
     </div>
     <div class="home-body" id="hb">
       <div class="stories">${m.banners.map(b => `<div class="story" style="background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
-      <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button>
+      <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button><button class="sbtn coinbtn" onclick="A.coinShop()" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button>
         ${m.categories.map(c => `<button class="ch ${c.id === St.cat ? 'on' : ''}" data-cat="${c.id}" onclick="A.gotoCat(${c.id})">${esc(loc(c, 'name'))}</button>`).join('')}</div>
       ${St.searchOpen ? `<div class="searchrow"><input id="sq" placeholder="Поиск по меню" value="${esc(St.q)}"></div>` : ''}
       <div id="sections"></div>
@@ -565,7 +565,7 @@ A.product = id => {
     <div class="pc" style="background:none;min-height:0;cursor:default;padding:12px 16px">
       <div class="im" style="aspect-ratio:1.2;background-color:#1b1b1e;background-size:cover;background-position:center;${p.image ? `background-image:url('${esc(p.image)}')` : ''}">${p.image ? '' : ph(p)}</div>
       <h3 style="font-size:28px;margin:16px 0 8px">${esc(loc(p, 'name'))}</h3><p style="font-size:16px;-webkit-line-clamp:unset;margin:0 0 4px">${esc(loc(p, 'description'))}</p></div>${(p.addons || []).map(prod).filter(Boolean).length ? `<div style="padding:4px 16px 8px"><div class="h2" style="font-size:21px;margin:14px 0 12px">С этим берут</div><div class="hscroll">${p.addons.map(prod).filter(Boolean).map(a => `<div class="rec"><div class="im" ${imgOf(a)}>${a.image ? '' : ph(a)}</div><b>${esc(loc(a, 'name'))}</b><span></span><div data-pill="${a.id}">${pillInner(a)}</div></div>`).join('')}</div></div>` : ''}</div>
-    <div class="foot">${p.coin_price > 0 && St.user ? `<button class="btn gray" style="margin-bottom:10px" onclick="A.addCoin(${p.id});Sh.close('product')">${I.coin(22)}&nbsp;Обменять на ${p.coin_price} WendyCoin</button>` : ''}<button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
+    <div class="foot">${p.coin_cost > 0 && St.user ? `<button class="btn gray" style="margin-bottom:10px" onclick="A.addCoin(${p.id});Sh.close('product')">${I.coin(22)}&nbsp;Обменять на ${p.coin_cost} WendyCoin</button>` : ''}<button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
 };
 
 /* address / mode sheet */
@@ -601,7 +601,7 @@ function renderCart() {
     ${St.cart.map(c => { const p = prod(c.id); const coin = !!c.coin; return `<div class="ci"><div class="th" ${imgOf(p)}>${p.image ? '' : ph(p)}</div><div class="inf"><h4>${esc(loc(p, 'name'))}</h4>
       <div class="gray-t" style="font-size:15px;line-height:1.3">${coin ? 'Обмен на WendyCoin' : esc(loc(p, 'description').slice(0, 60))}</div>
       <div class="bot"><div class="st"><button onclick="${coin ? 'A.decCoin' : 'A.dec'}(${p.id})">${I.minus()}</button><b>${c.qty}</b><button onclick="${coin ? 'A.addCoin' : 'A.add'}(${p.id})">${I.plus(22)}</button></div>
-      <div class="pr">${coin ? `<span class="coin-sm" style="font-size:19px">${p.coin_price * c.qty} ${I.coin(20)}</span>` : `${p.old_price ? `<s>${money(p.old_price * c.qty)}</s>` : ''}${money(p.price * c.qty)}`}</div></div></div></div>`; }).join('')}
+      <div class="pr">${coin ? `<span class="coin-sm" style="font-size:19px">${p.coin_cost * c.qty} ${I.coin(20)}</span>` : `${p.old_price ? `<s>${money(p.old_price * c.qty)}</s>` : ''}${money(p.price * c.qty)}`}</div></div></div></div>`; }).join('')}
     ${rec.length ? `<div class="h2">Всегда кстати</div><div class="hscroll">${rec.map(p => `<div class="rec"><div class="im" ${imgOf(p)}>${p.image ? '' : ph(p)}</div><b>${esc(loc(p, 'name'))}</b><span></span><button class="price-pill" style="height:42px;font-size:15px" onclick="A.add(${p.id})">${money(p.price)}</button></div>`).join('')}</div>` : ''}
     ${St.promo ? `<div class="promo-ok"><div><b>${esc(St.promo.code)}</b><br><span>${St.promo.percent ? '−' + St.promo.percent + '%' : '−' + money(St.promo.fixed)} применён</span></div><button class="gray-t" onclick="A.removePromo()">${I.x('#8e8e93', 24)}</button></div>`
       : St.promoOpen ? `<div class="promo-box"><input id="pc" placeholder="Промокод" autocapitalize="characters" autocomplete="off" maxlength="30"><button onclick="A.applyPromo()">Применить</button></div><div class="err" id="perr" style="margin:6px 0 0"></div>`
@@ -756,7 +756,7 @@ function renderProfile() {
   <div class="body" style="padding-top:14px">
     <div style="font-size:30px;font-weight:700;margin:6px 4px 16px">${esc(u.name || 'Гость')}<div class="gray-t" style="font-size:16px;font-weight:600;margin-top:2px">${esc(u.phone || '')}</div></div>
     <div class="tiles">
-      <div class="tile dash"><div>${I.coin(54)}</div><div><div class="orange" style="font-size:24px">${new Intl.NumberFormat('ru-RU').format(u.coins || 0).replace(/\s/g, NB)} WendyCoin</div><span class="tag" style="margin-top:10px">Копите коины</span></div></div>
+      <button class="tile dash" onclick="Sh.close('profile');A.coinShop()"><div>${I.coin(54)}</div><div><div class="orange" style="font-size:24px">${new Intl.NumberFormat('ru-RU').format(u.coins || 0).replace(/\s/g, NB)} WendyCoin</div><span class="tag" style="margin-top:10px">Копите коины</span></div></button>
       <button class="tile" onclick="Sh.close('profile')"><span>${St.orders.length ? 'Закажите ещё' : 'Сделайте первый заказ'}</span><span class="tag">Смотреть меню</span></button>
       <button class="tile" onclick="A.cards()"><span>${I.card(40)}<br>Способы оплаты</span><span class="tag">Карты</span></button>
       <button class="tile" onclick="Sh.close('profile');A.addrSheet()"><span>${I.pinI(38)}<br>Мои адреса</span><span class="tag">Адреса</span></button>
