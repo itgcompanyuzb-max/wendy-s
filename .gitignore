@@ -6,3 +6,4 @@ data/
 uploads/*
 !uploads/wendys-*.jpg
 .expo/
+dist/

@@ -7,7 +7,6 @@ Bu ilova mavjud saytni (mijoz ilovasi) telefon ichida WebView orqali ochadi.
 3. Shu papkada (`mobile/`):
    ```
    npm install
-   npx expo install --fix     # Expo Go versiyasiga moslaydi
    npx expo start
    ```
 4. Terminaldagi QR kodni telefon kamerasi (iOS) yoki Expo Go (Android) bilan skanerlang.
