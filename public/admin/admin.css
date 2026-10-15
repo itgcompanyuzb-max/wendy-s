@@ -198,3 +198,4 @@ a.btn { text-decoration: none; color: inherit; }
 .addon input { width: 18px; height: 18px; accent-color: var(--brand); }
 
 input[type=date] { width: 100%; height: 46px; padding: 0 18px; border-radius: 16px; border: 1.2px solid var(--stroke); background: rgba(255,255,255,.06); font-size: 15px; outline: none; }
+a.nav { text-decoration: none; }

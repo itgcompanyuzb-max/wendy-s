@@ -71,6 +71,10 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     hits.set(ip, arr); return arr.length >= 20;
   }
 
+  // /admin/ = super admin only, /manager/ = branch managers and their staff, /courier/ = couriers
+  const AREAS = { admin: ['super'], manager: ['manager', 'staff'], courier: ['courier'] };
+  const areaRoles = app => AREAS[app] || AREAS.admin;
+  const inList = r => r.map(() => '?').join(',');
   const CODE_TTL = 5 * 60, RESEND = 60;
   const phoneOf = v => String(v || '').replace(/[\s()-]/g, '');
   // Step 1: ask for a code. The answer is identical for unknown numbers (no way to probe who is an admin).
@@ -80,8 +84,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     hits.get(ip).push(Date.now());
     const phone = phoneOf(req.body.phone);
     if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
-    const ctx = req.body.app === 'courier' ? 1 : 0; // /courier/ signs in couriers only, /admin/ everyone else
-    const a = db.prepare("SELECT * FROM admin_users WHERE phone=? AND active=1 AND (role='courier')=? ORDER BY id").get(phone, ctx);
+    const roles = areaRoles(req.body.app);
+    const a = db.prepare(`SELECT * FROM admin_users WHERE phone=? AND active=1 AND role IN (${inList(roles)}) ORDER BY id`).get(phone, ...roles);
     if (!a) { audit(req, 'login_unknown_phone', 'phone', phone); return res.json({ ok: true, resend_in: RESEND }); }
     if (a.locked_until > now()) return fail(res, 429, 'Вход временно заблокирован. Попробуйте позже');
     const last = db.prepare('SELECT * FROM admin_codes WHERE phone=? ORDER BY id DESC LIMIT 1').get(phone);
@@ -114,8 +118,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.post('/auth/verify', (req, res) => {
     const phone = phoneOf(req.body.phone), code = String(req.body.code || '');
     const generic = () => { audit(req, 'login_failed', 'phone', phone); return fail(res, 401, 'Неверный или устаревший код'); };
-    const ctx = req.body.app === 'courier' ? 1 : 0;
-    const accts = PHONE_RE.test(phone) ? db.prepare("SELECT u.*, b.name AS branch_name FROM admin_users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.phone=? AND u.active=1 AND (u.role='courier')=? ORDER BY u.id").all(phone, ctx) : [];
+    const roles = areaRoles(req.body.app);
+    const accts = PHONE_RE.test(phone) ? db.prepare(`SELECT u.*, b.name AS branch_name FROM admin_users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.phone=? AND u.active=1 AND u.role IN (${inList(roles)}) ORDER BY u.id`).all(phone, ...roles) : [];
     const a = accts[0];
     if (!a || !/^\d{4}$/.test(code)) return generic();
     if (a.locked_until > now()) return fail(res, 429, 'Вход временно заблокирован. Попробуйте позже');

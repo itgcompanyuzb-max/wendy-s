@@ -21,7 +21,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Cache-Control', req.path.startsWith('/api') ? 'no-store' : 'no-cache');
-  if (/^\/(admin|courier|pos)(\/|$)/.test(req.path)) {
+  if (/^\/(admin|manager|courier|pos|analytics)(\/|$)/.test(req.path)) {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://router.project-osrm.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   }
   next();

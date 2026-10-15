@@ -3,13 +3,14 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 const token = sessionStorage.getItem('atoken') || '';
+const PANEL = sessionStorage.getItem('panel') === 'manager' ? 'manager' : 'admin';
 const St = { me: null, branches: [], period: '7', branch: '', q: '', data: null, timer: null };
-if (!token) location.replace('/admin/?next=analytics');
+if (!token) location.replace(`/${PANEL}/?next=analytics`);
 
 async function api(path) {
   const r = await fetch('/api/admin/' + path, { headers: { Authorization: 'Bearer ' + token } });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) { sessionStorage.removeItem('atoken'); location.replace('/admin/?next=analytics'); throw new Error('auth'); }
+  if (r.status === 401) { sessionStorage.removeItem('atoken'); location.replace(`/${PANEL}/?next=analytics`); throw new Error('auth'); }
   if (!r.ok) throw new Error(j.error || 'Ошибка');
   return j;
 }
@@ -73,12 +74,12 @@ async function openCustomer(id) {
 
 async function init() {
   try { St.me = (await api('auth/me')).admin; } catch { return; }
-  if (!['super', 'manager'].includes(St.me.role)) { location.replace('/admin/'); return; }
+  if (!['super', 'manager'].includes(St.me.role)) { location.replace(`/${PANEL}/`); return; }
   if (St.me.role === 'super') St.branches = (await api('branches')).rows;
   $('#root').innerHTML = `<div class="an"><div class="an-top"><div class="brand"><img class="logo" src="/img/brand.png" alt=""><span>Аналитика</span></div><span class="sp"></span>
     <div class="tabs" style="margin:0" id="periods">${PERIODS.map(([k, t]) => `<button class="${k === St.period ? 'on' : ''}" data-p="${k}">${t}</button>`).join('')}</div>
     ${St.me.role === 'super' ? `<select id="br"><option value="">Все филиалы</option>${St.branches.map(b => `<option value="${b.id}">${esc(b.name || b.address)}</option>`).join('')}</select>` : ''}
-    <a class="btn" href="/admin/">← Админ-панель</a></div><div id="body"><div class="skeleton"></div></div></div>`;
+    <a class="btn" href="/${PANEL}/">← ${PANEL === 'manager' ? 'Панель менеджера' : 'Админ-панель'}</a></div><div id="body"><div class="skeleton"></div></div></div>`;
   $('#periods').addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (!b) return; St.period = b.dataset.p; $('#periods').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); load(); });
   $('#br')?.addEventListener('change', e => { St.branch = e.target.value; load(); });
   document.addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openCustomer(r.dataset.uid); });

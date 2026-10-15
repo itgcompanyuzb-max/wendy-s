@@ -52,3 +52,9 @@ Any VPS with Docker works the same way: `docker build -t wendys . && docker run 
 
 ## Analytics
 /analytics/ (admin and branch managers; same sign-in): customers (count, order history), sales per branch, best sellers and which branch sells them, peak hours, delivery/pickup, payments, statuses. Managers only see their own branch.
+
+## Who signs in where
+- `/admin/` - the owner (role "super") only.
+- `/manager/` - branch managers and their staff: orders of their own branch, stock, team, couriers, reviews, branch analytics.
+- `/courier/` - couriers. `/analytics/` - owner and managers (managers see only their branch).
+Each area accepts only its own roles; the same phone number may hold roles in several areas.

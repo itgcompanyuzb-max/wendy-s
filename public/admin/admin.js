@@ -3,6 +3,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
+const APP = document.body.dataset.panel === 'manager' ? 'manager' : 'admin';
+const OK_ROLES = { admin: ['super'], manager: ['manager', 'staff'] }[APP];
 const S = { token: sessionStorage.getItem('atoken') || '', me: null, branch: null, tab: null, sub: 'products', branchId: '', branches: [], cats: [], lastOrderIds: null, timer: null, idle: null };
 
 const ICON = {
@@ -73,7 +75,7 @@ function overlay(html) { const o = document.createElement('div'); o.className = 
 function render(msg) {
   const root = $('#root');
   if (!S.token) { renderLogin(msg); return; }
-  if (!S.me) { api('auth/me').then(r => { S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
+  if (!S.me) { api('auth/me').then(r => { if (!OK_ROLES.includes(r.admin.role)) { api('auth/logout', 'POST').catch(() => { }); return signOut(APP === 'admin' ? 'Этот вход только для администратора. Менеджерам: /manager/' : 'Этот вход для менеджеров филиалов. Администратору: /admin/'); } sessionStorage.setItem('panel', APP); S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
   bumpIdle();
   if (new URLSearchParams(location.search).get('next') === 'analytics' && ['super', 'manager'].includes(S.me.role)) { location.replace('/analytics/'); return; }
   const nav = NAV[S.me.role];
@@ -112,7 +114,7 @@ function renderLogin(msg, step = 1, st = {}) {
     upd();
     $('#lf').addEventListener('submit', async e => {
       e.preventDefault(); if (st.digits.length !== 9) return; go.disabled = true;
-      try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits }); renderLogin('', 2, { ...st, left: r.resend_in }); }
+      try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits, app: APP }); renderLogin('', 2, { ...st, left: r.resend_in }); }
       catch (er) { if (er.data?.resend_in) return renderLogin('', 2, { ...st, left: er.data.resend_in }); $('#err').textContent = er.message; go.disabled = false; }
     });
     return;
@@ -125,14 +127,14 @@ function renderLogin(msg, step = 1, st = {}) {
   const tick = () => { $('#rs').textContent = left ? `Новый код можно запросить через ${left} сек` : ''; $('#resend').disabled = left > 0; };
   tick(); clearInterval(t); t = setInterval(() => { left = Math.max(0, left - 1); if (!$('#rs')) return clearInterval(t); tick(); if (!left) clearInterval(t); }, 1000);
   $('#back').onclick = () => { clearInterval(t); renderLogin('', 1, { digits: st.digits }); };
-  $('#resend').onclick = async () => { try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits }); left = r.resend_in; tick(); $('#err').textContent = ''; } catch (er) { $('#err').textContent = er.message; } };
+  $('#resend').onclick = async () => { try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits, app: APP }); left = r.resend_in; tick(); $('#err').textContent = ''; } catch (er) { $('#err').textContent = er.message; } };
   let busy = false;
   const need = step === 3 ? 6 : 4;
   cd.addEventListener('input', async () => {
     cd.value = cd.value.replace(/\D/g, '').slice(0, need);
     if (cd.value.length !== need || busy) return; busy = true;
     try {
-      const body = { phone: '+998' + st.digits, code: step === 3 ? st.code : cd.value, ...(step === 3 ? { totp: cd.value } : {}) };
+      const body = { phone: '+998' + st.digits, app: APP, code: step === 3 ? st.code : cd.value, ...(step === 3 ? { totp: cd.value } : {}) };
       const r = await api('auth/verify', 'POST', body);
       if (r.need_totp) { busy = false; return renderLogin('', 3, { ...st, code: cd.value }); }
       if (r.choose) { clearInterval(t); return renderChoose(r); }
@@ -428,7 +430,7 @@ function staffForm() {
   const isSuper = S.me.role === 'super';
   const o = overlay(`<form class="glass modal" id="sf"><h2>Новый сотрудник</h2><div class="g2"><label class="field"><span>Имя</span><input name="name"></label><label class="field"><span>Телефон (+998…)</span><input name="phone" type="tel" inputmode="numeric" placeholder="+998 90 123 45 67" required></label>
     ${isSuper ? `<label class="field"><span>Роль</span><select name="role"><option value="manager">Менеджер филиала</option><option value="courier">Курьер</option><option value="staff">Сотрудник</option><option value="super">Super Admin</option></select></label><label class="field"><span>Филиал</span><select name="branch_id">${S.branches.map(b => `<option value="${b.id}">${esc(b.name || b.address)}</option>`).join('')}</select></label>` : `<label class="field"><span>Роль</span><select name="role"><option value="courier">Курьер</option><option value="staff">Сотрудник</option></select></label><div class="muted" style="margin-top:14px">Будет добавлен в ваш филиал${S.branch ? ' «' + esc(S.branch.name) + '»' : ''}.</div>`}
-<div class="muted" style="grid-column:1/-1;margin-top:12px;font-size:13px">Вход по этому номеру: код придёт в Telegram. Курьеры работают в приложении по адресу /courier/</div></div><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Создать</button></div></form>`);
+<div class="muted" style="grid-column:1/-1;margin-top:12px;font-size:13px">Вход по этому номеру: код придёт в Telegram. Менеджеры и сотрудники входят на /manager/, курьеры на /courier/</div></div><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Создать</button></div></form>`);
   o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) o.remove(); });
   $('#sf', o).addEventListener('submit', async e => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(e.target)); body.phone = '+998' + body.phone.replace(/\D/g, '').replace(/^998/, ''); await api('staff', 'POST', body); o.remove(); toast('Сотрудник создан'); loadTab(); } catch (er) { $('#fe', o).textContent = er.message; } });
 }
