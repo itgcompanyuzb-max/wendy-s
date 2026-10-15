@@ -14,15 +14,16 @@ const CODE_TTL = 5 * 60; // seconds
 const RESEND_COOLDOWN = 60; // seconds
 
 const app = express();
+const isReplitPreview = process.env.NODE_ENV === 'development' && !!process.env.REPLIT_DEV_DOMAIN;
 app.set('trust proxy', 1); // behind the host's HTTPS proxy: real client IP for rate limits
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  if (!isReplitPreview) res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Cache-Control', req.path.startsWith('/api') ? 'no-store' : 'no-cache');
   if (/^\/(admin|manager|courier|pos|analytics)(\/|$)/.test(req.path)) {
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://router.project-osrm.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://router.project-osrm.org; " + (isReplitPreview ? "" : "frame-ancestors 'none'; ") + "base-uri 'none'; form-action 'self'");
   }
   next();
 });
@@ -508,7 +509,7 @@ app.use((err, req, res, next) => { // eslint-disable-line
   fail(res, 500, 'Ошибка сервера');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Сервер: http://localhost:${PORT}   Админка: http://localhost:${PORT}/admin/`);
   if (!TG_TOKEN) console.warn('ВНИМАНИЕ: TELEGRAM_GATEWAY_TOKEN не задан');
 });
