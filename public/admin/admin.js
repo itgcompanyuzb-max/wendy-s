@@ -3,9 +3,12 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
+const APP = document.body.dataset.panel === 'manager' ? 'manager' : 'admin';
+const OK_ROLES = { admin: ['super'], manager: ['manager', 'staff'] }[APP];
 const S = { token: sessionStorage.getItem('atoken') || '', me: null, branch: null, tab: null, sub: 'products', branchId: '', branches: [], cats: [], lastOrderIds: null, timer: null, idle: null };
 
 const ICON = {
+  analytics: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
   dashboard: '<path d="M4 13h6V4H4zM14 20h6V11h-6zM14 4h6v4h-6zM4 20h6v-4H4z"/>',
   orders: '<path d="M6 3h12l1 18-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   branches: '<path d="M12 21s7-6 7-11.5A7 7 0 0 0 5 9.5C5 15 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
@@ -29,8 +32,8 @@ const ICON = {
 const icon = (k, w = 22) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ''}</svg>`;
 const ROLE_NAMES = { super: 'Администратор', manager: 'Менеджер филиала', staff: 'Сотрудник', courier: 'Курьер' };
 const NAV = {
-  super: [['dashboard', 'Дашборд'], ['orders', 'Заказы'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
-  manager: [['dashboard', 'Дашборд'], ['orders', 'Заказы'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
+  super: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
+  manager: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
   staff: [['orders', 'Заказы'], ['security', 'Безопасность']],
 };
 const STATUS = { new: 'Новый', cooking: 'Готовится', ready: 'Готов', delivering: 'В пути', done: 'Выдан', cancelled: 'Отменён' };
@@ -72,12 +75,13 @@ function overlay(html) { const o = document.createElement('div'); o.className = 
 function render(msg) {
   const root = $('#root');
   if (!S.token) { renderLogin(msg); return; }
-  if (!S.me) { api('auth/me').then(r => { S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
+  if (!S.me) { api('auth/me').then(r => { if (!OK_ROLES.includes(r.admin.role)) { api('auth/logout', 'POST').catch(() => { }); return signOut(APP === 'admin' ? 'Этот вход только для администратора. Менеджерам: /manager/' : 'Этот вход для менеджеров филиалов. Администратору: /admin/'); } sessionStorage.setItem('panel', APP); S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
   bumpIdle();
+  if (new URLSearchParams(location.search).get('next') === 'analytics' && ['super', 'manager'].includes(S.me.role)) { location.replace('/analytics/'); return; }
   const nav = NAV[S.me.role];
   if (!nav.some(n => n[0] === S.tab)) S.tab = nav[0][0];
   root.innerHTML = `<div class="app"><aside class="glass side"><div class="brand"><img class="logo" src="/img/brand.png" alt=""><span>Wendy's</span></div>
-    ${nav.map(([k, t]) => `<button class="nav ${k === S.tab ? 'on' : ''}" data-act="nav" data-tab="${k}">${icon(k)}<span>${t}</span>${k === 'orders' ? '<span class="dot" id="obadge" hidden></span>' : ''}</button>`).join('')}
+    ${nav.map(([k, t]) => (k === 'analytics' ? `<a class="nav" href="/analytics/">${icon(k)}<span>${t}</span></a>` : `<button class="nav ${k === S.tab ? 'on' : ''}" data-act="nav" data-tab="${k}">${icon(k)}<span>${t}</span>${k === 'orders' ? '<span class="dot" id="obadge" hidden></span>' : ''}</button>`)).join('')}
     <div class="sp"></div>
     ${S.me.role === 'super' ? '' : `<div class="who"><b>${esc(S.me.name || '')}</b><span class="muted">${ROLE_NAMES[S.me.role]}${S.branch ? ' · ' + esc(S.branch.name) : ''}</span></div>`}
     <button class="nav" data-act="theme">${icon('theme')}<span>Тема</span></button>
@@ -110,7 +114,7 @@ function renderLogin(msg, step = 1, st = {}) {
     upd();
     $('#lf').addEventListener('submit', async e => {
       e.preventDefault(); if (st.digits.length !== 9) return; go.disabled = true;
-      try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits }); renderLogin('', 2, { ...st, left: r.resend_in }); }
+      try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits, app: APP }); renderLogin('', 2, { ...st, left: r.resend_in }); }
       catch (er) { if (er.data?.resend_in) return renderLogin('', 2, { ...st, left: er.data.resend_in }); $('#err').textContent = er.message; go.disabled = false; }
     });
     return;
@@ -123,14 +127,14 @@ function renderLogin(msg, step = 1, st = {}) {
   const tick = () => { $('#rs').textContent = left ? `Новый код можно запросить через ${left} сек` : ''; $('#resend').disabled = left > 0; };
   tick(); clearInterval(t); t = setInterval(() => { left = Math.max(0, left - 1); if (!$('#rs')) return clearInterval(t); tick(); if (!left) clearInterval(t); }, 1000);
   $('#back').onclick = () => { clearInterval(t); renderLogin('', 1, { digits: st.digits }); };
-  $('#resend').onclick = async () => { try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits }); left = r.resend_in; tick(); $('#err').textContent = ''; } catch (er) { $('#err').textContent = er.message; } };
+  $('#resend').onclick = async () => { try { const r = await api('auth/request', 'POST', { phone: '+998' + st.digits, app: APP }); left = r.resend_in; tick(); $('#err').textContent = ''; } catch (er) { $('#err').textContent = er.message; } };
   let busy = false;
   const need = step === 3 ? 6 : 4;
   cd.addEventListener('input', async () => {
     cd.value = cd.value.replace(/\D/g, '').slice(0, need);
     if (cd.value.length !== need || busy) return; busy = true;
     try {
-      const body = { phone: '+998' + st.digits, code: step === 3 ? st.code : cd.value, ...(step === 3 ? { totp: cd.value } : {}) };
+      const body = { phone: '+998' + st.digits, app: APP, code: step === 3 ? st.code : cd.value, ...(step === 3 ? { totp: cd.value } : {}) };
       const r = await api('auth/verify', 'POST', body);
       if (r.need_totp) { busy = false; return renderLogin('', 3, { ...st, code: cd.value }); }
       if (r.choose) { clearInterval(t); return renderChoose(r); }
@@ -315,7 +319,7 @@ VIEWS.coins = async main => {
     + `<div class="grid kpis"><div class="glass kpi"><small>Коинов у клиентов</small><b>${money(d.total)}</b><span class="pill info">в обороте</span></div>
     <div class="glass kpi"><small>Товаров для обмена</small><b>${d.products.filter(p => p.coin_price > 0).length}</b><span class="pill">из ${d.products.length}</span></div></div>
     <div class="grid cols2"><div class="glass card"><h3>Баланс клиентов</h3><div class="scrollx"><table class="tbl"><thead><tr><th>Клиент</th><th>WendyCoin</th><th></th></tr></thead><tbody>${d.customers.map(u => `<tr><td>${esc(u.name || 'Без имени')}<div class="faint">${esc(u.phone)}</div></td><td><b>${money(u.coins)}</b></td><td class="acts"><button class="btn sm" data-act="coinadj" data-id="${u.id}" data-name="${esc(u.name || u.phone)}">Изменить</button></td></tr>`).join('') || '<tr><td colspan="3"><div class="empty">Клиентов нет</div></td></tr>'}</tbody></table></div></div>
-    <div class="glass card"><h3>Обмен на товары</h3><p class="muted" style="margin-top:0">Укажите цену в WendyCoin в карточке товара — клиент увидит кнопку «Обменять».</p>${d.products.map(p => `<div class="row"><span>${esc(p.name)}<div class="faint" style="font-size:12px">${money(p.price)} so'm</div></span><span style="display:flex;align-items:center;gap:8px">${p.coin_price > 0 ? `<span class="pill warn">${p.coin_price} W</span>` : '<span class="faint">нет</span>'}<button class="btn sm" data-act="coinprice" data-id="${p.id}">Цена</button></span></div>`).join('')}</div></div>
+    <div class="glass card"><h3>Обмен на товары</h3><p class="muted" style="margin-top:0">Укажите цену в WendyCoin в карточке товара — клиент увидит кнопку «Обменять».</p>${d.products.map(p => `<div class="row"><span>${esc(p.name)}<div class="faint" style="font-size:12px">${money(p.price)} so'm</div></span><span style="display:flex;align-items:center;gap:8px">${p.coin_price > 0 ? `<span class="pill warn">${p.coin_price} W</span>` : p.coin_price < 0 ? '<span class="faint">нельзя</span>' : '<span class="faint">по курсу</span>'}<button class="btn sm" data-act="coinprice" data-id="${p.id}">Цена</button></span></div>`).join('')}</div></div>
     <div class="glass card" style="margin-top:16px"><h3>История операций</h3><div class="scrollx"><table class="tbl"><thead><tr><th>Время (UTC)</th><th>Клиент</th><th>Сумма</th><th>Причина</th></tr></thead><tbody>${d.log.map(l => `<tr><td class="faint">${esc(l.created_at)}</td><td>${esc(l.phone || '')}</td><td><b style="color:${l.delta > 0 ? 'var(--ok)' : 'var(--bad)'}">${l.delta > 0 ? '+' : ''}${l.delta}</b></td><td class="muted">${esc(l.reason)}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty">Операций нет</div></td></tr>'}</tbody></table></div></div>`;
 };
 VIEWS.pos = async main => {
@@ -352,7 +356,7 @@ const ICONS = ['combo', 'burger', 'fries', 'cup', 'dessert'];
 const SCHEMA = {
   branches: { title: 'Филиал', cls: 'g2', f: [['name', 'Название', 'text'], ['city', 'Город', 'text'], ['address', 'Адрес', 'text'], ['phone', 'Телефон', 'text'], ['open_time', 'Открывается', 'time'], ['close_time', 'Закрывается (00:00 = полночь)', 'time'], ['delivery_radius', 'Радиус доставки, км', 'number'], ['lat', 'Широта', 'number'], ['lng', 'Долгота', 'number'], ['_map', '', 'map'], ['active', 'Активен', 'check']] },
   categories: { title: 'Категория', f: [['name', 'Название', 'text'], ['name_uz', 'Название на узбекском', 'text'], ['icon', 'Иконка по умолчанию', 'select', ICONS], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
-  products: { title: 'Товар', f: [['name', 'Название', 'text'], ['category_id', 'Категория', 'cat'], ['description', 'Описание', 'textarea'], ['name_uz', 'Название на узбекском (необязательно)', 'text'], ['description_uz', 'Описание на узбекском (необязательно)', 'textarea'], ['price', "Цена, so'm", 'number'], ['old_price', 'Старая цена (0 = нет)', 'number'], ['coin_price', 'Цена в WendyCoin (0 = нельзя обменять)', 'number'], ['badge', 'Плашка (напр. «до -35%»)', 'text'], ['image', 'Фото товара', 'image'], ['big', 'Большая карточка', 'check'], ['addons', 'С этим берут (до 8 товаров: соусы, напитки…)', 'addons'], ['recommended', 'В «Всегда кстати»', 'check'], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
+  products: { title: 'Товар', f: [['name', 'Название', 'text'], ['category_id', 'Категория', 'cat'], ['description', 'Описание', 'textarea'], ['name_uz', 'Название на узбекском (необязательно)', 'text'], ['description_uz', 'Описание на узбекском (необязательно)', 'textarea'], ['price', "Цена, so'm", 'number'], ['old_price', 'Старая цена (0 = нет)', 'number'], ['coin_price', 'Цена в WendyCoin (0 = по курсу от цены в сумах, -1 = нельзя обменять)', 'number'], ['badge', 'Плашка (напр. «до -35%»)', 'text'], ['image', 'Фото товара', 'image'], ['big', 'Большая карточка', 'check'], ['addons', 'С этим берут (до 8 товаров: соусы, напитки…)', 'addons'], ['recommended', 'В «Всегда кстати»', 'check'], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
   banners: { title: 'Баннер', f: [['title', 'Заголовок', 'text'], ['title_uz', 'Заголовок на узбекском', 'text'], ['image', 'Картинка баннера', 'image'], ['color', 'Цвет фона (если нет картинки)', 'color'], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
   promos: { title: 'Промокод', f: [['code', 'Код', 'text'], ['percent', 'Скидка, %', 'number'], ['fixed', "Или фикс. скидка, so'm", 'number'], ['min_total', 'Минимальная сумма заказа', 'number'], ['title', 'Заголовок акции для клиента, напр. «Скидка 10%» (пусто = не показывать в профиле)', 'text'], ['info', 'Подпись над заголовком, напр. «НА ЛЮБОЙ ТИП ЗАКАЗА»', 'text'], ['title_uz', 'Заголовок на узбекском', 'text'], ['info_uz', 'Подпись на узбекском', 'text'], ['valid_until', 'Действует до (пусто = без срока)', 'date'], ['active', 'Активен', 'check']] },
 };
@@ -426,7 +430,7 @@ function staffForm() {
   const isSuper = S.me.role === 'super';
   const o = overlay(`<form class="glass modal" id="sf"><h2>Новый сотрудник</h2><div class="g2"><label class="field"><span>Имя</span><input name="name"></label><label class="field"><span>Телефон (+998…)</span><input name="phone" type="tel" inputmode="numeric" placeholder="+998 90 123 45 67" required></label>
     ${isSuper ? `<label class="field"><span>Роль</span><select name="role"><option value="manager">Менеджер филиала</option><option value="courier">Курьер</option><option value="staff">Сотрудник</option><option value="super">Super Admin</option></select></label><label class="field"><span>Филиал</span><select name="branch_id">${S.branches.map(b => `<option value="${b.id}">${esc(b.name || b.address)}</option>`).join('')}</select></label>` : `<label class="field"><span>Роль</span><select name="role"><option value="courier">Курьер</option><option value="staff">Сотрудник</option></select></label><div class="muted" style="margin-top:14px">Будет добавлен в ваш филиал${S.branch ? ' «' + esc(S.branch.name) + '»' : ''}.</div>`}
-<div class="muted" style="grid-column:1/-1;margin-top:12px;font-size:13px">Вход по этому номеру: код придёт в Telegram. Курьеры работают в приложении по адресу /courier/</div></div><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Создать</button></div></form>`);
+<div class="muted" style="grid-column:1/-1;margin-top:12px;font-size:13px">Вход по этому номеру: код придёт в Telegram. Менеджеры и сотрудники входят на /manager/, курьеры на /courier/</div></div><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Создать</button></div></form>`);
   o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) o.remove(); });
   $('#sf', o).addEventListener('submit', async e => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(e.target)); body.phone = '+998' + body.phone.replace(/\D/g, '').replace(/^998/, ''); await api('staff', 'POST', body); o.remove(); toast('Сотрудник создан'); loadTab(); } catch (er) { $('#fe', o).textContent = er.message; } });
 }

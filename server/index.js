@@ -21,7 +21,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Cache-Control', req.path.startsWith('/api') ? 'no-store' : 'no-cache');
-  if (/^\/(admin|courier|pos)(\/|$)/.test(req.path)) {
+  if (/^\/(admin|manager|courier|pos|analytics)(\/|$)/.test(req.path)) {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://router.project-osrm.org; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   }
   next();
@@ -216,7 +216,7 @@ app.get('/api/menu', (req, res) => {
     products: (() => {
       const ad = {};
       for (const r of db.prepare('SELECT product_id, addon_id FROM product_addons ORDER BY sort, addon_id').all()) (ad[r.product_id] = ad[r.product_id] || []).push(r.addon_id);
-      return db.prepare('SELECT id,category_id,name,description,name_uz,description_uz,price,old_price,image,badge,big,recommended,sort,active,coin_price FROM products WHERE active=1 ORDER BY sort,id').all().map(p => ({ ...p, addons: ad[p.id] || [] }));
+      return db.prepare('SELECT id,category_id,name,description,name_uz,description_uz,price,old_price,image,badge,big,recommended,sort,active,coin_price FROM products WHERE active=1 ORDER BY sort,id').all().map(p => ({ ...p, coin_cost: coinCost(p), addons: ad[p.id] || [] }));
     })(),
     banners: db.prepare('SELECT * FROM banners WHERE active=1 ORDER BY sort,id').all(),
     branches: db.prepare('SELECT id,name,city,address,lat,lng,phone,open_time,close_time,active,delivery_radius,delivery_fee,free_from,min_order FROM branches WHERE active=1').all().map(publicBranch),
@@ -320,6 +320,12 @@ app.delete('/api/cards/:id', auth, (req, res) => {
 });
 
 // delivery price of a branch: its own price (or the global one when -1), free above "free_from"
+// price of a product in WendyCoin: its own coin_price, else the so'm price divided by the coin value; -1 = not exchangeable
+function coinCost(p) {
+  if (p.coin_price < 0) return 0;
+  if (p.coin_price > 0) return p.coin_price;
+  return Math.max(1, Math.ceil(p.price / (Number(setting('coin_value', 1)) || 1)));
+}
 function branchFee(b, amount) {
   const base = b.delivery_fee >= 0 ? b.delivery_fee : Number(setting('delivery_fee', 0));
   return b.free_from > 0 && amount >= b.free_from ? 0 : base;
@@ -369,9 +375,10 @@ app.post('/api/orders', auth, (req, res) => {
     const qty = Math.max(1, Math.min(50, Number(r.qty) || 1));
     if (!p) return fail(res, 400, 'Товар недоступен');
     if (r.with_coins) {
-      if (!(p.coin_price > 0)) return fail(res, 400, `«${p.name}» нельзя обменять на WendyCoin`);
-      items.push({ product_id: p.id, name: p.name, price: 0, qty, coin_price: p.coin_price });
-      coinsSpent += p.coin_price * qty;
+      const cc = coinCost(p);
+      if (!(cc > 0)) return fail(res, 400, `«${p.name}» нельзя обменять на WendyCoin`);
+      items.push({ product_id: p.id, name: p.name, price: 0, qty, coin_price: cc });
+      coinsSpent += cc * qty;
     } else {
       items.push({ product_id: p.id, name: p.name, price: p.price, qty });
       subtotal += p.price * qty;

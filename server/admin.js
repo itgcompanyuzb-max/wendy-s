@@ -71,6 +71,10 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     hits.set(ip, arr); return arr.length >= 20;
   }
 
+  // /admin/ = super admin only, /manager/ = branch managers and their staff, /courier/ = couriers
+  const AREAS = { admin: ['super'], manager: ['manager', 'staff'], courier: ['courier'] };
+  const areaRoles = app => AREAS[app] || AREAS.admin;
+  const inList = r => r.map(() => '?').join(',');
   const CODE_TTL = 5 * 60, RESEND = 60;
   const phoneOf = v => String(v || '').replace(/[\s()-]/g, '');
   // Step 1: ask for a code. The answer is identical for unknown numbers (no way to probe who is an admin).
@@ -80,8 +84,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     hits.get(ip).push(Date.now());
     const phone = phoneOf(req.body.phone);
     if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
-    const ctx = req.body.app === 'courier' ? 1 : 0; // /courier/ signs in couriers only, /admin/ everyone else
-    const a = db.prepare("SELECT * FROM admin_users WHERE phone=? AND active=1 AND (role='courier')=? ORDER BY id").get(phone, ctx);
+    const roles = areaRoles(req.body.app);
+    const a = db.prepare(`SELECT * FROM admin_users WHERE phone=? AND active=1 AND role IN (${inList(roles)}) ORDER BY id`).get(phone, ...roles);
     if (!a) { audit(req, 'login_unknown_phone', 'phone', phone); return res.json({ ok: true, resend_in: RESEND }); }
     if (a.locked_until > now()) return fail(res, 429, 'Вход временно заблокирован. Попробуйте позже');
     const last = db.prepare('SELECT * FROM admin_codes WHERE phone=? ORDER BY id DESC LIMIT 1').get(phone);
@@ -114,8 +118,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.post('/auth/verify', (req, res) => {
     const phone = phoneOf(req.body.phone), code = String(req.body.code || '');
     const generic = () => { audit(req, 'login_failed', 'phone', phone); return fail(res, 401, 'Неверный или устаревший код'); };
-    const ctx = req.body.app === 'courier' ? 1 : 0;
-    const accts = PHONE_RE.test(phone) ? db.prepare("SELECT u.*, b.name AS branch_name FROM admin_users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.phone=? AND u.active=1 AND (u.role='courier')=? ORDER BY u.id").all(phone, ctx) : [];
+    const roles = areaRoles(req.body.app);
+    const accts = PHONE_RE.test(phone) ? db.prepare(`SELECT u.*, b.name AS branch_name FROM admin_users u LEFT JOIN branches b ON b.id=u.branch_id WHERE u.phone=? AND u.active=1 AND u.role IN (${inList(roles)}) ORDER BY u.id`).all(phone, ...roles) : [];
     const a = accts[0];
     if (!a || !/^\d{4}$/.test(code)) return generic();
     if (a.locked_until > now()) return fail(res, 429, 'Вход временно заблокирован. Попробуйте позже');
@@ -476,6 +480,89 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   });
   router.get('/catalog-key', need('super'), (req, res) => res.json({ has: !!db.prepare("SELECT value FROM settings WHERE key='catalog_key_hash'").get() }));
   router.delete('/catalog-key', need('super'), confirmed, (req, res) => { db.prepare("DELETE FROM settings WHERE key='catalog_key_hash'").run(); audit(req, 'catalog_key_revoked'); res.json({ ok: true }); });
+
+  /* ---------- analytics (super: everything; manager: only their own branch) ---------- */
+  const tzDay = d => new Date(d.getTime() + 5 * 3600e3).toISOString().slice(0, 10);
+  const parseTs = t => new Date(String(t).replace(' ', 'T') + 'Z');
+  const anScope = req => (req.admin.role === 'super' ? (Number(req.query.branch_id) || null) : req.admin.branch_id);
+
+  router.get('/analytics/summary', need('super', 'manager'), (req, res) => {
+    const period = ['today', '7', '30', 'all'].includes(req.query.period) ? req.query.period : '7';
+    const b = anScope(req);
+    const from = period === 'today' ? dayStartUtc(0) : period === '7' ? dayStartUtc(-6) : period === '30' ? dayStartUtc(-29) : new Date(0);
+    const rows = db.prepare(`SELECT id,user_id,branch_id,type,status,total,payment,items_json,created_at FROM orders WHERE created_at>=?${b ? ' AND branch_id=?' : ''}`)
+      .all(fmt(from), ...(b ? [b] : []));
+    const valid = rows.filter(o => o.status !== 'cancelled');
+    const revenue = valid.reduce((n, o) => n + o.total, 0);
+
+    // days (no more than the last 90 in "all time")
+    const days = [];
+    const start = period === 'all' ? Math.max(from.getTime(), dayStartUtc(-89).getTime()) : from.getTime();
+    for (let t = start; t < Date.now() + 3600e3; t += 86400e3) days.push(tzDay(new Date(t)));
+    const dayMap = Object.fromEntries(days.map(d => [d, { day: d, orders: 0, revenue: 0, customers: 0 }]));
+    for (const o of valid) { const k = dayMap[tzDay(parseTs(o.created_at))]; if (k) { k.orders++; k.revenue += o.total; } }
+    if (req.admin.role === 'super' && !b) for (const u of db.prepare('SELECT created_at FROM users WHERE created_at>=?').all(fmt(new Date(start)))) { const k = dayMap[tzDay(parseTs(u.created_at))]; if (k) k.customers++; }
+
+    // branches
+    const branches = db.prepare('SELECT id,name,address FROM branches ORDER BY id').all().filter(x => !b || x.id === b);
+    const by_branch = branches.map(x => {
+      const list = valid.filter(o => o.branch_id === x.id), rev = list.reduce((n, o) => n + o.total, 0);
+      return { id: x.id, name: x.name || x.address, orders: list.length, revenue: rev, avg: list.length ? Math.round(rev / list.length) : 0,
+        delivery: list.filter(o => o.type === 'delivery').length, pickup: list.filter(o => o.type === 'pickup').length };
+    }).sort((p1, p2) => p2.orders - p1.orders);
+
+    // products (+ which branch sells each one most)
+    const bname = Object.fromEntries(branches.map(x => [x.id, x.name || x.address]));
+    const tally = {};
+    for (const o of valid) for (const it of JSON.parse(o.items_json)) {
+      const t = tally[it.name] = tally[it.name] || { name: it.name, qty: 0, revenue: 0, br: {} };
+      t.qty += it.qty; t.revenue += it.price * it.qty; t.br[o.branch_id] = (t.br[o.branch_id] || 0) + it.qty;
+    }
+    const prodAll = Object.values(tally).sort((p1, p2) => p2.qty - p1.qty);
+    const top_products = prodAll.slice(0, 12).map(t => { const best = Object.entries(t.br).sort((p1, p2) => p2[1] - p1[1])[0]; return { name: t.name, qty: t.qty, revenue: t.revenue, best_branch: best ? bname[best[0]] || '' : '' }; });
+
+    // peak hours, order types, payments, statuses
+    const by_hour = Array(24).fill(0);
+    for (const o of valid) by_hour[(parseTs(o.created_at).getUTCHours() + 5) % 24]++;
+    const count = (list, f) => list.reduce((m, o) => { const k = f(o); m[k] = (m[k] || 0) + 1; return m; }, {});
+
+    // customers
+    const buyers = new Set(valid.map(o => o.user_id));
+    const allCounts = db.prepare(`SELECT user_id, COUNT(*) c FROM orders WHERE status<>'cancelled'${b ? ' AND branch_id=?' : ''} GROUP BY user_id`).all(...(b ? [b] : []));
+    const repeat = allCounts.filter(r => buyers.has(r.user_id) && r.c >= 2).length;
+    const customers = {
+      total: b ? db.prepare('SELECT COUNT(DISTINCT user_id) c FROM orders WHERE branch_id=?').get(b).c : db.prepare('SELECT COUNT(*) c FROM users').get().c,
+      new_in_period: b ? null : db.prepare('SELECT COUNT(*) c FROM users WHERE created_at>=?').get(fmt(from)).c,
+      buyers: buyers.size, repeat_rate: buyers.size ? Math.round(repeat / buyers.size * 100) : 0,
+    };
+    res.json({
+      period, branch_id: b,
+      kpis: { orders: valid.length, revenue, avg: valid.length ? Math.round(revenue / valid.length) : 0, cancelled: rows.length - valid.length, done: rows.filter(o => o.status === 'done').length },
+      days: Object.values(dayMap), by_branch, top_products, by_hour,
+      by_type: count(valid, o => o.type), by_payment: count(valid, o => o.payment), by_status: count(rows, o => o.status), customers,
+    });
+  });
+
+  router.get('/analytics/customers', need('super', 'manager'), (req, res) => {
+    const b = anScope(req), q = `%${String(req.query.q || '').trim().replace(/[%_]/g, '')}%`;
+    const rows = db.prepare(`SELECT u.id,u.phone,u.name,u.coins,u.created_at,
+        COUNT(o.id) AS orders, COALESCE(SUM(CASE WHEN o.status<>'cancelled' THEN o.total END),0) AS spent, MAX(o.created_at) AS last_order
+      FROM users u LEFT JOIN orders o ON o.user_id=u.id${b ? ' AND o.branch_id=?' : ''}
+      WHERE (u.phone LIKE ? OR u.name LIKE ?)
+      GROUP BY u.id${b ? ' HAVING orders>0' : ''} ORDER BY spent DESC, u.id DESC LIMIT 500`).all(...(b ? [b] : []), q, q);
+    res.json({ rows });
+  });
+  router.get('/analytics/customers/:id/orders', need('super', 'manager'), (req, res) => {
+    const b = anScope(req);
+    const u = db.prepare('SELECT id,phone,name,coins,created_at FROM users WHERE id=?').get(req.params.id);
+    if (!u) return fail(res, 404, 'Клиент не найден');
+    const orders = db.prepare(`SELECT o.id,o.type,o.status,o.total,o.payment,o.created_at,o.coins_spent,o.items_json,br.name AS branch_name,o.branch_id
+      FROM orders o LEFT JOIN branches br ON br.id=o.branch_id WHERE o.user_id=?${b ? ' AND o.branch_id=?' : ''} ORDER BY o.id DESC LIMIT 200`)
+      .all(u.id, ...(b ? [b] : [])).map(o => ({ ...o, items: JSON.parse(o.items_json), items_json: undefined }));
+    if (b && !orders.length) return fail(res, 403, 'Нет заказов этого клиента в вашем филиале');
+    audit(req, 'customer_history_viewed', 'user', u.id);
+    res.json({ user: u, orders });
+  });
 
   /* generic CRUD for menu/branches/banners/promos (super only; reads open to every role so the board can show names) */
   router.get('/:table', isTable, (req, res) => res.json({ rows: db.prepare(`SELECT * FROM ${req.params.table} ORDER BY ${['categories', 'products', 'banners'].includes(req.params.table) ? 'sort,id' : 'id'}`).all() }));

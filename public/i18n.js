@@ -75,7 +75,7 @@
     'Спасибо, что выбрали нас!': 'Bizni tanlaganingiz uchun rahmat!', 'Оцените наш сервис': 'Xizmatimizni baholang',
     'Что вам не понравилось?': 'Sizga nima yoqmadi?', 'Комментарий (необязательно)': 'Izoh (ixtiyoriy)',
     'Спасибо за честный отзыв, мы всё исправим': 'Samimiy fikringiz uchun rahmat, hammasini tuzatamiz', 'Спасибо за оценку!': 'Bahoyingiz uchun rahmat!',
-    'Язык приложения': 'Ilova tili',
+    'Язык приложения': 'Ilova tili', 'В корзину': 'Savatga', 'Пока нет товаров для обмена': 'Almashtirish uchun mahsulotlar hozircha yo\'q',
     /* server messages */
     'Требуется вход': 'Kirish talab qilinadi', 'Введите номер из 9 цифр после +998': '+998 dan keyin 9 ta raqamni kiriting',
     'Подождите перед повторной отправкой': 'Qayta yuborishdan oldin kuting', 'Слишком много попыток. Попробуйте через час': 'Juda ko\'p urinish. Bir soatdan keyin urinib ko\'ring',
@@ -105,6 +105,7 @@
   const P = [ // [regex, replacement function]
     [/^Заказ №(\d+) (принят|готов|доставлен|выдан|отменён|оформлен)$/, (n, v) => `№${n} buyurtma ${VERB[v]}`],
     [/^Заказ №(\d+)$/, n => `№${n} buyurtma`],
+    [/^начисляем (\d+)% от каждого заказа$/, n => `har bir buyurtmadan ${n}% hisoblaymiz`],
     [/^Курьер везёт заказ №(\d+)$/, n => `№${n} buyurtmani kuryer olib ketmoqda`],
     [/^Курьер (.*?)\s*уже в пути\. Следите за ним на карте$/, n => `${n ? 'Kuryer ' + n + ' y' : 'Kuryer y'}o'lda. Uni xaritada kuzating`],
     [/^(?:Курьер (.+) · )?осталось ≈ ([\d.]+) км, около (\d+) мин$/, (n, km, m) => `${n ? 'Kuryer ' + n + ' · ' : ''}≈ ${km} km qoldi, taxminan ${m} daqiqa`],

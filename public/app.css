@@ -395,3 +395,16 @@ svg { display: block; }
   .co-title { font-size: 36px; }
   .btn { font-size: 16px; }
 }
+
+/* WendyCoin shop */
+.sbtn.coinbtn { background: var(--card2); } .sbtn.coinbtn img { width: 32px; height: 32px; object-fit: contain; }
+.cs-bal { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 4px 0 4px; }
+.cs-pill { display: inline-flex; align-items: center; gap: 12px; height: 64px; padding: 0 28px; border-radius: 32px; background: var(--card2); font-size: 34px; font-weight: 800; }
+.cs-pill img { width: 34px; height: 34px; object-fit: contain; }
+.cs-cap { color: var(--accent); font-size: 14px; font-weight: 600; }
+.cs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+.cs-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cs-im { aspect-ratio: 1; border-radius: 26px; background: var(--card) center/cover no-repeat; display: grid; place-items: center; overflow: hidden; }
+.cs-im svg { width: 80%; height: 80%; }
+.cs-card h4 { margin: 4px 4px 0; font-size: 16px; font-weight: 600; line-height: 1.25; }
+.coinpill { gap: 8px; } .coinpill img { flex: none; }
