@@ -23,27 +23,24 @@ shutil.copytree(os.path.join(PUB, 'img'), os.path.join(OUT, 'img'))
 shutil.copytree(os.path.join(ROOT, 'uploads'), os.path.join(OUT, 'uploads'),
                 ignore=shutil.ignore_patterns('.*'))
 menu = urllib.request.urlopen('http://localhost:3000/api/menu').read().decode()
-open(os.path.join(OUT, 'menu.json'), 'w', encoding='utf-8').write(rel(menu))
+import json
+menu_obj = json.loads(menu)
+if not menu_obj.get('promos'):
+    menu_obj['promos'] = [{'id': 1, 'code': 'WENDYS10', 'percent': 10, 'fixed': 0, 'min_total': 0, 'title': 'Скидка 10%', 'title_uz': '10% chegirma', 'info': '', 'info_uz': '', 'valid_until': '', 'active': 1}]
+open(os.path.join(OUT, 'menu.json'), 'w', encoding='utf-8').write(rel(json.dumps(menu_obj, ensure_ascii=False)))
 
 css = rel(rd(os.path.join(PUB, 'app.css'))) + '\n' + rd(LEAFLET_CSS).replace('url(images/', 'url(data:,')
 # app scripts in the same order as public/index.html (local ones only, not CDN)
 scripts = re.findall(r'<script src="/([^"]+\.js)"', rd(os.path.join(PUB, 'index.html')))
 js = '\n'.join(rel(rd(os.path.join(PUB, f))) for f in scripts)
 js = js.replace("token: LS.get('token', null)", "token: 'demo'", 1)
+TILE_OLD = "return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });"
+TILE_NEW = '''{ const g = L.gridLayer({ maxZoom: 19 }); g.createTile = function (c) { const t = document.createElement('canvas'); t.width = t.height = 256; const x = t.getContext('2d'); x.fillStyle = '#1e1e22'; x.fillRect(0, 0, 256, 256); for (const [step, col, w] of [[128, '#2a2a30', 2], [512, '#3a3a42', 4]]) { x.strokeStyle = col; x.lineWidth = w; for (let i = 0; i < 256; i++) { if (((c.x * 256 + i) % step) === 0) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, 256); x.stroke(); } if (((c.y * 256 + i) % step) === 0) { x.beginPath(); x.moveTo(0, i); x.lineTo(256, i); x.stroke(); } } } return t; }; return g; }'''
+assert TILE_OLD in js
+js = js.replace(TILE_OLD, TILE_NEW, 1)
 assert "token: 'demo'" in js and '</script' not in js
 
-shim = """(function(){var of=window.fetch.bind(window);
-function J(o,s){return Promise.resolve(new Response(JSON.stringify(o),{status:s||200,headers:{'Content-Type':'application/json'}}));}
-window.fetch=function(u,o){
- if(typeof u==='string'&&u.indexOf('/api/')===0){
-  var m=(o&&o.method)||'GET', p=u.split('?')[0];
-  if(m==='GET'&&p==='/api/menu')return of('menu.json');
-  if(m==='GET'&&p==='/api/me')return J({user:{id:1,name:'Демо',phone:'+998901234567',avatar:0,notify:1,coins:50000}});
-  if(m==='GET'&&p==='/api/addresses')return J({addresses:[]});
-  if(m==='GET'&&p==='/api/cards')return J({cards:[]});
-  if(m==='GET'&&p==='/api/orders')return J({orders:[]});
-  return J({error:'Демо-режим: эта функция доступна в полной версии'},400);}
- return of(u,o);};})();"""
+shim = rd(os.path.join(ROOT, 'scripts', 'demo-backend.js'))
 
 html = f"""<title>Wendy's доставка</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&subset=cyrillic&display=swap" rel="stylesheet">
