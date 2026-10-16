@@ -61,6 +61,9 @@ function glide(m, to, ms) {
   const step = t => { const k = Math.min(1, (t - t0) / (ms || 3500)); m.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]); if (k < 1) m._raf = requestAnimationFrame(step); };
   m._raf = requestAnimationFrame(step);
 }
+/* the customer on his own map: white pill with his profile name and a stick down to the delivery point */
+const pillName = () => { const n = String(St.user?.name || '').trim() || 'Вы'; return n.length > 16 ? n.slice(0, 15) + '…' : n; };
+const pillIcon = () => L.divIcon({ html: `<div class="cpill-w"><div class="cpill"><i><svg width=\"26\" height=\"26\" viewBox=\"0 0 26 26\"><circle cx=\"15\" cy=\"6\" r=\"3.6\" fill=\"#1d1d1f\"/><path d=\"M10 11.2h7.2c1 0 1.8.5 2.3 1.3l3.2 5.4-2.2 1.3-2.7-4.4V24H10.4v-10.6c0-.2-.1-.3-.4-.2z\" fill=\"#1d1d1f\"/><rect x=\"1.5\" y=\"11.4\" width=\"9\" height=\"2.6\" rx=\"1.3\" fill=\"#1d1d1f\"/></svg></i><b>${esc(pillName())}</b></div><div class="cp-stick"></div></div>`, className: 'bm', iconSize: [0, 0], iconAnchor: [0, 0] });
 const TRACK_TEXT = { new: 'Ресторан скоро подтвердит заказ', cooking: 'Ваш заказ готовится', ready: 'Заказ готов, ждём курьера', delivering: 'Курьер везёт заказ', done: 'Заказ доставлен', cancelled: 'Заказ отменён' };
 A.track = id => {
   const T = { map: null, timer: null, m: {}, line: null, routeAt: 0, fitted: false };
@@ -68,9 +71,6 @@ A.track = id => {
     <div id="tmap"></div><div class="tpanel" id="tpanel">Загрузка…</div>`, 'full', () => { clearInterval(T.timer); if (T.geo != null) navigator.geolocation.clearWatch(T.geo); });
   T.map = L.map('tmap', { zoomControl: false, attributionControl: false, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView([41.3111, 69.2797], 13);
   tile().addTo(T.map);
-  if (navigator.geolocation) { // the customer sees himself too (blue dot); nothing happens if the browser does not allow it
-    T.geo = navigator.geolocation.watchPosition(p => { const ll = [p.coords.latitude, p.coords.longitude]; if (T.me) T.me.setLatLng(ll); else T.me = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 3, fillColor: '#2f7bff', fillOpacity: 1 }).addTo(T.map); }, () => { }, { enableHighAccuracy: true, maximumAge: 5000 });
-  }
   T.map.on('zoomend', () => { const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.width = cSize(T.map.getZoom()) + 'px'; });
   setTimeout(() => T.map.invalidateSize(), 150);
   const mk = (k, ll, icon) => { if (T.m[k]) T.m[k].setLatLng(ll); else T.m[k] = L.marker(ll, { icon }).addTo(T.map); };
@@ -90,7 +90,7 @@ A.track = id => {
     if (r.status === 'done') { Sh.close('track'); A.rate(id); return; }
     const pts = [];
     const live = !!(r.courier && r.courier.lat != null); // the courier phone sends its real GPS position
-    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] })); pts.push([r.dest.lat, r.dest.lng]); }
+    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], pillIcon()); pts.push([r.dest.lat, r.dest.lng]); }
     if (r.branch && !live) pts.push([r.branch.lat, r.branch.lng]); // the restaurant is not drawn on the map; it only frames the view until the courier's GPS arrives
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
     const c = r.courier;

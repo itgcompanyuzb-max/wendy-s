@@ -409,3 +409,8 @@ svg { display: block; }
 .cs-im svg { width: 80%; height: 80%; }
 .cs-card h4 { margin: 4px 4px 0; font-size: 16px; font-weight: 600; line-height: 1.25; }
 .coinpill { gap: 8px; } .coinpill img { flex: none; }
+.cpill-w { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.cpill { display: flex; align-items: center; gap: 10px; background: #fff; color: #1d1d1f; border: 1px solid #d4d4d8; border-radius: 999px; padding: 5px 16px 5px 5px; box-shadow: 0 6px 16px rgba(0, 0, 0, .35); white-space: nowrap; }
+.cpill i { width: 38px; height: 38px; border-radius: 12px; background: #a8171e; display: grid; place-items: center; flex: none; }
+.cpill b { font-size: 16px; font-weight: 700; }
+.cp-stick { width: 3px; height: 24px; background: #1d1d1f; border-radius: 2px; }
