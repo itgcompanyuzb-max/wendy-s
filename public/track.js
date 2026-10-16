@@ -52,6 +52,9 @@ setTimeout(pollNotifs, 2000);
 
 /* ---------- live tracking ---------- */
 const km = (a, b, c, d) => { const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
+/* destination = red arrow whose tip sits on the customer's address; courier = the courier picture */
+const destArrow = () => L.divIcon({ html: '<svg width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))"><polygon points="18,46 3,24 13,24 13,2 23,2 23,24 33,24" fill="#e2203d" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>', className: 'bm', iconSize: [36, 48], iconAnchor: [18, 46] });
+const courierIcon = () => L.divIcon({ html: '<img class="cimg" src="/img/courier.png" alt="">', className: 'bm', iconSize: [56, 60], iconAnchor: [28, 30] });
 const TRACK_TEXT = { new: 'Ресторан скоро подтвердит заказ', cooking: 'Ваш заказ готовится', ready: 'Заказ готов, ждём курьера', delivering: 'Курьер везёт заказ', done: 'Заказ доставлен', cancelled: 'Заказ отменён' };
 A.track = id => {
   const T = { map: null, timer: null, m: {}, line: null, routeAt: 0, fitted: false };
@@ -76,24 +79,25 @@ A.track = id => {
     if (!$('#tpanel')) return;
     if (r.status === 'done') { Sh.close('track'); A.rate(id); return; }
     const pts = [];
-    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] })); pts.push([r.dest.lat, r.dest.lng]); }
-    if (r.branch) { mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [40, 64], iconAnchor: [20, 60] })); pts.push([r.branch.lat, r.branch.lng]); }
+    const live = !!(r.courier && r.courier.lat != null); // the courier phone sends GPS
+    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], destArrow()); pts.push([r.dest.lat, r.dest.lng]); }
+    // while the courier has no GPS he is shown at the restaurant, so the restaurant icon is hidden under him
+    const atBranch = r.status === 'delivering' && !live && r.branch;
+    if (r.branch && !atBranch) { mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [40, 64], iconAnchor: [20, 60] })); pts.push([r.branch.lat, r.branch.lng]); }
+    else if (T.m.br) { T.map.removeLayer(T.m.br); delete T.m.br; }
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
-    const c = r.courier;
-    if (c && c.lat != null) {
-      mk('c', [c.lat, c.lng], L.divIcon({ html: '<img class="cimg" src="/img/courier.png" alt="">', className: 'bm', iconSize: [56, 60], iconAnchor: [28, 30] })); pts.push([c.lat, c.lng]);
-      if (r.dest) { // the picture looks 37° clockwise from north: turn it toward the customer
-        const brg = Math.atan2((r.dest.lng - c.lng) * Math.cos(c.lat * Math.PI / 180), r.dest.lat - c.lat) * 180 / Math.PI;
+    const c = r.courier, cp = live ? c : (atBranch ? { lat: r.branch.lat, lng: r.branch.lng } : null);
+    if (cp) {
+      mk('c', [cp.lat, cp.lng], courierIcon()); pts.push([cp.lat, cp.lng]);
+      if (r.dest) { // the picture looks 37 degrees clockwise from north: turn it toward the customer
+        const brg = Math.atan2((r.dest.lng - cp.lng) * Math.cos(cp.lat * Math.PI / 180), r.dest.lat - cp.lat) * 180 / Math.PI;
         const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
+        drawRoute({ lat: cp.lat, lng: cp.lng }, r.dest); // red line: courier -> customer
       }
-      if (r.dest) {
-        drawRoute({ lat: c.lat, lng: c.lng }, r.dest);
+      if (live && r.dest) {
         const left = km(c.lat, c.lng, r.dest.lat, r.dest.lng); const eta = Math.max(1, Math.round(left / 0.35));
         sub = `${c.name ? 'Курьер ' + c.name + ' · ' : ''}осталось ≈ ${left.toFixed(1)} км, около ${eta} мин`;
-      }
-    } else if (r.status === 'delivering') {
-      sub = 'Курьер выехал к вам' + (r.courier?.name ? ' · ' + r.courier.name : '');
-      if (r.dest && r.branch) drawRoute({ lat: r.branch.lat, lng: r.branch.lng }, r.dest); // no GPS from the courier yet: show the way from the restaurant
+      } else sub = 'Курьер выехал к вам' + (c?.name ? ' · ' + c.name : '');
     }
     $('#tpanel').innerHTML = `<b>${esc(text)}</b><span>${esc(sub)}</span>`;
     if (!T.fitted && pts.length) { T.map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 }); T.fitted = pts.length > 1; }

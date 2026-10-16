@@ -95,7 +95,7 @@ function draw() {
     <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a></div>
     <button class="btn primary" data-act="done" data-id="${mine.id}">Доставлено</button></div>`);
   S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map);
-  S.mk.dest = L.marker([a.lat, a.lng], { icon: L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] }) }).addTo(S.map);
+  S.mk.dest = L.marker([a.lat, a.lng], { icon: L.divIcon({ html: '<svg width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))"><polygon points="18,46 3,24 13,24 13,2 23,2 23,24 33,24" fill="#e2203d" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>', className: 'bm', iconSize: [36, 48], iconAnchor: [18, 46] }) }).addTo(S.map);
   if (mine.branch) S.mk.br = L.marker([mine.branch.lat, mine.branch.lng], { icon: L.icon({ iconUrl: '/img/branch.png', iconSize: [36, 57], iconAnchor: [18, 54] }) }).addTo(S.map);
   startGeo(); tick(true);
 }
@@ -117,10 +117,12 @@ async function tick(fit) {
   // start of the line: the courier's real position; until GPS answers, the branch he picked the order up at
   const from = S.pos || (mine.branch ? { lat: mine.branch.lat, lng: mine.branch.lng } : null);
   if (!from) return;
-  if (S.pos) {
-    if (S.mk.me) S.mk.me.setLatLng([S.pos.lat, S.pos.lng]);
-    else S.mk.me = L.marker([S.pos.lat, S.pos.lng], { icon: L.divIcon({ html: '<img src="/img/courier.png" alt="" style="width:52px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))">', className: 'bm', iconSize: [52, 56], iconAnchor: [26, 28] }) }).addTo(S.map);
-  }
+  // the courier picture is always on the map: at his GPS position, or at the restaurant until GPS answers
+  if (S.mk.me) S.mk.me.setLatLng([from.lat, from.lng]);
+  else S.mk.me = L.marker([from.lat, from.lng], { icon: L.divIcon({ html: '<img src="/img/courier.png" alt="" style="width:52px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))">', className: 'bm', iconSize: [52, 56], iconAnchor: [26, 28] }) }).addTo(S.map);
+  const brg = Math.atan2((a.lng - from.lng) * Math.cos(from.lat * Math.PI / 180), a.lat - from.lat) * 180 / Math.PI; // picture looks 37 degrees clockwise from north
+  const im = S.mk.me._icon && S.mk.me._icon.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
+  if (S.mk.br) { if (S.pos) { if (!S.map.hasLayer(S.mk.br)) S.mk.br.addTo(S.map); } else if (S.map.hasLayer(S.mk.br)) S.map.removeLayer(S.mk.br); }
   if (Date.now() - S.routeAt > 15000 || !S.line || (S.pos && !S.lineFromPos)) {
     S.routeAt = Date.now(); S.lineFromPos = !!S.pos; let pts = [[from.lat, from.lng], [a.lat, a.lng]], dashed = true;
     try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${a.lng},${a.lat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(6000) }); const j = await r.json(); if (j.routes?.[0]) { pts = j.routes[0].geometry.coordinates.map(p => [p[1], p[0]]); dashed = false; } } catch { /* straight dashed line */ }
