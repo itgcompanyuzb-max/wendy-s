@@ -26,7 +26,9 @@ menu = urllib.request.urlopen('http://localhost:3000/api/menu').read().decode()
 open(os.path.join(OUT, 'menu.json'), 'w', encoding='utf-8').write(rel(menu))
 
 css = rel(rd(os.path.join(PUB, 'app.css'))) + '\n' + rd(LEAFLET_CSS).replace('url(images/', 'url(data:,')
-js = '\n'.join(rel(rd(os.path.join(PUB, f))) for f in ['i18n.js', 'icons.js', 'app.js', 'chat.js', 'track.js'])
+# app scripts in the same order as public/index.html (local ones only, not CDN)
+scripts = re.findall(r'<script src="/([^"]+\.js)"', rd(os.path.join(PUB, 'index.html')))
+js = '\n'.join(rel(rd(os.path.join(PUB, f))) for f in scripts)
 js = js.replace("token: LS.get('token', null)", "token: 'demo'", 1)
 assert "token: 'demo'" in js and '</script' not in js
 
@@ -36,7 +38,7 @@ window.fetch=function(u,o){
  if(typeof u==='string'&&u.indexOf('/api/')===0){
   var m=(o&&o.method)||'GET', p=u.split('?')[0];
   if(m==='GET'&&p==='/api/menu')return of('menu.json');
-  if(m==='GET'&&p==='/api/me')return J({user:{id:1,name:'Демо',phone:'+998901234567',avatar:0,notify:1,coins:0}});
+  if(m==='GET'&&p==='/api/me')return J({user:{id:1,name:'Демо',phone:'+998901234567',avatar:0,notify:1,coins:50000}});
   if(m==='GET'&&p==='/api/addresses')return J({addresses:[]});
   if(m==='GET'&&p==='/api/cards')return J({cards:[]});
   if(m==='GET'&&p==='/api/orders')return J({orders:[]});
