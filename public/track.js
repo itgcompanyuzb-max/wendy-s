@@ -52,9 +52,9 @@ setTimeout(pollNotifs, 2000);
 
 /* ---------- live tracking ---------- */
 const km = (a, b, c, d) => { const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
-/* destination = red arrow whose tip sits on the customer's address; courier = the courier picture */
-const destArrow = () => L.divIcon({ html: '<svg width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))"><polygon points="18,46 3,24 13,24 13,2 23,2 23,24 33,24" fill="#e2203d" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>', className: 'bm', iconSize: [36, 48], iconAnchor: [18, 46] });
-const courierIcon = () => L.divIcon({ html: '<img class="cimg" src="/img/courier.png" alt="">', className: 'bm', iconSize: [56, 60], iconAnchor: [28, 30] });
+/* courier = the courier picture; it shrinks when the map is zoomed out and grows when zoomed in */
+const cSize = z => Math.max(22, Math.min(46, 22 + (z - 12) * 5));
+const courierIcon = z => L.divIcon({ html: `<div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center"><img class="cimg" src="/img/courier.png" alt="" style="width:${cSize(z)}px"></div>`, className: 'bm', iconSize: [60, 60], iconAnchor: [30, 30] });
 const TRACK_TEXT = { new: 'Ресторан скоро подтвердит заказ', cooking: 'Ваш заказ готовится', ready: 'Заказ готов, ждём курьера', delivering: 'Курьер везёт заказ', done: 'Заказ доставлен', cancelled: 'Заказ отменён' };
 A.track = id => {
   const T = { map: null, timer: null, m: {}, line: null, routeAt: 0, fitted: false };
@@ -62,6 +62,7 @@ A.track = id => {
     <div id="tmap"></div><div class="tpanel" id="tpanel">Загрузка…</div>`, 'full', () => clearInterval(T.timer));
   T.map = L.map('tmap', { zoomControl: false, attributionControl: false, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView([41.3111, 69.2797], 13);
   tile().addTo(T.map);
+  T.map.on('zoomend', () => { const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.width = cSize(T.map.getZoom()) + 'px'; });
   setTimeout(() => T.map.invalidateSize(), 150);
   const mk = (k, ll, icon) => { if (T.m[k]) T.m[k].setLatLng(ll); else T.m[k] = L.marker(ll, { icon }).addTo(T.map); };
   const drawRoute = async (c, d) => {
@@ -80,7 +81,7 @@ A.track = id => {
     if (r.status === 'done') { Sh.close('track'); A.rate(id); return; }
     const pts = [];
     const live = !!(r.courier && r.courier.lat != null); // the courier phone sends GPS
-    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], destArrow()); pts.push([r.dest.lat, r.dest.lng]); }
+    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] })); pts.push([r.dest.lat, r.dest.lng]); }
     // while the courier has no GPS he is shown at the restaurant, so the restaurant icon is hidden under him
     const atBranch = r.status === 'delivering' && !live && r.branch;
     if (r.branch && !atBranch) { mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [40, 64], iconAnchor: [20, 60] })); pts.push([r.branch.lat, r.branch.lng]); }
@@ -88,7 +89,7 @@ A.track = id => {
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
     const c = r.courier, cp = live ? c : (atBranch ? { lat: r.branch.lat, lng: r.branch.lng } : null);
     if (cp) {
-      mk('c', [cp.lat, cp.lng], courierIcon()); pts.push([cp.lat, cp.lng]);
+      mk('c', [cp.lat, cp.lng], courierIcon(T.map.getZoom())); pts.push([cp.lat, cp.lng]);
       if (r.dest) { // the picture looks 37 degrees clockwise from north: turn it toward the customer
         const brg = Math.atan2((r.dest.lng - cp.lng) * Math.cos(cp.lat * Math.PI / 180), r.dest.lat - cp.lat) * 180 / Math.PI;
         const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;

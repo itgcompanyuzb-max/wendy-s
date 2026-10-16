@@ -94,8 +94,8 @@ function draw() {
     <div class="kv"><span>Оплата</span><b>${esc(mine.payment)} · ${money(mine.total)} so'm</b></div>
     <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a></div>
     <button class="btn primary" data-act="done" data-id="${mine.id}">Доставлено</button></div>`);
-  S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map);
-  S.mk.dest = L.marker([a.lat, a.lng], { icon: L.divIcon({ html: '<svg width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))"><polygon points="18,46 3,24 13,24 13,2 23,2 23,24 33,24" fill="#e2203d" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>', className: 'bm', iconSize: [36, 48], iconAnchor: [18, 46] }) }).addTo(S.map);
+  S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map); S.map.on('zoomend', () => { const im = S.mk.me && S.mk.me._icon && S.mk.me._icon.querySelector('img'); if (im) im.style.width = cSize(S.map.getZoom()) + 'px'; });
+  S.mk.dest = L.marker([a.lat, a.lng], { icon: L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] }) }).addTo(S.map);
   if (mine.branch) S.mk.br = L.marker([mine.branch.lat, mine.branch.lng], { icon: L.icon({ iconUrl: '/img/branch.png', iconSize: [36, 57], iconAnchor: [18, 54] }) }).addTo(S.map);
   startGeo(); tick(true);
 }
@@ -110,6 +110,7 @@ function startGeo() {
   if (S.geo != null || !navigator.geolocation) return;
   S.geo = navigator.geolocation.watchPosition(p => { S.pos = { lat: p.coords.latitude, lng: p.coords.longitude }; tick(); if (Date.now() - S.lastSent > 4500) { S.lastSent = Date.now(); api('courier/location', 'POST', S.pos).catch(() => { }); } }, () => toast('Включите геолокацию, чтобы клиент видел вас на карте'), { enableHighAccuracy: true, maximumAge: 3000 });
 }
+const cSize = z => Math.max(22, Math.min(46, 22 + (z - 12) * 5)); // courier picture: smaller when zoomed out
 async function tick(fit) {
   if (!S.map) return;
   const mine = S.data?.mine[0]; if (!mine?.address) return;
@@ -119,7 +120,7 @@ async function tick(fit) {
   if (!from) return;
   // the courier picture is always on the map: at his GPS position, or at the restaurant until GPS answers
   if (S.mk.me) S.mk.me.setLatLng([from.lat, from.lng]);
-  else S.mk.me = L.marker([from.lat, from.lng], { icon: L.divIcon({ html: '<img src="/img/courier.png" alt="" style="width:52px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))">', className: 'bm', iconSize: [52, 56], iconAnchor: [26, 28] }) }).addTo(S.map);
+  else S.mk.me = L.marker([from.lat, from.lng], { icon: L.divIcon({ html: `<div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center"><img src="/img/courier.png" alt="" style="width:${cSize(S.map.getZoom())}px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))"></div>`, className: 'bm', iconSize: [60, 60], iconAnchor: [30, 30] }) }).addTo(S.map);
   const brg = Math.atan2((a.lng - from.lng) * Math.cos(from.lat * Math.PI / 180), a.lat - from.lat) * 180 / Math.PI; // picture looks 37 degrees clockwise from north
   const im = S.mk.me._icon && S.mk.me._icon.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
   if (S.mk.br) { if (S.pos) { if (!S.map.hasLayer(S.mk.br)) S.mk.br.addTo(S.map); } else if (S.map.hasLayer(S.mk.br)) S.map.removeLayer(S.mk.br); }
