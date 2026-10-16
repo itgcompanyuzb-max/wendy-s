@@ -12,3 +12,4 @@ body { padding-bottom: 40px; }
 .ocard .kv { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--stroke-soft); font-size: 15px; }
 .ocard .btn { width: 100%; margin-top: 10px; height: 52px; font-size: 17px; }
 .links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.gpsbar { margin: -4px 0 14px; padding: 10px 14px; border-radius: 14px; background: rgba(255, 170, 0, .14); border: 1px solid rgba(255, 170, 0, .45); color: #ffcf6b; font-size: 14px; line-height: 1.35; }

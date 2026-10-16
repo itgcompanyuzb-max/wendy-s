@@ -55,13 +55,22 @@ const km = (a, b, c, d) => { const r = x => x * Math.PI / 180, h = Math.sin(r(c 
 /* courier = the courier picture; it shrinks when the map is zoomed out and grows when zoomed in */
 const cSize = z => Math.max(22, Math.min(46, 22 + (z - 12) * 5));
 const courierIcon = z => L.divIcon({ html: `<div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center"><img class="cimg" src="/img/courier.png" alt="" style="width:${cSize(z)}px"></div>`, className: 'bm', iconSize: [60, 60], iconAnchor: [30, 30] });
+/* move a marker smoothly to a new point (the courier position arrives every few seconds) */
+function glide(m, to, ms) {
+  const from = m.getLatLng(), t0 = performance.now(); cancelAnimationFrame(m._raf);
+  const step = t => { const k = Math.min(1, (t - t0) / (ms || 3500)); m.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]); if (k < 1) m._raf = requestAnimationFrame(step); };
+  m._raf = requestAnimationFrame(step);
+}
 const TRACK_TEXT = { new: 'Ресторан скоро подтвердит заказ', cooking: 'Ваш заказ готовится', ready: 'Заказ готов, ждём курьера', delivering: 'Курьер везёт заказ', done: 'Заказ доставлен', cancelled: 'Заказ отменён' };
 A.track = id => {
   const T = { map: null, timer: null, m: {}, line: null, routeAt: 0, fitted: false };
   Sh.open('track', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 8px"><button onclick="Sh.close('track')">${I.x()}</button><b style="font-size:18px">Заказ №${id}</b><span style="width:28px"></span></div>
-    <div id="tmap"></div><div class="tpanel" id="tpanel">Загрузка…</div>`, 'full', () => clearInterval(T.timer));
+    <div id="tmap"></div><div class="tpanel" id="tpanel">Загрузка…</div>`, 'full', () => { clearInterval(T.timer); if (T.geo != null) navigator.geolocation.clearWatch(T.geo); });
   T.map = L.map('tmap', { zoomControl: false, attributionControl: false, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView([41.3111, 69.2797], 13);
   tile().addTo(T.map);
+  if (navigator.geolocation) { // the customer sees himself too (blue dot); nothing happens if the browser does not allow it
+    T.geo = navigator.geolocation.watchPosition(p => { const ll = [p.coords.latitude, p.coords.longitude]; if (T.me) T.me.setLatLng(ll); else T.me = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 3, fillColor: '#2f7bff', fillOpacity: 1 }).addTo(T.map); }, () => { }, { enableHighAccuracy: true, maximumAge: 5000 });
+  }
   T.map.on('zoomend', () => { const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.width = cSize(T.map.getZoom()) + 'px'; });
   setTimeout(() => T.map.invalidateSize(), 150);
   const mk = (k, ll, icon) => { if (T.m[k]) T.m[k].setLatLng(ll); else T.m[k] = L.marker(ll, { icon }).addTo(T.map); };
@@ -80,25 +89,26 @@ A.track = id => {
     if (!$('#tpanel')) return;
     if (r.status === 'done') { Sh.close('track'); A.rate(id); return; }
     const pts = [];
-    const live = !!(r.courier && r.courier.lat != null); // the courier phone sends GPS
+    const live = !!(r.courier && r.courier.lat != null); // the courier phone sends its real GPS position
     if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] })); pts.push([r.dest.lat, r.dest.lng]); }
-    // while the courier has no GPS he is shown at the restaurant, so the restaurant icon is hidden under him
-    const atBranch = r.status === 'delivering' && !live && r.branch;
-    if (r.branch && !atBranch) { mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [40, 64], iconAnchor: [20, 60] })); pts.push([r.branch.lat, r.branch.lng]); }
-    else if (T.m.br) { T.map.removeLayer(T.m.br); delete T.m.br; }
+    if (r.branch) { mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [40, 64], iconAnchor: [20, 60] })); pts.push([r.branch.lat, r.branch.lng]); }
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
-    const c = r.courier, cp = live ? c : (atBranch ? { lat: r.branch.lat, lng: r.branch.lng } : null);
-    if (cp) {
-      mk('c', [cp.lat, cp.lng], courierIcon(T.map.getZoom())); pts.push([cp.lat, cp.lng]);
+    const c = r.courier;
+    if (live) {
+      const ll = { lat: c.lat, lng: c.lng };
+      if (T.m.c) glide(T.m.c, ll); else mk('c', [ll.lat, ll.lng], courierIcon(T.map.getZoom()));
+      pts.push([ll.lat, ll.lng]);
       if (r.dest) { // the picture looks 37 degrees clockwise from north: turn it toward the customer
-        const brg = Math.atan2((r.dest.lng - cp.lng) * Math.cos(cp.lat * Math.PI / 180), r.dest.lat - cp.lat) * 180 / Math.PI;
+        const brg = Math.atan2((r.dest.lng - ll.lng) * Math.cos(ll.lat * Math.PI / 180), r.dest.lat - ll.lat) * 180 / Math.PI;
         const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
-        drawRoute({ lat: cp.lat, lng: cp.lng }, r.dest); // red line: courier -> customer
-      }
-      if (live && r.dest) {
-        const left = km(c.lat, c.lng, r.dest.lat, r.dest.lng); const eta = Math.max(1, Math.round(left / 0.35));
+        drawRoute(ll, r.dest); // red line: courier -> customer
+        const left = km(ll.lat, ll.lng, r.dest.lat, r.dest.lng); const eta = Math.max(1, Math.round(left / 0.35));
         sub = `${c.name ? 'Курьер ' + c.name + ' · ' : ''}осталось ≈ ${left.toFixed(1)} км, около ${eta} мин`;
-      } else sub = 'Курьер выехал к вам' + (c?.name ? ' · ' + c.name : '');
+      }
+    } else if (r.status === 'delivering') {
+      // no GPS from the courier yet: no courier picture at a made-up place, only the way from the restaurant
+      sub = 'Курьер выехал к вам' + (c?.name ? ' · ' + c.name : '') + ' · ждём его геолокацию';
+      if (r.dest && r.branch) drawRoute({ lat: r.branch.lat, lng: r.branch.lng }, r.dest);
     }
     $('#tpanel').innerHTML = `<b>${esc(text)}</b><span>${esc(sub)}</span>`;
     if (!T.fitted && pts.length) { T.map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 }); T.fitted = pts.length > 1; }

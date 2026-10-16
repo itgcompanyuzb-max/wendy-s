@@ -86,7 +86,7 @@ function draw() {
   const mine = S.data.mine[0]; S.activeId = mine?.id || null;
   if (!mine) return drawList();
   const a = mine.address || {};
-  shell(`<div id="cmap"></div><div class="glass ocard"><h3>Заказ №${mine.id}</h3><div class="muted">${esc(mine.customer?.name || '')}</div>
+  shell(`<div id="cmap"></div><div id="gpsbar" class="gpsbar" hidden></div><div class="glass ocard"><h3>Заказ №${mine.id}</h3><div class="muted">${esc(mine.customer?.name || '')}</div>
     ${itemsHtml(mine)}
     <div class="kv"><span>Адрес</span><b style="text-align:right">${esc(a.address || '')}</b></div>
     ${[['Подъезд', a.entrance], ['Этаж', a.floor], ['Квартира', a.apartment], ['Домофон', a.intercom]].filter(x => x[1]).map(x => `<div class="kv"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}
@@ -106,25 +106,34 @@ function drawList() {
     ${S.profile.reviews.length ? `<h3 style="margin:22px 4px 10px">Отзывы обо мне</h3>${S.profile.reviews.slice(0, 8).map(r => `<div class="glass ocard" style="padding:14px"><b style="color:${r.stars < 3 ? 'var(--bad)' : '#ffc83d'}">${'★'.repeat(r.stars)}</b> <span class="faint">№${r.order_id}</span><div class="muted">${esc(r.comment) || '—'}</div></div>`).join('')}` : ''}`);
 }
 /* position + route */
+function gpsNote(msg) { const n = document.getElementById('gpsbar'); if (n) { n.textContent = msg || ''; n.hidden = !msg; } }
 function startGeo() {
-  if (S.geo != null || !navigator.geolocation) return;
-  S.geo = navigator.geolocation.watchPosition(p => { S.pos = { lat: p.coords.latitude, lng: p.coords.longitude }; tick(); if (Date.now() - S.lastSent > 4500) { S.lastSent = Date.now(); api('courier/location', 'POST', S.pos).catch(() => { }); } }, () => toast('Включите геолокацию, чтобы клиент видел вас на карте'), { enableHighAccuracy: true, maximumAge: 3000 });
+  if (S.geo != null) return;
+  if (!navigator.geolocation) { gpsNote('Этот браузер не умеет определять местоположение. Откройте страницу с телефона.'); return; }
+  gpsNote('Определяем ваше местоположение… Разрешите доступ к геолокации в браузере.');
+  S.geo = navigator.geolocation.watchPosition(p => {
+    S.pos = { lat: p.coords.latitude, lng: p.coords.longitude }; gpsNote('');
+    tick();
+    if (Date.now() - S.lastSent > 3000) { S.lastSent = Date.now(); api('courier/location', 'POST', S.pos).catch(() => { }); }
+  }, err => {
+    gpsNote(err.code === 1 ? 'Геолокация запрещена: клиент не видит, где вы. Нажмите на значок слева от адреса сайта и выберите «Разрешить», затем обновите страницу.' : 'Не удалось определить местоположение. Проверьте GPS и интернет.');
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
 }
 const cSize = z => Math.max(22, Math.min(46, 22 + (z - 12) * 5)); // courier picture: smaller when zoomed out
 async function tick(fit) {
   if (!S.map) return;
   const mine = S.data?.mine[0]; if (!mine?.address) return;
   const a = mine.address;
-  // start of the line: the courier's real position; until GPS answers, the branch he picked the order up at
+  // the route starts at the courier's real GPS position; until GPS answers it starts at the restaurant (no courier picture is shown at a made-up place)
   const from = S.pos || (mine.branch ? { lat: mine.branch.lat, lng: mine.branch.lng } : null);
   if (!from) return;
-  // the courier picture is always on the map: at his GPS position, or at the restaurant until GPS answers
-  if (S.mk.me) S.mk.me.setLatLng([from.lat, from.lng]);
-  else S.mk.me = L.marker([from.lat, from.lng], { icon: L.divIcon({ html: `<div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center"><img src="/img/courier.png" alt="" style="width:${cSize(S.map.getZoom())}px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))"></div>`, className: 'bm', iconSize: [60, 60], iconAnchor: [30, 30] }) }).addTo(S.map);
-  const brg = Math.atan2((a.lng - from.lng) * Math.cos(from.lat * Math.PI / 180), a.lat - from.lat) * 180 / Math.PI; // picture looks 37 degrees clockwise from north
-  const im = S.mk.me._icon && S.mk.me._icon.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
-  if (S.mk.br) { if (S.pos) { if (!S.map.hasLayer(S.mk.br)) S.mk.br.addTo(S.map); } else if (S.map.hasLayer(S.mk.br)) S.map.removeLayer(S.mk.br); }
-  if (Date.now() - S.routeAt > 15000 || !S.line || (S.pos && !S.lineFromPos)) {
+  if (S.pos) {
+    if (S.mk.me) S.mk.me.setLatLng([S.pos.lat, S.pos.lng]);
+    else S.mk.me = L.marker([S.pos.lat, S.pos.lng], { icon: L.divIcon({ html: `<div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center"><img src="/img/courier.png" alt="" style="width:${cSize(S.map.getZoom())}px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))"></div>`, className: 'bm', iconSize: [60, 60], iconAnchor: [30, 30] }) }).addTo(S.map);
+    const brg = Math.atan2((a.lng - S.pos.lng) * Math.cos(S.pos.lat * Math.PI / 180), a.lat - S.pos.lat) * 180 / Math.PI; // picture looks 37 degrees clockwise from north
+    const im = S.mk.me._icon && S.mk.me._icon.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
+  }
+  if (Date.now() - S.routeAt > 10000 || !S.line || (S.pos && !S.lineFromPos)) {
     S.routeAt = Date.now(); S.lineFromPos = !!S.pos; let pts = [[from.lat, from.lng], [a.lat, a.lng]], dashed = true;
     try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${a.lng},${a.lat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(6000) }); const j = await r.json(); if (j.routes?.[0]) { pts = j.routes[0].geometry.coordinates.map(p => [p[1], p[0]]); dashed = false; } } catch { /* straight dashed line */ }
     if (!S.map) return;

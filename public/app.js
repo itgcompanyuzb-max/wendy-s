@@ -304,7 +304,7 @@ function mapView(mode = 'delivery') {
   tile().addTo(map);
   $('#mx').onclick = () => go('home');
   document.querySelectorAll('#seg button').forEach(b => b.onclick = () => setMapMode(b.dataset.m));
-  $('#loc').onclick = locateMe;
+  $('#loc').onclick = () => locateMe();
   const ro = new ResizeObserver(() => {
     const sh = $('#msheet'); if (!sh) return;
     const h = sh.offsetHeight;
@@ -323,6 +323,7 @@ function mapView(mode = 'delivery') {
   const sa = curAddr();
   setMapMode(mode, true);
   if (mode === 'delivery' && sa) map.setView([sa.lat, sa.lng], 17);
+  else if (mode === 'delivery') locateMe(true); // first open: start where the person really is, not in the city centre
 }
 function setMapMode(mode, first) {
   M.mode = mode; M.selBranch = null; M.step = 1;
@@ -351,12 +352,12 @@ async function reverseGeo() {
     if (inp && document.activeElement !== inp && r.address) { inp.value = r.address; M.address = r.address; updDeliverBtn(); }
   } catch { /* ignore */ }
 }
-function locateMe() {
-  const b = $('#loc'); if (!navigator.geolocation) return toast('Геолокация не поддерживается');
-  b.classList.add('busy');
+function locateMe(silent) {
+  const b = $('#loc'); if (!navigator.geolocation) return silent || toast('Геолокация не поддерживается');
+  if (b) b.classList.add('busy');
   navigator.geolocation.getCurrentPosition(p => {
-    b.classList.remove('busy'); St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
-  }, () => { b.classList.remove('busy'); toast('Разрешите доступ к геолокации в браузере'); }, { enableHighAccuracy: true, timeout: 10000 });
+    if (b) b.classList.remove('busy'); if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
+  }, () => { if (b) b.classList.remove('busy'); if (!silent) toast('Разрешите доступ к геолокации в браузере'); }, { enableHighAccuracy: true, timeout: 10000 });
 }
 function renderDeliverySheet() {
   const sh = $('#msheet');
