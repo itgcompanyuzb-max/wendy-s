@@ -142,7 +142,7 @@ function logoutLocal() { St.token = null; St.user = null; St.addresses = []; St.
 function loginView() {
   $('#view').innerHTML = `
   <div class="view login">
-    <div class="top-row"><button onclick="go('home')">${I.x()}</button><div class="langsw"><button class="${LANG === 'ru' ? 'on' : ''}" onclick="setLang('ru')">RU</button><button class="${LANG === 'uz' ? 'on' : ''}" onclick="setLang('uz')">UZ</button></div><button class="link-or" onclick="A.support()">Поддержка</button></div>
+    <div class="top-row"><button onclick="go('home')">${I.x()}</button><span></span><button class="link-or" onclick="A.support()">Поддержка</button></div>
     <div class="hero"></div>
     <h1>Войдите в профиль</h1>
     <div class="sub">Чтобы копить коины и получать персональные скидки</div>
