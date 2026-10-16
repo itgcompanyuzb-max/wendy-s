@@ -82,7 +82,7 @@ function shell(inner) {
     <div class="stat3"><div class="glass"><b>${p.stats.month_n}</b><small>за месяц</small></div><div class="glass"><b>${p.stats.total_n}</b><small>всего</small></div><div class="glass"><b>${p.stats.rating ? '★ ' + p.stats.rating : '—'}</b><small>рейтинг</small></div></div>${inner}</div>`;
 }
 function draw() {
-  if (S.map) { S.map.remove(); S.map = null; S.mk = {}; S.line = null; }
+  if (S.map) { S.map.remove(); S.map = null; S.mk = {}; S.line = null; S.lineFromPos = false; }
   const mine = S.data.mine[0]; S.activeId = mine?.id || null;
   if (!mine) return drawList();
   const a = mine.address || {};
@@ -92,7 +92,7 @@ function draw() {
     ${[['Подъезд', a.entrance], ['Этаж', a.floor], ['Квартира', a.apartment], ['Домофон', a.intercom]].filter(x => x[1]).map(x => `<div class="kv"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}
     ${a.comment ? `<div class="kv"><span>Комментарий</span><b style="text-align:right">${esc(a.comment)}</b></div>` : ''}
     <div class="kv"><span>Оплата</span><b>${esc(mine.payment)} · ${money(mine.total)} so'm</b></div>
-    <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a><a class="btn" target="_blank" rel="noopener" href="https://yandex.com/maps/?rtext=~${a.lat},${a.lng}&rtt=auto">Яндекс</a><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${a.lat},${a.lng}">Google</a></div>
+    <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a></div>
     <button class="btn primary" data-act="done" data-id="${mine.id}">Доставлено</button></div>`);
   S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map);
   S.mk.dest = L.marker([a.lat, a.lng], { icon: L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] }) }).addTo(S.map);
@@ -111,15 +111,22 @@ function startGeo() {
   S.geo = navigator.geolocation.watchPosition(p => { S.pos = { lat: p.coords.latitude, lng: p.coords.longitude }; tick(); if (Date.now() - S.lastSent > 4500) { S.lastSent = Date.now(); api('courier/location', 'POST', S.pos).catch(() => { }); } }, () => toast('Включите геолокацию, чтобы клиент видел вас на карте'), { enableHighAccuracy: true, maximumAge: 3000 });
 }
 async function tick(fit) {
-  if (!S.map || !S.pos) return;
+  if (!S.map) return;
   const mine = S.data?.mine[0]; if (!mine?.address) return;
   const a = mine.address;
-  if (S.mk.me) S.mk.me.setLatLng([S.pos.lat, S.pos.lng]); else S.mk.me = L.marker([S.pos.lat, S.pos.lng], { icon: L.divIcon({ html: '<div style="width:40px;height:40px;border-radius:50%;background:#e2203d;border:3px solid #fff;display:grid;place-items:center;font-size:20px">🛵</div>', className: 'bm', iconSize: [40, 40], iconAnchor: [20, 20] }) }).addTo(S.map);
-  if (Date.now() - S.routeAt > 15000 || !S.line) {
-    S.routeAt = Date.now(); let pts = [[S.pos.lat, S.pos.lng], [a.lat, a.lng]], dashed = true;
-    try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${S.pos.lng},${S.pos.lat};${a.lng},${a.lat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(6000) }); const j = await r.json(); if (j.routes?.[0]) { pts = j.routes[0].geometry.coordinates.map(p => [p[1], p[0]]); dashed = false; } } catch { /* straight line */ }
+  // start of the line: the courier's real position; until GPS answers, the branch he picked the order up at
+  const from = S.pos || (mine.branch ? { lat: mine.branch.lat, lng: mine.branch.lng } : null);
+  if (!from) return;
+  if (S.pos) {
+    if (S.mk.me) S.mk.me.setLatLng([S.pos.lat, S.pos.lng]);
+    else S.mk.me = L.marker([S.pos.lat, S.pos.lng], { icon: L.divIcon({ html: '<img src="/img/courier.png" alt="" style="width:52px;height:auto;display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))">', className: 'bm', iconSize: [52, 56], iconAnchor: [26, 28] }) }).addTo(S.map);
+  }
+  if (Date.now() - S.routeAt > 15000 || !S.line || (S.pos && !S.lineFromPos)) {
+    S.routeAt = Date.now(); S.lineFromPos = !!S.pos; let pts = [[from.lat, from.lng], [a.lat, a.lng]], dashed = true;
+    try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${a.lng},${a.lat}?overview=full&geometries=geojson`, { signal: AbortSignal.timeout(6000) }); const j = await r.json(); if (j.routes?.[0]) { pts = j.routes[0].geometry.coordinates.map(p => [p[1], p[0]]); dashed = false; } } catch { /* straight dashed line */ }
+    if (!S.map) return;
     if (S.line) S.map.removeLayer(S.line); S.line = L.polyline(pts, { color: '#e2203d', weight: 5, dashArray: dashed ? '8 10' : null }).addTo(S.map);
-    if (fit || !S.fitted) { S.map.fitBounds([[S.pos.lat, S.pos.lng], [a.lat, a.lng]], { padding: [50, 50], maxZoom: 16 }); S.fitted = true; }
+    if (fit || !S.fitted) { S.map.fitBounds([[from.lat, from.lng], [a.lat, a.lng]], { padding: [50, 50], maxZoom: 16 }); S.fitted = true; }
   }
 }
 document.addEventListener('click', async e => {

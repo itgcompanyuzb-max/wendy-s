@@ -91,7 +91,10 @@ A.track = id => {
         const left = km(c.lat, c.lng, r.dest.lat, r.dest.lng); const eta = Math.max(1, Math.round(left / 0.35));
         sub = `${c.name ? 'Курьер ' + c.name + ' · ' : ''}осталось ≈ ${left.toFixed(1)} км, около ${eta} мин`;
       }
-    } else if (r.status === 'delivering') sub = 'Курьер взял заказ, ждём его геолокацию';
+    } else if (r.status === 'delivering') {
+      sub = 'Курьер выехал к вам' + (r.courier?.name ? ' · ' + r.courier.name : '');
+      if (r.dest && r.branch) drawRoute({ lat: r.branch.lat, lng: r.branch.lng }, r.dest); // no GPS from the courier yet: show the way from the restaurant
+    }
     $('#tpanel').innerHTML = `<b>${esc(text)}</b><span>${esc(sub)}</span>`;
     if (!T.fitted && pts.length) { T.map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 }); T.fitted = pts.length > 1; }
   };
