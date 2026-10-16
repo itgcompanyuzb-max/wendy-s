@@ -81,7 +81,11 @@ A.track = id => {
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
     const c = r.courier;
     if (c && c.lat != null) {
-      mk('c', [c.lat, c.lng], L.divIcon({ html: '<div class="cmark">🛵</div>', className: 'bm', iconSize: [44, 44], iconAnchor: [22, 22] })); pts.push([c.lat, c.lng]);
+      mk('c', [c.lat, c.lng], L.divIcon({ html: '<img class="cimg" src="/img/courier.png" alt="">', className: 'bm', iconSize: [56, 60], iconAnchor: [28, 30] })); pts.push([c.lat, c.lng]);
+      if (r.dest) { // the picture looks 37° clockwise from north: turn it toward the customer
+        const brg = Math.atan2((r.dest.lng - c.lng) * Math.cos(c.lat * Math.PI / 180), r.dest.lat - c.lat) * 180 / Math.PI;
+        const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.transform = `rotate(${Math.round(brg - 37)}deg)`;
+      }
       if (r.dest) {
         drawRoute({ lat: c.lat, lng: c.lng }, r.dest);
         const left = km(c.lat, c.lng, r.dest.lat, r.dest.lng); const eta = Math.max(1, Math.round(left / 0.35));
