@@ -96,7 +96,6 @@ function draw() {
     <button class="btn primary" data-act="done" data-id="${mine.id}">Доставлено</button></div>`);
   S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map); S.map.on('zoomend', () => { const im = S.mk.me && S.mk.me._icon && S.mk.me._icon.querySelector('img'); if (im) im.style.width = cSize(S.map.getZoom()) + 'px'; });
   S.mk.dest = L.marker([a.lat, a.lng], { icon: L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] }) }).addTo(S.map);
-  if (mine.branch) S.mk.br = L.marker([mine.branch.lat, mine.branch.lng], { icon: L.icon({ iconUrl: '/img/branch.png', iconSize: [36, 57], iconAnchor: [18, 54] }) }).addTo(S.map);
   startGeo(); tick(true);
 }
 function drawList() {

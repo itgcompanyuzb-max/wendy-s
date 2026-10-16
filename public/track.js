@@ -91,7 +91,7 @@ A.track = id => {
     const pts = [];
     const live = !!(r.courier && r.courier.lat != null); // the courier phone sends its real GPS position
     if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin.png', iconSize: [30, 48], iconAnchor: [15, 46] })); pts.push([r.dest.lat, r.dest.lng]); }
-    if (r.branch) { mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [40, 64], iconAnchor: [20, 60] })); pts.push([r.branch.lat, r.branch.lng]); }
+    if (r.branch && !live) pts.push([r.branch.lat, r.branch.lng]); // the restaurant is not drawn on the map; it only frames the view until the courier's GPS arrives
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
     const c = r.courier;
     if (live) {
