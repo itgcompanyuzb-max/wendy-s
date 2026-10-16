@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Wendy's",
+    "slug": "wendys-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0c0c0e",
+    "ios": { "supportsTablet": false },
+    "android": { "backgroundColor": "#0c0c0e" }
+  }
+}

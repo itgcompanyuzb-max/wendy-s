@@ -86,7 +86,12 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
     const roles = areaRoles(req.body.app);
     const a = db.prepare(`SELECT * FROM admin_users WHERE phone=? AND active=1 AND role IN (${inList(roles)}) ORDER BY id`).get(phone, ...roles);
-    if (!a) { audit(req, 'login_unknown_phone', 'phone', phone); return res.json({ ok: true, resend_in: RESEND }); }
+    if (!a) {
+      audit(req, 'login_unknown_phone', 'phone', phone);
+      // the client is told "sent" either way; the operator sees the real reason in the server log
+      console.warn(`[admin-auth] код не отправлен: нет активного пользователя с ролью ${roles.join('/')} для номера ***${phone.slice(-4)} (добавьте его в админке: Команда)`);
+      return res.json({ ok: true, resend_in: RESEND });
+    }
     if (a.locked_until > now()) return fail(res, 429, 'Вход временно заблокирован. Попробуйте позже');
     const last = db.prepare('SELECT * FROM admin_codes WHERE phone=? ORDER BY id DESC LIMIT 1').get(phone);
     if (last && now() - last.created_at < RESEND) return res.status(429).json({ error: 'Подождите перед повторной отправкой', resend_in: RESEND - (now() - last.created_at) });

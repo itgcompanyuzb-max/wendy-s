@@ -30,7 +30,7 @@ app.get('/healthz', (req, res) => res.type('text').send('ok'));
 app.use(express.json({ limit: '12mb' }));
 const paths = require('./paths');
 app.use('/uploads', express.static(paths.uploadsDir), express.static(paths.repoUploads));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') })); // always revalidate: users get new JS right after an update
 
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const fail = (res, status, message) => res.status(status).json({ error: message });

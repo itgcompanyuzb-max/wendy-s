@@ -2,7 +2,11 @@
  * (also toasts and server messages) is translated on the fly from this dictionary. Menu data has its own *_uz fields. */
 (function () {
   let lang = 'ru';
-  try { lang = localStorage.getItem('lang') === 'uz' ? 'uz' : 'ru'; } catch { /* ignore */ }
+  // no saved choice: follow the phone/browser language (Uzbek -> uz, anything else -> ru); Settings > "Язык приложения" still overrides it
+  try {
+    const saved = localStorage.getItem('lang');
+    lang = saved ? (saved === 'uz' ? 'uz' : 'ru') : (/^uz/i.test(navigator.language || '') ? 'uz' : 'ru');
+  } catch { lang = /^uz/i.test(navigator.language || '') ? 'uz' : 'ru'; }
   window.LANG = lang;
   window.loc = (o, f) => ((!o || !o[f]) ? '' : ((lang === 'uz' && o[f + '_uz']) ? o[f + '_uz'] : o[f])); // an emptied Russian text hides the Uzbek one too
   window.setLang = l => { try { localStorage.setItem('lang', l); } catch { /* ignore */ } location.reload(); };

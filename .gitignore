@@ -5,3 +5,6 @@ data/
 *.db-*
 uploads/*
 !uploads/wendys-*.jpg
+.expo/
+dist/
+demo-dist/
