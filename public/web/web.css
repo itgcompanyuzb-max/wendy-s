@@ -61,9 +61,10 @@ svg { flex: none; }
 
 /* stories / banners */
 .stories { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 18px; }
-.story { position: relative; aspect-ratio: 192 / 240; border-radius: var(--r); overflow: hidden; background: var(--card); text-align: left; transition: transform .2s; }
+.story { position: relative; aspect-ratio: 192 / 240; border-radius: var(--r); overflow: hidden; background: transparent; text-align: left; transition: transform .2s; isolation: isolate; }
 .story:hover { transform: translateY(-3px); }
-.story img { width: 100%; height: 100%; object-fit: cover; }
+.story img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.story span { z-index: 1; }
 .story span { position: absolute; left: 18px; right: 14px; bottom: 18px; font-size: 22px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; text-shadow: 0 2px 14px rgba(0,0,0,.45); }
 .story.noimg span { text-shadow: none; }
 
