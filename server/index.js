@@ -7,6 +7,7 @@ if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
 
 const express = require('express');
 const db = require('./db');
+const zones = require('./zones');
 
 const PORT = Number(process.env.PORT || 3000);
 const TG_TOKEN = process.env.TELEGRAM_GATEWAY_TOKEN || '';
@@ -156,7 +157,17 @@ app.put('/api/me', auth, (req, res) => {
     avatar = Number(req.body.avatar);
     if (!Number.isInteger(avatar) || avatar < 0 || avatar > 9) return fail(res, 400, 'Неверный аватар');
   }
-  db.prepare('UPDATE users SET name=?, notify=?, avatar=? WHERE id=?').run(name, notify, avatar, req.user.id);
+  let birthday = req.user.birthday || '', email = req.user.email || '';
+  if (req.body.birthday !== undefined) {
+    birthday = String(req.body.birthday).trim();
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthday), dt = d && new Date(Date.UTC(+d[1], d[2] - 1, +d[3]));
+    if (birthday && !(d && dt.getUTCDate() === +d[3] && +d[1] >= 1900 && dt < new Date())) return fail(res, 400, 'Неверная дата рождения');
+  }
+  if (req.body.email !== undefined) {
+    email = String(req.body.email).trim().toLowerCase().slice(0, 120);
+    if (email && !/^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/.test(email)) return fail(res, 400, 'Неверный e-mail');
+  }
+  db.prepare('UPDATE users SET name=?, notify=?, avatar=?, birthday=?, email=? WHERE id=?').run(name, notify, avatar, birthday, email, req.user.id);
   res.json({ user: db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id) });
 });
 // Full account deletion. Orders stay (anonymised) because they are accounting records; everything personal goes.
@@ -231,9 +242,27 @@ app.get('/api/menu', (req, res) => {
       support_phone: setting('support_phone', ''),
       coin_value: Number(setting('coin_value', 1)) || 1,
       yandex_key: process.env.YANDEX_MAPS_KEY || '',
+      ...Object.fromEntries(SITE_KEYS.map(k => [k, setting(k, '')])),
     },
+    stats: siteStats(),
   });
 });
+// links shown on the website (header / footer); set in the admin panel
+const SITE_KEYS = ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url', 'about_text', 'product_image_shape'];
+// numbers for the website header/footer: branch count, rating, typical delivery time, orders this month
+function siteStats() {
+  const r = db.prepare('SELECT AVG(stars) a, COUNT(*) n FROM reviews').get();
+  const t = db.prepare("SELECT AVG((julianday(delivered_at) - julianday(created_at)) * 1440) m FROM orders WHERE type='delivery' AND status='done' AND delivered_at IS NOT NULL AND created_at > datetime('now','-30 days')").get().m;
+  return {
+    branches: db.prepare('SELECT COUNT(*) c FROM branches WHERE active=1').get().c,
+    cities: db.prepare('SELECT COUNT(DISTINCT city) c FROM branches WHERE active=1').get().c,
+    rating: r.n ? Math.round(r.a * 100) / 100 : null,
+    reviews: r.n,
+    delivery_min: t && t > 5 && t < 180 ? Math.round(t) : null,
+    orders_month: db.prepare("SELECT COUNT(*) c FROM orders WHERE status<>'cancelled' AND created_at >= date('now','start of month')").get().c,
+  };
+}
+app.get('/api/zones', (req, res) => res.json({ zones: zones.list(true).map(({ id, name, color, polys, branch_ids }) => ({ id, name, color, polys, branch_ids })) }));
 
 const geoCache = new Map();
 app.get('/api/reverse', wrap(async (req, res) => {
@@ -256,6 +285,32 @@ app.get('/api/reverse', wrap(async (req, res) => {
   } catch {
     res.json({ address: '', lat, lng });
   }
+}));
+
+// address search (street, district, metro) for the website's location picker; biased to the branches' area
+const searchCache = new Map();
+app.get('/api/geocode', wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 120);
+  if (q.length < 3) return res.json({ results: [] });
+  const lang = req.query.lang === 'uz' ? 'uz,ru' : 'ru';
+  const key = lang + '|' + q.toLowerCase();
+  if (searchCache.has(key)) return res.json(searchCache.get(key));
+  const bs = db.prepare('SELECT lat,lng FROM branches WHERE active=1').all();
+  const box = bs.length ? [Math.min(...bs.map(b => b.lng)) - .25, Math.max(...bs.map(b => b.lat)) + .2, Math.max(...bs.map(b => b.lng)) + .25, Math.min(...bs.map(b => b.lat)) - .2].join(',') : '';
+  try {
+    const r = await fetch(`${process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org'}/search?format=jsonv2&addressdetails=1&limit=7&countrycodes=uz&accept-language=${lang}${box ? '&bounded=0&viewbox=' + box : ''}&q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': 'wendys-delivery-app/1.0' }, signal: AbortSignal.timeout(8000),
+    });
+    const rows = await r.json();
+    const out = { results: (Array.isArray(rows) ? rows : []).filter(x => x.lat && x.lon).map(x => {
+      const a = x.address || {};
+      const title = [a.road || a.pedestrian || a.neighbourhood || a.suburb || x.name, a.house_number].filter(Boolean).join(', ') || x.display_name.split(',')[0];
+      const sub = [a.suburb || a.city_district, a.city || a.town || a.village || a.state].filter(Boolean).join(', ');
+      return { title, sub, lat: Number(x.lat), lng: Number(x.lon) };
+    }) };
+    if (searchCache.size > 500) searchCache.clear();
+    searchCache.set(key, out); res.json(out);
+  } catch { res.json({ results: [] }); }
 }));
 
 app.post('/api/promo/check', (req, res) => {
@@ -334,10 +389,21 @@ function branchFee(b, amount) {
 
 // ---------- delivery routing: nearest open branch that can deliver ----------
 function pickBranch(lat, lng, items) {
-  const open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
+  let open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
+  const zs = zones.zonesAt(lat, lng); // null = no zones drawn yet, use each branch's radius
+  if (zs) {
+    if (!zs.length) return { error: 'zone' };
+    const serving = new Set(zs.flatMap(z => z.branch_ids));
+    if (!serving.size) return { error: 'zone' };
+    open = open.filter(b => serving.has(b.id));
+    if (!open.length) return { error: 'closed' };
+  }
   if (!open.length) return { error: 'closed' };
-  const inRadius = open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
-  if (!inRadius.length) return { error: 'radius' };
+  const inRadius = zs ? open : open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
+  if (!inRadius.length) { // tell the customer how far the nearest open branch is and what its delivery radius is
+    const near = open.map(b => ({ b, d: dist(lat, lng, b.lat, b.lng) })).sort((x, y) => x.d - y.d)[0];
+    return { error: 'radius', near: { name: near.b.name || near.b.address, km: Math.round(near.d * 10) / 10, radius: near.b.delivery_radius || 7 } };
+  }
   const off = {};
   for (const r of db.prepare('SELECT branch_id, product_id FROM branch_stock WHERE available=0').all()) (off[r.branch_id] = off[r.branch_id] || new Set()).add(r.product_id);
   const missing = b => items.find(i => off[b.id]?.has(i.product_id))?.name || '';
@@ -351,7 +417,8 @@ function pickBranch(lat, lng, items) {
   return { branch: near[0], distance: near[0].d };
 }
 const pickMessage = r => (r.error === 'closed' ? 'Пока не принимаем заказы. Попробуйте заказать позже'
-  : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' : `Сейчас нет в наличии: ${r.name}`);
+  : r.error === 'zone' ? 'К сожалению, ваш адрес вне зоны доставки. Посмотрите зоны доставки на карте'
+  : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' + (r.near ? ` Ближайший филиал «${r.near.name}» — ${r.near.km} км, зона доставки — ${r.near.radius} км.` : '') : `Сейчас нет в наличии: ${r.name}`);
 app.post('/api/delivery/quote', (req, res) => {
   const lat = Number(req.body.lat), lng = Number(req.body.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return fail(res, 400, 'Нет координат');

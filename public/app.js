@@ -67,6 +67,8 @@ const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
 const coinsInCart = () => St.cart.reduce((n, c) => n + (c.coin ? (prod(c.id)?.coin_cost || 0) * c.qty : 0), 0);
 const cartCount = () => St.cart.reduce((s, c) => s + c.qty, 0);
 function saveCart() { LS.set('cart', St.cart); }
+const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
+const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
 function totals() {
   let sub = 0, full = 0;
   for (const c of St.cart) { const p = prod(c.id); if (!p || c.coin) continue; sub += p.price * c.qty; full += (p.old_price || p.price) * c.qty; }
@@ -283,7 +285,7 @@ function nameView() {
 const TASH = [41.3111, 69.2797];
 const tile = () => {
   const key = St.menu.settings.yandex_key;
-  if (key) return L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=ru_RU&x={x}&y={y}&z={z}&l=map&apikey=${key}`, { maxZoom: 19 });
+  if (key) return L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=${window.LANG === 'uz' ? 'uz_UZ' : 'ru_RU'}&x={x}&y={y}&z={z}&l=map&apikey=${key}`, { maxZoom: 19 });
   return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
 };
 const flag = `<span style="font-size:20px">🇺🇿</span>`;
@@ -302,6 +304,9 @@ function mapView(mode = 'delivery') {
   </div>`;
   const map = St.map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: .5, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView(TASH, 12);
   tile().addTo(map);
+  // delivery zones drawn by the admin (real district borders); customers see where we deliver
+  (St.zones ? Promise.resolve() : api('/zones').then(r => { St.zones = r.zones; }).catch(() => { St.zones = []; }))
+    .then(() => { if (St.map === map) St.zones.forEach(z => L.polygon(z.polys, { color: z.color || '#e2203d', weight: 2, fillOpacity: .08, interactive: false }).addTo(map)); });
   $('#mx').onclick = () => go('home');
   document.querySelectorAll('#seg button').forEach(b => b.onclick = () => setMapMode(b.dataset.m));
   $('#loc').onclick = () => locateMe();
@@ -356,7 +361,12 @@ function locateMe(silent) {
   const b = $('#loc'); if (!navigator.geolocation) return silent || toast('Геолокация не поддерживается');
   if (b) b.classList.add('busy');
   navigator.geolocation.getCurrentPosition(p => {
-    if (b) b.classList.remove('busy'); if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
+    if (b) b.classList.remove('busy');
+    // on the first (automatic) open, only jump to the person if he is inside some branch's delivery zone; otherwise stay in the city
+    const la = p.coords.latitude, ln = p.coords.longitude;
+    const inZone = St.zones?.length ? St.zones.some(z => inPolys(la, ln, z.polys)) : (St.menu.branches || []).some(br => br.active && km(la, ln, br.lat, br.lng) <= (br.delivery_radius || 7));
+    if (silent && !inZone) return toast('Ваше местоположение вне зоны доставки — выберите адрес на карте');
+    if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
   }, () => { if (b) b.classList.remove('busy'); if (!silent) toast('Разрешите доступ к геолокации в браузере'); }, { enableHighAccuracy: true, timeout: 10000 });
 }
 function renderDeliverySheet() {
@@ -512,7 +522,7 @@ function homeView() {
       <button class="avatar" onclick="A.profile()">${avatarInner()}</button>
     </div>
     <div class="home-body" id="hb">
-      <div class="stories">${m.banners.map(b => `<div class="story" style="background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
+      <div class="stories">${m.banners.map(b => `<div class="story" onclick="A.banner(${b.id})" style="cursor:pointer;background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
       <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button><button class="sbtn coinbtn" onclick="A.coinShop()" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button>
         ${m.categories.map(c => `<button class="ch ${c.id === St.cat ? 'on' : ''}" data-cat="${c.id}" onclick="A.gotoCat(${c.id})">${esc(loc(c, 'name'))}</button>`).join('')}</div>
       ${St.searchOpen ? `<div class="searchrow"><input id="sq" placeholder="Поиск по меню" value="${esc(St.q)}"></div>` : ''}
@@ -566,7 +576,7 @@ A.product = id => {
     <div class="pc" style="background:none;min-height:0;cursor:default;padding:12px 16px">
       <div class="im" style="aspect-ratio:1.2;background-color:#1b1b1e;background-size:cover;background-position:center;${p.image ? `background-image:url('${esc(p.image)}')` : ''}">${p.image ? '' : ph(p)}</div>
       <h3 style="font-size:28px;margin:16px 0 8px">${esc(loc(p, 'name'))}</h3><p style="font-size:16px;-webkit-line-clamp:unset;margin:0 0 4px">${esc(loc(p, 'description'))}</p></div>${(p.addons || []).map(prod).filter(Boolean).length ? `<div style="padding:4px 16px 8px"><div class="h2" style="font-size:21px;margin:14px 0 12px">С этим берут</div><div class="hscroll">${p.addons.map(prod).filter(Boolean).map(a => `<div class="rec"><div class="im" ${imgOf(a)}>${a.image ? '' : ph(a)}</div><b>${esc(loc(a, 'name'))}</b><span></span><div data-pill="${a.id}">${pillInner(a)}</div></div>`).join('')}</div></div>` : ''}</div>
-    <div class="foot">${p.coin_cost > 0 && St.user ? `<button class="btn gray" style="margin-bottom:10px" onclick="A.addCoin(${p.id});Sh.close('product')">${I.coin(22)}&nbsp;Обменять на ${p.coin_cost} WendyCoin</button>` : ''}<button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
+    <div class="foot"><button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
 };
 
 /* address / mode sheet */
@@ -804,7 +814,7 @@ function renderSettings() {
 A.saveSettings = async () => {
   try {
     const r = await api('/me', { method: 'PUT', body: { name: St.draft.name, notify: St.draft.notify } });
-    St.user = r.user; Sh.close('settings'); homeView();
+    St.user = r.user; Sh.close('settings'); Sh.refresh('profile'); homeView();
   } catch (e) { toast(e.message); }
 };
 A.avatarPicker = () => {
@@ -819,8 +829,20 @@ A.avatarPicker = () => {
     <div class="foot" style="position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--card) 40%)"><button class="btn" ${sel === cur ? 'disabled' : ''} onclick="A.setAvatar()">${sel === cur ? 'Установлен' : 'Установить'}</button></div>`;
   }, 'full');
 };
+/* banner viewer: the whole picture; a button to the banner's link only when the admin set one */
+A.banner = id => {
+  const b = (St.menu.banners || []).find(x => x.id === id); if (!b) return;
+  const link = /^https?:\/\//i.test(b.link || '') ? b.link : '';
+  const title = loc(b, 'title');
+  Sh.open('banner', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 0"><button onclick="Sh.close('banner')">${I.x()}</button><span></span></div>
+    <div class="body" style="padding:10px 16px ${link ? 110 : 24}px">
+      ${b.image ? `<img src="${esc(b.image)}" alt="" style="display:block;width:100%;height:auto;border-radius:22px;background:${esc(b.color)}">` : `<div style="border-radius:22px;padding:28px 22px;min-height:220px;display:flex;align-items:flex-end;font-size:28px;font-weight:800;line-height:1.15;background:${esc(b.color)}">${esc(title)}</div>`}
+      ${b.image && title ? `<h2 style="margin:18px 4px 0;font-size:24px">${esc(title)}</h2>` : ''}
+    </div>
+    ${link ? `<div class="foot"><a class="btn" href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Подробнее</a></div>` : ''}`, 'full');
+};
 A.setAvatar = async () => {
-  try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); homeView(); } catch (e) { toast(e.message); }
+  try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); Sh.refresh('profile'); homeView(); } catch (e) { toast(e.message); }
 };
 
 /* change phone: new number -> code sent to the NEW number -> confirm */
@@ -901,6 +923,7 @@ async function loadUserData() {
 (async function boot() {
   try {
     St.menu = await api('/menu');
+    document.body.classList.toggle('img-circle', St.menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
     if (St.token) {
       try { St.user = (await api('/me', { noLogout: true })).user; await loadUserData(); } catch { logoutLocal(); }
     }

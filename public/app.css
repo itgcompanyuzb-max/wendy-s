@@ -414,3 +414,4 @@ svg { display: block; }
 .cpill i { width: 38px; height: 38px; border-radius: 12px; background: #a8171e; display: grid; place-items: center; flex: none; }
 .cpill b { font-size: 16px; font-weight: 700; }
 .cp-stick { width: 3px; height: 24px; background: #1d1d1f; border-radius: 2px; }
+.img-circle .pc .im, .img-circle .ci .th, .img-circle .rec .im { border-radius: 50%; }

@@ -40,7 +40,7 @@ const STATUS = { new: 'Новый', cooking: 'Готовится', ready: 'Го�
 
 /* ---------- maps: Yandex tiles when a key is configured, otherwise OpenStreetMap ---------- */
 let MAPKEY = '';
-fetch('/api/menu').then(r => r.json()).then(m => { MAPKEY = m.settings.yandex_key || ''; }).catch(() => { });
+const KEY_READY = fetch('/api/menu').then(r => r.json()).then(m => { MAPKEY = m.settings.yandex_key || ''; }).catch(() => { }); // maps wait for it, so Yandex is used from the first draw
 const tiles = () => (MAPKEY ? L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=ru_RU&x={x}&y={y}&z={z}&l=map&apikey=${MAPKEY}`, { maxZoom: 19 }) : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }));
 const newMap = el => L.map(el, { attributionControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) });
 const cabinet = (w = 44) => L.icon({ iconUrl: '/img/branch.png', iconSize: [w, Math.round(w * 1.58)], iconAnchor: [w / 2, Math.round(w * 1.5)], popupAnchor: [0, -Math.round(w * 1.4)] });
@@ -97,7 +97,7 @@ const head = (title, tools = '') => `<div class="top"><h1>${title}</h1><div clas
 async function loadTab() {
   clearInterval(S.timer);
   const main = $('#main'); main.innerHTML = '<div class="grid"><div class="skeleton"></div><div class="skeleton"></div></div>';
-  try { await ensureBranches(); await VIEWS[S.tab](main); } catch (e) { if (S.token) main.innerHTML = `<div class="glass card empty">${esc(e.message)}</div>`; }
+  try { await KEY_READY; await ensureBranches(); await VIEWS[S.tab](main); } catch (e) { if (S.token) main.innerHTML = `<div class="glass card empty">${esc(e.message)}</div>`; }
 }
 
 /* ---------- login: phone -> Telegram code -> (TOTP) ---------- */
@@ -237,7 +237,7 @@ VIEWS.banners = async main => {
   const rows = (await api('banners')).rows;
   main.innerHTML = head('Баннеры', '<button class="btn primary" data-act="add" data-t="banners">+ Загрузить баннер</button>') +
     (rows.length ? `<div class="grid media">${rows.map(b => `<div class="glass mcard"><div class="img" style="background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}">${b.image ? '' : esc(b.title)}</div>
-      <div class="bd"><b>${esc(b.title) || 'Без названия'}</b><span class="pill ${b.active ? 'ok' : 'bad'}">${b.active ? 'показывается' : 'скрыт'}</span>
+      <div class="bd"><b>${esc(b.title) || 'Без названия'}</b><span class="pill ${b.active ? 'ok' : 'bad'}">${b.active ? 'показывается' : 'скрыт'}</span>${b.link ? ' <span class="pill ok">есть ссылка</span>' : ''}
       <div class="acts"><button class="btn sm" data-act="edit" data-t="banners" data-id="${b.id}">Изменить</button><button class="btn sm danger" data-act="del" data-t="banners" data-id="${b.id}">Удалить</button></div></div></div>`).join('')}</div>` : '<div class="glass card empty">Баннеров пока нет. Нажмите «Загрузить баннер».</div>');
 };
 VIEWS.promos = async main => { const rows = (await api('promos')).rows; main.innerHTML = head('Промокоды', '<button class="btn primary" data-act="add" data-t="promos">+ Промокод</button>') + table('promos', rows, ['code', 'percent', 'fixed', 'min_total', 'title', 'active']); };
@@ -263,16 +263,125 @@ VIEWS.security = async main => {
     settings = `<div class="glass card" style="margin-top:16px"><h3>Системные настройки</h3><form data-form="settings"><div class="g2">
       <label class="field"><span>Название бренда</span><input name="brand" value="${esc(s.brand)}"></label>
       <label class="field"><span>Телефон поддержки</span><input name="support_phone" value="${esc(s.support_phone)}"></label>
-      <label class="field"><span>WendyCoin за заказ, %</span><input type="number" name="coin_percent" value="${esc(s.coin_percent)}"></label></div><div style="margin-top:16px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`;
+      <label class="field"><span>WendyCoin за заказ, %</span><input type="number" name="coin_percent" value="${esc(s.coin_percent)}"></label>
+      <label class="field"><span>E-mail для отзывов (сайт)</span><input name="support_email" value="${esc(s.support_email || '')}" placeholder="feedback@..."></label></div>
+      <h3 style="margin:22px 0 0">Сайт: ссылки в шапке и подвале</h3><p class="muted" style="margin:4px 0 0;font-size:13px">Пустые ссылки на сайте не показываются. Только https://</p><div class="g2">
+      ${[['app_store_url', 'App Store'], ['google_play_url', 'Google Play'], ['instagram_url', 'Instagram'], ['telegram_url', 'Telegram'], ['facebook_url', 'Facebook']].map(([k, t]) => `<label class="field"><span>${t}</span><input name="${k}" value="${esc(s[k] || '')}" placeholder="https://"></label>`).join('')}</div>
+      <label class="field"><span>Фото товаров в меню (сайт и приложение)</span><select name="product_image_shape"><option value="square" ${s.product_image_shape !== 'circle' ? 'selected' : ''}>Квадрат со скруглёнными углами (как в приложении)</option><option value="circle" ${s.product_image_shape === 'circle' ? 'selected' : ''}>Круг</option></select></label>
+      <label class="field"><span>О компании (текст на сайте, необязательно)</span><textarea name="about_text" rows="3">${esc(s.about_text || '')}</textarea></label><div style="margin-top:16px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`;
   }
   main.innerHTML = head('Безопасность') + `<div class="glass card"><h3>Сессия</h3><p class="muted">Вход по коду из Telegram. Автовыход через 30 минут бездействия, максимум 12 часов. Все важные действия записываются в журнал.</p><button class="btn" data-act="logout">Выйти</button></div>${settings}`;
 };
 
-/* ---------- delivery: radius on the map + prices per branch ---------- */
+/* ---------- delivery: zones (real district boundaries) or radius + prices per branch ---------- */
 VIEWS.delivery = async main => {
+  const sub = S.dsub || 'zones';
+  const tabs = `<div class="tabs" style="margin:0">${[['zones', 'Зоны доставки'], ['radius', 'Радиус и цены']].map(([k, t]) => `<button class="${sub === k ? 'on' : ''}" data-act="dsub" data-v="${k}">${t}</button>`).join('')}</div>`;
+  return sub === 'zones' ? deliveryZones(main, tabs) : deliveryRadius(main, tabs);
+};
+const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
+const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
+const nPoints = polys => polys.reduce((n, p) => n + p.reduce((m, r) => m + r.length, 0), 0);
+async function deliveryZones(main, tabs) {
+  S.branches = (await api('branches')).rows;
+  let zones = (await api('zones')).rows;
+  main.innerHTML = '<div id="zv">' + head('Доставка', tabs) + `<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(300px,1fr);align-items:start">
+    <div class="glass" style="padding:10px;position:sticky;top:16px"><div id="zmap" style="height:640px"></div><div class="faint" id="zhint" style="padding:8px 6px 0;font-size:13px"></div></div>
+    <div class="glass card" id="zpanel"></div></div></div>`;
+  const zv = $('#zv'); // listeners live on this element, so re-rendering the tab never stacks them
+  const map = newMap('zmap').setView([41.3111, 69.2797], 11); tiles().addTo(map);
+  const zl = L.layerGroup().addTo(map), bl = L.layerGroup().addTo(map), el = L.layerGroup().addTo(map);
+  let ed = null, drawing = false, found = [];
+  const branchName = b => b.name || b.address;
+  const fit = polys => { const pts = polys.flatMap(p => p[0]); if (pts.length) map.fitBounds(pts, { padding: [40, 40] }); };
+  const drawAll = () => {
+    zl.clearLayers(); el.clearLayers(); bl.clearLayers();
+    for (const z of zones) {
+      if (ed && z.id === ed.id) continue;
+      L.polygon(z.polys, { color: z.color, weight: 1.5, fillOpacity: ed ? .06 : .16, opacity: ed ? .5 : 1 }).addTo(zl).bindTooltip(esc(z.name), { sticky: true }).on('click', () => { if (!drawing) edit(z); });
+    }
+    if (ed && ed.polys.length && ed.polys[0][0].length) {
+      const pg = L.polygon(ed.polys, { color: ed.color, weight: 3, fillOpacity: .22 }).addTo(el);
+      if (drawing && nPoints(ed.polys) <= 300) ed.polys[0][0].forEach((p, i) => L.marker(p, { draggable: true, icon: L.divIcon({ className: 'zv', html: '', iconSize: [14, 14] }) }).addTo(el)
+        .on('drag', e => { ed.polys[0][0][i] = [e.latlng.lat, e.latlng.lng]; pg.setLatLngs(ed.polys); }).on('dragend', drawAll));
+    }
+    for (const b of S.branches) {
+      const on = ed && ed.branch_ids.includes(b.id);
+      const m = L.marker([b.lat, b.lng], { icon: cabinet(on ? 46 : 36), opacity: !ed || on ? 1 : .45 }).addTo(bl).bindTooltip(esc(branchName(b)), { permanent: !!on, direction: 'top', offset: [0, -60] });
+      m.on('click', () => { if (ed && !drawing) { ed.branch_ids = on ? ed.branch_ids.filter(x => x !== b.id) : [...ed.branch_ids, b.id]; panel(); drawAll(); } });
+    }
+    $('#zhint').textContent = drawing ? 'Режим рисования: нажимайте на карту, чтобы добавить точки границы. Точки можно перетаскивать.' : ed ? 'Нажмите на филиал на карте, чтобы добавить его в зону или убрать.' : zones.length ? 'Нажмите на зону, чтобы изменить её.' : '';
+  };
+  const list = () => {
+    const usedBy = id => zones.filter(z => z.branch_ids.includes(id)).length;
+    const free = S.branches.filter(b => !usedBy(b.id));
+    $('#zpanel').innerHTML = `<div class="row" style="border:0;padding-top:0"><h3 style="margin:0">Зоны доставки</h3><button class="btn sm primary" data-z="new">+ Новая зона</button></div>
+      ${zones.length ? '' : '<p class="muted">Зон пока нет — доставка работает по радиусу каждого филиала. После сохранения первой зоны заказы принимаются <b>только внутри зон</b>, и каждую зону обслуживают выбранные вами филиалы.</p>'}
+      ${zones.map(z => `<div class="row" style="cursor:pointer" data-z="edit" data-id="${z.id}"><span style="display:flex;gap:10px;align-items:center"><i style="width:14px;height:14px;border-radius:4px;background:${esc(z.color)};display:inline-block"></i><span><b>${esc(z.name)}</b><div class="faint" style="font-size:12px">${z.branch_ids.length ? z.branch_ids.map(id => esc(branchName(S.branches.find(b => b.id === id) || { name: '#' + id }))).join(', ') : '<span style="color:var(--bad)">нет филиалов</span>'}</div></span></span><span class="pill ${z.active ? 'ok' : 'bad'}">${z.active ? 'вкл' : 'выкл'}</span></div>`).join('')}
+      ${zones.length && free.length ? `<p class="muted" style="font-size:13px;margin-bottom:0">Филиалы без зоны (не получают доставку): ${free.map(b => esc(branchName(b))).join(', ')}</p>` : ''}`;
+  };
+  const panel = () => {
+    if (!ed) return list();
+    const pts = nPoints(ed.polys);
+    $('#zpanel').innerHTML = `<h3 style="margin-top:0">${ed.id ? 'Зона' : 'Новая зона'}</h3>
+      <label class="field"><span>Название (видят клиенты)</span><input data-zf="name" value="${esc(ed.name)}" placeholder="Например: Qibray"></label>
+      <div class="g2"><label class="field"><span>Цвет</span><input type="color" data-zf="color" value="${esc(ed.color)}"></label>
+      <label class="check" style="margin-top:34px"><span class="sw ${ed.active ? 'on' : ''}" data-z="active"></span><span>Принимать заказы</span></label></div>
+      <div class="field"><span>Граница района из карты (OpenStreetMap)</span><div style="display:flex;gap:8px"><input data-zf="q" placeholder="Qibray tumani" style="flex:1"><button class="btn sm" data-z="find">Найти</button></div></div>
+      <div id="zfound">${found.map((r, i) => `<div class="row" style="cursor:pointer" data-z="use" data-i="${i}"><span><b>${esc(r.name.split(',')[0])}</b><div class="faint" style="font-size:12px">${esc(r.name)}</div></span><span class="pill info">${esc(r.type)} · ${nPoints(r.polys)} т.</span></div>`).join('')}</div>
+      <div class="row"><span class="muted" style="font-size:13px">${pts ? `Граница: ${ed.polys.length > 1 ? ed.polys.length + ' части, ' : ''}${pts} точек` : 'Граница не задана'}</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sm ${drawing ? 'primary' : ''}" data-z="draw">${drawing ? 'Готово' : 'Нарисовать вручную'}</button>${drawing && pts ? '<button class="btn sm" data-z="undo">Отменить точку</button>' : ''}${pts ? '<button class="btn sm danger" data-z="clear">Очистить</button>' : ''}</span></div>
+      <div class="field"><span>Филиалы, которые доставляют в эту зону</span>${S.branches.map(b => `<label class="addon"><input type="checkbox" data-zb="${b.id}" ${ed.branch_ids.includes(b.id) ? 'checked' : ''}><span>${esc(branchName(b))}</span><small>${pts && inPolys(b.lat, b.lng, ed.polys) ? 'внутри зоны' : ''}</small></label>`).join('')}
+        ${pts ? '<button class="btn sm" data-z="inside" style="margin-top:8px">Отметить филиалы внутри зоны</button>' : ''}</div>
+      <div class="err" id="zerr"></div>
+      <div class="foot" style="margin-top:16px">${ed.id ? '<button class="btn danger" data-z="del">Удалить</button>' : ''}<span style="flex:1"></span><button class="btn" data-z="cancel">Отмена</button><button class="btn primary" data-z="save">Сохранить</button></div>`;
+  };
+  const edit = z => { ed = z ? JSON.parse(JSON.stringify(z)) : { id: null, name: '', color: '#e2203d', active: 1, polys: [], branch_ids: [] }; drawing = !z; found = []; panel(); drawAll(); if (z) fit(z.polys); };
+  map.on('click', e => {
+    if (!ed || !drawing) return;
+    if (!ed.polys.length || ed.polys.length > 1 || ed.polys[0].length > 1) ed.polys = [[[]]]; // manual drawing = one simple polygon
+    ed.polys[0][0].push([+e.latlng.lat.toFixed(6), +e.latlng.lng.toFixed(6)]); panel(); drawAll();
+  });
+  zv.addEventListener('input', e => { const k = e.target.dataset.zf; if (ed && k && k !== 'q') { ed[k] = e.target.value; if (k === 'color') drawAll(); } });
+  zv.addEventListener('change', e => { const id = Number(e.target.dataset.zb); if (ed && id) { ed.branch_ids = e.target.checked ? [...new Set([...ed.branch_ids, id])] : ed.branch_ids.filter(x => x !== id); drawAll(); } });
+  zv.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.zf === 'q') { e.preventDefault(); zv.querySelector('[data-z=find]').click(); } });
+  zv.addEventListener('click', async e => {
+    const t = e.target.closest('[data-z]'); if (!t) return; const a = t.dataset.z;
+    if (a === 'new') edit(null);
+    else if (a === 'edit') edit(zones.find(z => z.id === Number(t.dataset.id)));
+    else if (a === 'cancel') { ed = null; drawing = false; panel(); drawAll(); }
+    else if (a === 'active') { ed.active = ed.active ? 0 : 1; t.classList.toggle('on', !!ed.active); }
+    else if (a === 'draw') { drawing = !drawing; panel(); drawAll(); }
+    else if (a === 'undo') { ed.polys[0][0].pop(); if (!ed.polys[0][0].length) ed.polys = []; panel(); drawAll(); }
+    else if (a === 'clear') { ed.polys = []; panel(); drawAll(); }
+    else if (a === 'inside') { ed.branch_ids = S.branches.filter(b => inPolys(b.lat, b.lng, ed.polys)).map(b => b.id); panel(); drawAll(); }
+    else if (a === 'find') {
+      const q = zv.querySelector('[data-zf=q]').value.trim(); if (!q) return;
+      t.disabled = true; t.textContent = 'Ищем…';
+      try { found = (await api('zones/lookup?q=' + encodeURIComponent(q))).rows; if (!found.length) toast('Граница не найдена. Попробуйте «Qibray tumani» или нарисуйте вручную'); } catch (er) { toast(er.message); }
+      panel(); zv.querySelector('[data-zf=q]').value = q;
+    } else if (a === 'use') {
+      const r = found[Number(t.dataset.i)]; ed.polys = r.polys; drawing = false; if (!ed.name) ed.name = r.name.split(',')[0];
+      found = []; panel(); drawAll(); fit(ed.polys);
+    } else if (a === 'save') {
+      if (!ed.branch_ids.length && !(await ask('Зона без филиалов', 'В эту зону никто не сможет доставлять. Сохранить всё равно?', 'Сохранить', false))) return;
+      try {
+        const r = await api(ed.id ? 'zones/' + ed.id : 'zones', ed.id ? 'PUT' : 'POST', { name: ed.name, color: ed.color, active: ed.active, polys: ed.polys, branch_ids: ed.branch_ids });
+        zones = (await api('zones')).rows; toast(zones.length === 1 && !ed.id ? 'Зона сохранена. Теперь доставка работает по зонам' : 'Сохранено');
+        ed = null; drawing = false; panel(); drawAll(); fit(r.zone.polys);
+      } catch (er) { $('#zerr').textContent = er.message; }
+    } else if (a === 'del') {
+      if (!(await ask('Удалить зону?', zones.length === 1 ? 'Это последняя зона: доставка снова будет работать по радиусу филиалов.' : 'Адреса внутри неё перестанут обслуживаться.', 'Удалить'))) return;
+      try { await api('zones/' + ed.id, 'DELETE', null, true); zones = (await api('zones')).rows; ed = null; drawing = false; panel(); drawAll(); } catch (er) { toast(er.message); }
+    }
+  });
+  panel(); drawAll();
+  const all = zones.flatMap(z => z.polys); if (all.length) fit(all); else if (S.branches.length) map.fitBounds(S.branches.map(b => [b.lat, b.lng]), { padding: [60, 60], maxZoom: 12 });
+}
+async function deliveryRadius(main, tabs) {
   const set = Object.fromEntries((await api('settings')).rows.map(r => [r.key, r.value]));
   S.branches = (await api('branches')).rows;
-  main.innerHTML = head('Доставка') + `<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(280px,1fr);align-items:start">
+  main.innerHTML = head('Доставка', tabs) + `<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(280px,1fr);align-items:start">
     <div class="glass" style="padding:10px"><div id="pick" style="height:600px"></div></div>
     <div><div class="glass card" id="dform"><h3>Зона доставки филиала</h3><p class="muted" style="margin:0">Выберите филиал на карте. Нажатие на карту задаёт границу радиуса доставки.</p></div>
     <div class="glass card" style="margin-top:16px"><h3>Цена по умолчанию</h3><form data-form="deliverydef"><label class="field"><span>Доставка, so'm (0 = бесплатно). Применяется там, где у филиала не задана своя цена</span><input type="number" min="0" name="delivery_fee" value="${esc(set.delivery_fee)}"></label><div style="margin-top:14px"><button class="btn primary" type="submit">Сохранить</button></div></form></div></div></div>`;
@@ -300,7 +409,7 @@ VIEWS.delivery = async main => {
     const km = Math.max(0.5, Math.round(map.distance([b.lat, b.lng], e.latlng) / 500) / 2);
     b.delivery_radius = km; draw(b); const i = $('[name=delivery_radius]'); if (i) i.value = km;
   });
-};
+}
 
 /* ---------- couriers, reviews, WendyCoin, POS ---------- */
 VIEWS.couriers = async main => {
@@ -357,7 +466,7 @@ const SCHEMA = {
   branches: { title: 'Филиал', cls: 'g2', f: [['name', 'Название', 'text'], ['city', 'Город', 'text'], ['address', 'Адрес', 'text'], ['phone', 'Телефон', 'text'], ['open_time', 'Открывается', 'time'], ['close_time', 'Закрывается (00:00 = полночь)', 'time'], ['delivery_radius', 'Радиус доставки, км', 'number'], ['lat', 'Широта', 'number'], ['lng', 'Долгота', 'number'], ['_map', '', 'map'], ['active', 'Активен', 'check']] },
   categories: { title: 'Категория', f: [['name', 'Название', 'text'], ['name_uz', 'Название на узбекском', 'text'], ['icon', 'Иконка по умолчанию', 'select', ICONS], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
   products: { title: 'Товар', f: [['name', 'Название', 'text'], ['category_id', 'Категория', 'cat'], ['description', 'Описание', 'textarea'], ['name_uz', 'Название на узбекском (необязательно)', 'text'], ['description_uz', 'Описание на узбекском (необязательно)', 'textarea'], ['price', "Цена, so'm", 'number'], ['old_price', 'Старая цена (0 = нет)', 'number'], ['coin_price', 'Цена в WendyCoin (0 = по курсу от цены в сумах, -1 = нельзя обменять)', 'number'], ['badge', 'Плашка (напр. «до -35%»)', 'text'], ['image', 'Фото товара', 'image'], ['big', 'Большая карточка', 'check'], ['addons', 'С этим берут (до 8 товаров: соусы, напитки…)', 'addons'], ['recommended', 'В «Всегда кстати»', 'check'], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
-  banners: { title: 'Баннер', f: [['title', 'Заголовок', 'text'], ['title_uz', 'Заголовок на узбекском', 'text'], ['image', 'Картинка баннера', 'image'], ['color', 'Цвет фона (если нет картинки)', 'color'], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
+  banners: { title: 'Баннер', f: [['title', 'Заголовок', 'text'], ['title_uz', 'Заголовок на узбекском', 'text'], ['image', 'Картинка баннера', 'image'], ['link', 'Ссылка (куда ведёт баннер, необязательно)', 'text'], ['color', 'Цвет фона (если нет картинки)', 'color'], ['sort', 'Порядок', 'number'], ['active', 'Показывать', 'check']] },
   promos: { title: 'Промокод', f: [['code', 'Код', 'text'], ['percent', 'Скидка, %', 'number'], ['fixed', "Или фикс. скидка, so'm", 'number'], ['min_total', 'Минимальная сумма заказа', 'number'], ['title', 'Заголовок акции для клиента, напр. «Скидка 10%» (пусто = не показывать в профиле)', 'text'], ['info', 'Подпись над заголовком, напр. «НА ЛЮБОЙ ТИП ЗАКАЗА»', 'text'], ['title_uz', 'Заголовок на узбекском', 'text'], ['info_uz', 'Подпись на узбекском', 'text'], ['valid_until', 'Действует до (пусто = без срока)', 'date'], ['active', 'Активен', 'check']] },
 };
 const DEFAULTS = { active: 1, sort: 0, lat: 41.3111, lng: 69.2797, open_time: '10:00', close_time: '23:30', city: 'Ташкент', icon: 'burger', color: '#e2203d' };
@@ -453,6 +562,7 @@ const ACT = {
   },
   stock: async el => { const on = el.dataset.on === '1'; try { await api('stock', 'PUT', { branch_id: S.branchId, product_id: el.dataset.pid, available: on ? 0 : 1 }); loadTab(); } catch (e) { toast(e.message); } },
   addstaff: () => staffForm(),
+  dsub: el => { S.dsub = el.dataset.v; loadTab(); },
   poskey: async el => {
     if (!(await ask('Выдать новый ключ?', 'Старый ключ этого филиала перестанет работать. Новый ключ будет показан один раз.', 'Выдать ключ', false))) return;
     try { const r = await api(`branches/${el.dataset.id}/pos-key`, 'POST', {}, true); const o = overlay(`<div class="glass modal"><h2>Ключ POS</h2><p class="muted">Скопируйте и сохраните ключ в кассе. После закрытия окна он больше не будет показан.</p><div class="code" id="kk">${esc(r.key)}</div><div class="foot"><button class="btn" data-act="copykey">Скопировать</button><button class="btn primary" data-act="cancel">Готово</button></div></div>`); o.addEventListener('click', async e => { const a = e.target.closest('[data-act]')?.dataset.act; if (a === 'copykey') { try { await navigator.clipboard.writeText(r.key); toast('Скопировано'); } catch { toast('Выделите и скопируйте вручную'); } } if (a === 'cancel' || e.target === o) { o.remove(); loadTab(); } }); } catch (e) { toast(e.message); }

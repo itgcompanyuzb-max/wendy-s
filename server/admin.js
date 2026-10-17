@@ -268,7 +268,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     branches: ['name', 'city', 'address', 'lat', 'lng', 'phone', 'open_time', 'close_time', 'active', 'delivery_radius', 'delivery_fee', 'free_from', 'min_order'],
     categories: ['name', 'icon', 'sort', 'active', 'name_uz'],
     products: ['category_id', 'name', 'description', 'price', 'old_price', 'image', 'badge', 'big', 'recommended', 'sort', 'active', 'coin_price', 'name_uz', 'description_uz'],
-    banners: ['title', 'text', 'image', 'color', 'sort', 'active', 'title_uz'],
+    banners: ['title', 'text', 'image', 'color', 'sort', 'active', 'title_uz', 'link'],
     promos: ['code', 'percent', 'fixed', 'min_total', 'title', 'info', 'valid_until', 'active', 'title_uz', 'info_uz'],
   };
   const NUMERIC = new Set(['lat', 'lng', 'sort', 'active', 'price', 'old_price', 'big', 'recommended', 'category_id', 'percent', 'fixed', 'min_total', 'delivery_radius', 'coin_price', 'delivery_fee', 'free_from', 'min_order']);
@@ -284,6 +284,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     if (out.color && !/^#[0-9a-fA-F]{6}$/.test(out.color)) out.color = '#ff6900';
     if (out.valid_until !== undefined && out.valid_until !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(out.valid_until)) throw new Error('Дата в формате ГГГГ-ММ-ДД');
     if (out.image !== undefined) { out.image = out.image.trim(); if (!imageOk(out.image)) throw new Error('Неверная ссылка на изображение'); }
+    if (out.link !== undefined) { out.link = out.link.trim(); if (out.link !== '' && !(/^https?:\/\/[^\s"'<>]+$/i.test(out.link) && out.link.length <= 600)) throw new Error('Ссылка должна начинаться с http:// или https://'); }
     for (const f of ['open_time', 'close_time']) if (out[f] !== undefined && !/^\d{2}:\d{2}$/.test(out[f])) throw new Error('Время в формате ЧЧ:ММ');
     return out;
   }
@@ -294,6 +295,14 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.put('/settings', need('super'), confirmed, (req, res) => {
     const up = db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
     for (const k of ['delivery_fee', 'coin_percent', 'coin_value', 'brand', 'support_phone']) if (req.body[k] !== undefined) up.run(k, String(req.body[k]).slice(0, 200));
+    for (const k of ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url']) {
+      if (req.body[k] === undefined) continue;
+      const v = String(req.body[k]).trim();
+      if (v && !(k === 'support_email' ? /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(v) : /^https:\/\/[^\s"'<>]+$/i.test(v))) return fail(res, 400, k === 'support_email' ? 'Неверный e-mail' : 'Ссылки должны начинаться с https://');
+      up.run(k, v.slice(0, 300));
+    }
+    if (req.body.about_text !== undefined) up.run('about_text', String(req.body.about_text).trim().slice(0, 600));
+    if (req.body.product_image_shape !== undefined) up.run('product_image_shape', req.body.product_image_shape === 'circle' ? 'circle' : 'square');
     audit(req, 'settings_changed', 'settings'); res.json({ ok: true });
   });
 
@@ -374,6 +383,22 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   });
 
   /* ---------- branches list (never exposes the POS key hash) + POS key management ---------- */
+  /* delivery zones (polygons) */
+  const zones = require('./zones');
+  router.get('/zones', (req, res) => res.json({ rows: zones.list() }));
+  router.get('/zones/lookup', need('super'), async (req, res) => {
+    const q = String(req.query.q || '').trim().slice(0, 120);
+    if (q.length < 2) return fail(res, 400, 'Введите название района или города');
+    try { res.json({ rows: await zones.lookup(q) }); } catch (e) { fail(res, 502, 'Не удалось получить границу: ' + e.message); }
+  });
+  router.post('/zones', need('super'), (req, res) => {
+    try { const z = zones.save(null, req.body); audit(req, 'zone_created', 'zone', z.id, z.name); res.json({ zone: z }); } catch (e) { fail(res, 400, e.message); }
+  });
+  router.put('/zones/:id', need('super'), (req, res) => {
+    try { const z = zones.save(Number(req.params.id), req.body); audit(req, 'zone_updated', 'zone', z.id, z.name); res.json({ zone: z }); } catch (e) { fail(res, 400, e.message); }
+  });
+  router.delete('/zones/:id', need('super'), confirmed, (req, res) => { zones.remove(Number(req.params.id)); audit(req, 'zone_deleted', 'zone', req.params.id); res.json({ ok: true }); });
+
   router.get('/branches', (req, res) => res.json({ rows: db.prepare('SELECT id,name,city,address,lat,lng,phone,open_time,close_time,active,delivery_radius,delivery_fee,free_from,min_order,(pos_key_hash IS NOT NULL) AS has_pos FROM branches ORDER BY id').all() }));
   router.post('/branches/:id/pos-key', need('super'), confirmed, (req, res) => {
     const b = db.prepare('SELECT id FROM branches WHERE id=?').get(req.params.id);
@@ -592,6 +617,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.delete('/:table/:id', isTable, need('super'), confirmed, (req, res) => {
     const t = req.params.table;
     db.prepare(`DELETE FROM ${t} WHERE id=?`).run(req.params.id);
+    if (t === 'branches') db.prepare('DELETE FROM zone_branches WHERE branch_id=?').run(req.params.id);
     audit(req, 'delete', t, req.params.id); res.json({ ok: true });
   });
 

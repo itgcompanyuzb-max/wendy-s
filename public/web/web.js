@@ -1,0 +1,673 @@
+/* Wendy's website (desktop). Talks to the same API as the mobile app: menu, Telegram-code login, addresses,
+ * delivery zones, orders and live tracking. Cart, token and language are shared with the mobile site (localStorage). */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
+  del(k) { try { localStorage.removeItem(k); } catch { /* private mode */ } },
+};
+const LANG = (() => { try { const s = localStorage.getItem('lang'); return s ? (s === 'uz' ? 'uz' : 'ru') : (/^uz/i.test(navigator.language || '') ? 'uz' : 'ru'); } catch { return 'ru'; } })();
+document.documentElement.lang = LANG;
+const NB = ' ';
+const num = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0)).replace(/\s/g, NB);
+const money = n => num(n) + NB + "so'm";
+const loc = (o, f) => (!o || !o[f] ? '' : (LANG === 'uz' && o[f + '_uz'] ? o[f + '_uz'] : o[f]));
+
+/* ---------- texts ---------- */
+const TX = {
+  promos: ['Акции', 'Aksiyalar'], coins: ['WendyCoin', 'WendyCoin'], zones: ['Зоны доставки', 'Yetkazib berish hududi'], about: ['О нас', 'Biz haqimizda'],
+  lang: ['Язык', 'Til'], branchesN: [n => `${n} ${plural(n, 'ресторан', 'ресторана', 'ресторанов')}`, n => `${n} ta filial`],
+  citiesN: [n => `в ${n} ${plural(n, 'городе', 'городах', 'городах')}`, n => `${n} ta shaharda`],
+  pickAddr: ['Укажите адрес доставки', 'Yetkazish manzilini tanlang'], min: ['мин', 'daqiqa'], login: ['Войти', 'Kirish'],
+  cart: ['Корзина', 'Savat'], popular: ['Часто заказывают', 'Ko‘p buyurtma qilinadi'], from: ['от', 'dan'], choose: ['Выбрать', 'Tanlash'],
+  appTitle: ['Лучшие предложения в приложении', 'Eng yaxshi takliflar ilovada'], appSub: ['Скачайте и копите WendyCoin', 'Yuklab oling va WendyCoin to‘plang'],
+  deliveryIn: [c => `Доставка в ${c}`, c => `${c} bo‘ylab yetkazib berish`], limited: ['Зона доставки ограничена', 'Yetkazib berish hududi cheklangan'],
+  zoneThumb: ['Зона доставки', 'Yetkazib berish zonasi'], minOrder: ['Минимальная сумма заказа на доставку', 'Yetkazib berish uchun minimal buyurtma summasi'],
+  freeFrom: ['Бесплатная доставка при заказе от этой суммы', 'Shu summadan boshlab yetkazib berish bepul'], fee: ['Стоимость доставки', 'Yetkazib berish narxi'],
+  freeDel: ['Бесплатно', 'Bepul'], imgs: ['Изображения блюд могут отличаться от заказанных.', 'Taom rasmlari buyurtma qilingan mahsulotdan farq qilishi mumkin.'],
+  zonesCount: [n => `Работаем в ${n} ${plural(n, 'зоне', 'зонах', 'зонах')}. Проверьте свой адрес на карте.`, n => `${n} ta hududda ishlaymiz. Manzilingizni xaritada tekshiring.`],
+  stripTx: [p => `Возвращаем ${p}% каждого заказа в WendyCoin — оплачивайте ими следующие заказы`, p => `Har bir buyurtmaning ${p}% WendyCoin bo‘lib qaytadi — keyingi buyurtmalarni ular bilan to‘lang`],
+  more: ['Подробнее', 'Batafsil'], company: ['Компания', 'Kompaniya'], help: ['Помощь', 'Yordam'], contacts: ['Контакты', 'Aloqa'],
+  legal: ['Правовая информация', 'Huquqiy ma’lumot'], mobile: ['Мобильная версия', 'Mobil versiya'], ourBranches: ['Наши рестораны', 'Filiallarimiz'],
+  ordersMonth: [n => `${plural(n, 'заказ', 'заказа', 'заказов')} в этом месяце`, () => 'ta buyurtma — shu oy'], restaurants: [n => plural(n, 'ресторан', 'ресторана', 'ресторанов'), () => 'ta filial'],
+  soon: ['скоро', 'tez kunda'], download: ['Загрузите в', 'Yuklab oling'], getOn: ['Доступно в', 'Mavjud'],
+  emptyCart: ['Ой, пусто!', 'Savat bo‘sh'], emptyCartTx: ['Добавьте бургеры и напитки из меню', 'Menyudan burger va ichimliklarni qo‘shing'],
+  checkout: ['Оформить заказ', 'Buyurtmani rasmiylashtirish'], toCart: ['В корзину', 'Savatga'], add: ['Добавить в корзину за', 'Savatga qo‘shish:'],
+  withIt: ['С этим берут', 'Bu bilan olishadi'], total: ['Итого', 'Jami'], items: ['Товары', 'Mahsulotlar'], discount: ['Скидка', 'Chegirma'], delivery: ['Доставка', 'Yetkazib berish'],
+  pickup: ['Самовывоз', 'Olib ketish'], phoneT: ['Вход на сайт', 'Saytga kirish'], phoneSub: ['Код придёт в Telegram', 'Kod Telegram orqali keladi'],
+  getCode: ['Получить код', 'Kod olish'], codeT: ['Введите код', 'Kodni kiriting'], codeSent: [p => `Отправили код на ${p}`, p => `${p} raqamiga kod yubordik`],
+  resend: ['Отправить ещё раз', 'Qayta yuborish'], resendIn: [s => `Новый код через ${s} с`, s => `Yangi kod ${s} soniyadan keyin`], change: ['Изменить номер', 'Raqamni o‘zgartirish'],
+  nameT: ['Как вас зовут?', 'Ismingiz nima?'], name: ['Имя', 'Ism'], save: ['Сохранить', 'Saqlash'], skip: ['Пропустить', 'O‘tkazib yuborish'],
+  addrT: ['Адрес доставки', 'Yetkazish manzili'], addr: ['Улица, дом', 'Ko‘cha, uy'], entrance: ['Подъезд', 'Podyezd'], floor: ['Этаж', 'Qavat'], apt: ['Кв./офис', 'Xonadon'],
+  intercom: ['Домофон', 'Domofon'], comment: ['Комментарий', 'Izoh'], moveMap: ['Передвиньте карту, чтобы поставить точку на ваш дом', 'Xaritani suring — belgini uyingizga qo‘ying'],
+  checking: ['Проверяем адрес…', 'Manzil tekshirilmoqda…'], delivers: [(b, km) => `Доставит ресторан «${b}» · ${km} км`, (b, km) => `«${b}» filiali yetkazadi · ${km} km`],
+  saveAddr: ['Сохранить адрес', 'Manzilni saqlash'], newAddr: ['+ Новый адрес', '+ Yangi manzil'], myAddrs: ['Мои адреса', 'Manzillarim'],
+  pay: ['Оплата', 'To‘lov'], cash: ['Наличными', 'Naqd'], promo: ['Промокод', 'Promokod'], apply: ['Применить', 'Qo‘llash'],
+  place: ['Заказать', 'Buyurtma berish'], branch: ['Ресторан', 'Filial'], asap: ['Как можно скорее', 'Iloji boricha tez'], closed: ['закрыт', 'yopiq'],
+  okT: ['Заказ принят!', 'Buyurtma qabul qilindi!'], okTx: [n => `Номер заказа №${n}. Мы сообщим, когда он будет готов.`, n => `Buyurtma raqami №${n}. Tayyor bo‘lganda xabar beramiz.`],
+  track: ['Отследить', 'Kuzatish'], profile: ['Профиль', 'Profil'], orders: ['Мои заказы', 'Buyurtmalarim'], noOrders: ['Заказов пока нет', 'Hali buyurtmalar yo‘q'],
+  logout: ['Выйти', 'Chiqish'], close: ['Закрыть', 'Yopish'], minFor: [m => `Минимальная сумма для доставки — ${m}`, m => `Yetkazib berish uchun minimal summa — ${m}`],
+  needAddr: ['Укажите адрес доставки', 'Yetkazish manzilini kiriting'], needBranch: ['Выберите ресторан', 'Filialni tanlang'],
+  coinsT: ['WendyCoin', 'WendyCoin'], coinsTx: [p => `За каждый заказ возвращаем ${p}% суммы в WendyCoin. Ими можно оплатить следующий заказ или обменять на соусы и напитки в мобильном приложении.`, p => `Har bir buyurtma uchun summaning ${p}% WendyCoin bo‘lib qaytadi. Ular bilan keyingi buyurtmani to‘lash yoki mobil ilovada sous va ichimliklarga almashtirish mumkin.`],
+  balance: ['Ваш баланс', 'Balansingiz'], courier: ['Курьер', 'Kuryer'], legalTx: ['Пользовательское соглашение и политика конфиденциальности. Картографические данные: © участники OpenStreetMap.', 'Foydalanuvchi shartnomasi va maxfiylik siyosati. Xarita ma’lumotlari: © OpenStreetMap ishtirokchilari.'],
+  personal: ['Личные данные', 'Shaxsiy ma’lumotlar'], yourName: ['Ваше имя', 'Ismingiz'], edit: ['Изменить', 'O‘zgartirish'], birthday: ['День рождения', 'Tug‘ilgan kun'],
+  bdayHint: ['Пришлём подарок в день рождения', 'Tug‘ilgan kuningizda sovg‘a yuboramiz'], day: ['День', 'Kun'], month: ['Месяц', 'Oy'], year: ['Год', 'Yil'],
+  emailHint: ['Для чеков и новостей', 'Cheklar va yangiliklar uchun'], subs: ['Подписки', 'Obunalar'], newsletter: ['Получать новости и акции', 'Yangilik va aksiyalarni olish'],
+  privacy: ['Политика конфиденциальности', 'Maxfiylik siyosati'], avatar: ['Аватар', 'Avatar'], saved: ['Сохранено', 'Saqlandi'],
+  months: [['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr']],
+  branchSearch: ['Название или адрес ресторана', 'Filial nomi yoki manzili'], storeNote: ['Цены, меню и акции могут отличаться в разных ресторанах', 'Narxlar, menyu va aksiyalar filialga qarab farq qilishi mumkin'],
+  openUntil: [v => `Открыто до ${v}`, v => `${v} gacha ochiq`], closedOpens: [v => `Закрыто · откроется в ${v}`, v => `Yopiq · ${v} da ochiladi`], hall: ['Зал', 'Zal'], everyDay: ['Ежедневно', 'Har kuni'],
+  select: ['Выбрать', 'Tanlash'], addrSearch: ['Улица, дом, район или метро', 'Ko‘cha, uy, tuman yoki metro'], noGeo: ['Не удалось определить местоположение', 'Joylashuvni aniqlab bo‘lmadi'],
+  alwaysHandy: ['Всегда кстати', 'Har doim kerak'], delete: ['Удалить', 'O‘chirish'],
+  rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
+  tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
+  searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
+  zoneBranches: ['доставляют', 'yetkazadi'], all: ['Меню', 'Menyu'], phone: ['Телефон', 'Telefon'], payNote: ['Оплата Click/Payme — ссылка придёт после подтверждения заказа', 'Click/Payme orqali to‘lov — havola buyurtma tasdiqlangach keladi'],
+};
+const ST_NAMES = { new: ['Ожидает подтверждения', 'Tasdiqlanishi kutilmoqda'], cooking: ['Готовится', 'Tayyorlanmoqda'], ready: ['Готов', 'Tayyor'], delivering: ['В пути', 'Yo‘lda'], done: ['Выполнен', 'Bajarildi'], cancelled: ['Отменён', 'Bekor qilindi'] };
+function plural(n, a, b, c) { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; }
+const t = (k, ...a) => { const v = TX[k]?.[LANG === 'uz' ? 1 : 0] ?? k; return typeof v === 'function' ? v(...a) : v; };
+// server messages come in Russian; translate the common ones for Uzbek visitors
+const SRV_UZ = [[/вне зоны доставки/, 'Manzil yetkazish hududidan tashqarida. Hududlarni xaritada ko‘ring'], [/Пока не принимаем заказы/, 'Hozir buyurtma qabul qilinmayapti. Keyinroq urinib ko‘ring'],
+  [/Неверный код/, 'Kod noto‘g‘ri'], [/Код устарел/, 'Kod eskirgan. Yangisini so‘rang'], [/Подождите/, 'Qayta yuborishdan oldin kuting'], [/Минимальная сумма/, 'Buyurtma summasi minimaldan kam'],
+  [/Промокод не найден/, 'Promokod topilmadi'], [/Введите номер/, 'Raqamni to‘liq kiriting'], [/Не удалось отправить код/, 'Kod yuborilmadi. Raqamda Telegram borligini tekshiring'], [/Сейчас нет в наличии/, 'Hozir mavjud emas'], [/Неверный e-mail/, 'E-mail noto‘g‘ri'], [/Неверная дата рождения/, 'Tug‘ilgan sana noto‘g‘ri']];
+const srv = m => (LANG === 'uz' ? (SRV_UZ.find(([r]) => r.test(m || ''))?.[1] || m) : m);
+
+/* ---------- state + api ---------- */
+const St = { token: LS.get('token', null), user: null, menu: null, zones: [], cart: LS.get('cart', []), addrs: [], addrId: LS.get('addrId', null), mode: LS.get('mode', 'delivery'), branchId: LS.get('branchId', null), promo: null, pay: 'cash', pickupMethod: 'takeaway', quote: null, orders: [] };
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, { method: opts.method || (opts.body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', ...(St.token ? { Authorization: 'Bearer ' + St.token } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && St.token) { St.token = null; St.user = null; LS.del('token'); renderHead(); }
+  if (!r.ok) throw Object.assign(new Error(srv(j.error) || t('netErr')), { data: j, status: r.status });
+  return j;
+}
+function toast(m) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); }
+
+const prods = () => St.menu?.products || [];
+const prod = id => prods().find(p => p.id === id);
+const branches = () => St.menu?.branches || [];
+const img = (p, cls = '') => (p?.image ? `<img class="${cls}" src="${esc(p.image)}" alt="${esc(loc(p, 'name'))}" loading="lazy">` : `<div class="noimg ${cls}">${phOf(p)}</div>`);
+const phOf = p => PH[St.menu?.categories.find(c => c.id === p?.category_id)?.icon] || PH.burger; // icons.js (shared with the mobile app)
+const brand = () => St.menu?.settings?.brand || "Wendy's";
+const cartItems = () => St.cart.filter(c => !c.coin && prod(c.id));
+const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
+function totals() {
+  let sub = 0; for (const c of cartItems()) sub += prod(c.id).price * c.qty;
+  const discount = St.promo ? Math.min(sub, St.promo.percent ? Math.round(sub * St.promo.percent / 100) : St.promo.fixed || 0) : 0;
+  return { sub, discount, count: cartItems().reduce((n, c) => n + c.qty, 0) };
+}
+function setQty(id, d) {
+  const c = St.cart.find(x => x.id === id && !x.coin);
+  if (c) { c.qty = Math.max(0, Math.min(50, c.qty + d)); if (!c.qty) St.cart = St.cart.filter(x => x !== c); } else if (d > 0) St.cart.push({ id, qty: 1 });
+  LS.set('cart', St.cart); St.quote = null; refreshCart();
+}
+function refreshCart() {
+  renderCartBtns();
+  for (const el of $$('[data-buy]')) el.outerHTML = buyHTML(prod(Number(el.dataset.buy)));
+  if ($('#drawer')) openCart(true);
+}
+
+/* ---------- icons ---------- */
+const IC = {
+  bag: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7V6a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .92l1 13a1 1 0 0 1-1 1.08H3.8a1 1 0 0 1-1-1.08l1-13A1 1 0 0 1 4.8 7zm2 0h6V6a3 3 0 0 0-6 0z"/></svg>',
+  fork: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M11 3v8M9 3v10M17 21V3c-2.5 1.5-3 5-3 8h3"/></svg>',
+  chev: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  phone: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>',
+  globe: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 20 20" class="icon"><path fill="#fff" fill-opacity="0.4" d="M12.727 13.678a.296.296 0 0 1 .317.333c-.202 1.516-.562 3.34-1.617 4.517-.335.374-.59.458-.744.47s-.419-.033-.807-.351c-1.221-1.003-1.852-2.752-2.281-4.219a.296.296 0 0 1 .263-.378zM17.933 13.28c.22-.017.38.201.291.403a9.06 9.06 0 0 1-4.177 4.405c-.25.126-.504-.147-.397-.405.445-1.076.767-2.406.932-3.897a.304.304 0 0 1 .278-.272M5.726 14.213a.304.304 0 0 1 .315.226c.389 1.448.907 2.713 1.51 3.709.145.239-.066.548-.331.46a9.04 9.04 0 0 1-4.792-3.717.29.29 0 0 1 .227-.443zM18.253 6.995a.294.294 0 0 1 .303.2 9.14 9.14 0 0 1 .326 4.276.294.294 0 0 1-.27.245l-3.58.274a.304.304 0 0 1-.325-.308 24 24 0 0 0-.31-4.06.304.304 0 0 1 .276-.354zM4.966 8.01a.304.304 0 0 1 .325.308 24 24 0 0 0 .308 4.06.304.304 0 0 1-.275.354l-3.578.273a.29.29 0 0 1-.303-.2 9.140 9.140 0 0 1-.324-4.276.294.294 0 0 1 .27-.245zM12.57 7.43a.297.297 0 0 1 .315.244c.24 1.38.347 2.785.318 4.186a.297.297 0 0 1-.275.291l-5.5.42a.297.297 0 0 1-.316-.244 22 22 0 0 1-.318-4.186.297.297 0 0 1 .275-.29zM12.446 1.85c-.145-.239.065-.548.33-.46a9.050 9.050 0 0 1 4.795 3.718.29.29 0 0 1-.227.443l-3.072.235a.3.3 0 0 1-.315-.226c-.389-1.449-.908-2.714-1.511-3.71M5.95 1.913c.25-.127.504.146.397.405-.445 1.075-.766 2.405-.931 3.895a.304.304 0 0 1-.278.271l-3.07.236a.29.29 0 0 1-.29-.403A9.06 9.06 0 0 1 5.95 1.913M9.315 1.002c.154-.012.419.032.806.35 1.221 1.003 1.852 2.752 2.281 4.219a.296.296 0 0 1-.263.378L7.27 6.32a.296.296 0 0 1-.317-.333c.203-1.515.562-3.34 1.617-4.517.335-.374.59-.458.745-.47"/></svg>',
+  coin: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M7.5 9l1.8 6 2.7-5 2.7 5 1.8-6"/></svg>',
+  apple: '<svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M16.4 12.6c0-2.5 2-3.7 2.1-3.8a4.6 4.6 0 0 0-3.6-2c-1.5-.2-3 .9-3.8.9s-2-.9-3.3-.8a5 5 0 0 0-4.2 2.5c-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.3.8 2.2-1.3 3-2.5a10 10 0 0 0 1.4-2.8 4.4 4.4 0 0 1-2.7-4.3zM14 5.2A4.4 4.4 0 0 0 15 2a4.6 4.6 0 0 0-3 1.5 4.2 4.2 0 0 0-1 3.1A3.8 3.8 0 0 0 14 5.2z"/></svg>',
+  play: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 2.5v19l10-9.5z" fill="#34a853"/><path d="M4 2.5l10 9.5 3-2.9L5.4 2.2z" fill="#4285f4"/><path d="M4 21.5l10-9.5 3 2.9-11.6 6.9z" fill="#ea4335"/><path d="M17 9.1L14 12l3 2.9 3.4-2a1 1 0 0 0 0-1.8z" fill="#fbbc04"/></svg>',
+  ig: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>',
+  tg: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.4 4.1L2.9 11.2c-1.3.5-1.2 1.2-.2 1.5l4.7 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.7c.3-1.3-.5-1.9-1.5-1.4zM9.8 14.6l-.4 4 .1-.1-1.5-4.6 10.3-6.5z"/></svg>',
+  fb: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 8V6.2c0-.8.2-1.2 1.4-1.2H17V2h-2.6C11.3 2 10 3.5 10 6v2H8v3h2v11h4V11h2.6l.4-3z"/></svg>',
+  pin: '<svg class="pinc" viewBox="0 0 44 54"><path d="M22 53s20-17.4 20-31A20 20 0 0 0 2 22c0 13.6 20 31 20 31z" fill="#e2203d"/><circle cx="22" cy="21" r="8" fill="#fff"/></svg>',
+};
+
+/* ---------- maps ---------- */
+const tiles = () => { const k = St.menu?.settings?.yandex_key; return k ? L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=${LANG === 'uz' ? 'uz_UZ' : 'ru_RU'}&x={x}&y={y}&z={z}&l=map&apikey=${k}`, { maxZoom: 19 }) : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }); };
+const newMap = (el, o = {}) => L.map(el, { attributionControl: false, zoomControl: false, ...(St.menu?.settings?.yandex_key ? { crs: L.CRS.EPSG3395 } : {}), ...o });
+const logoIcon = () => L.divIcon({ className: '', html: '<div class="zmk"><img src="/img/brand.png" alt=""></div>', iconSize: [52, 60], iconAnchor: [26, 60] });
+function drawZones(map, opts = {}) {
+  const layers = St.zones.map(z => L.polygon(z.polys, { color: z.color || '#e2203d', weight: opts.weight ?? 2.5, fillOpacity: opts.fill ?? .28 }).addTo(map));
+  if (layers.length) map.fitBounds(L.featureGroup(layers).getBounds(), { padding: opts.pad || [30, 30] });
+  else if (branches().length) map.fitBounds(branches().map(b => [b.lat, b.lng]), { padding: [60, 60], maxZoom: 12 });
+  return layers;
+}
+function inRing(lat, lng, ring) { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; }
+
+/* ---------- page ---------- */
+function render() {
+  const s = St.menu.settings, st = St.menu.stats || {};
+  const cats = St.menu.categories.filter(c => prods().some(p => p.category_id === c.id));
+  const popular = prods().filter(p => p.recommended).concat(prods().filter(p => !p.recommended && p.old_price > p.price)).slice(0, 5);
+  const city = branches()[0]?.city || 'Ташкент';
+  const minOrder = Math.min(...branches().map(b => b.min_order || 0).filter(Boolean), Infinity);
+  const freeFrom = Math.min(...branches().map(b => b.free_from || 0).filter(Boolean), Infinity);
+  $('#site').innerHTML = `
+  <div class="topbar"><div class="wrap">
+    <button class="live" data-a="zones">${t('zones')}</button>
+    ${s.about_text ? `<button data-a="about" class="hide-s">${t('about')}</button>` : ''}
+    ${St.menu.promos.length ? `<button data-a="promos">${t('promos')}</button>` : ''}
+    <button data-a="coins">${t('coins')}</button>
+    ${s.support_phone ? `<a href="tel:${esc(s.support_phone.replace(/[^+\d]/g, ''))}" class="hide-s">${IC.phone}${esc(s.support_phone)}</a>` : ''}
+    <span class="sp"></span>
+    <div class="dd" id="langdd"><button data-a="langdd">${IC.globe}${LANG === 'uz' ? 'O‘zbekcha' : 'Русский'} ${IC.chev}</button><div class="menu"><button data-a="lang" data-v="uz" class="${LANG === 'uz' ? 'on' : ''}">O‘zbekcha</button><button data-a="lang" data-v="ru" class="${LANG === 'ru' ? 'on' : ''}">Русский</button></div></div>
+  </div></div>
+  <header class="head"><div class="wrap">
+    <a class="logo" href="#top" data-a="top"><span class="mk"><img src="/img/brand.png" alt=""></span><span><b>${esc(brand())}</b><small>${t('branchesN', st.branches ?? branches().length)} ${st.cities > 1 ? t('citiesN', st.cities) : ''}</small></span></a>
+    <button class="addr" data-a="addr" id="addrbtn"></button>
+    <span class="sp"></span>
+    <span id="cartslot"></span>
+    <span id="userslot"></span>
+  </div></header>
+  ${St.menu.banners.length ? `<section class="wrap stories">${St.menu.banners.slice(0, 6).map(b => `<button class="story ${b.image ? '' : 'noimg'}" data-a="banner" data-id="${b.id}" ${b.image ? '' : `style="background:${esc(b.color || '#e2203d')}"`}>${b.image ? `<img src="${esc(b.image)}" alt="" onerror="this.parentNode.style.background='${esc(b.color || '#e2203d')}';this.remove()">` : ''}<span>${esc(loc(b, 'title'))}</span></button>`).join('')}</section>` : ''}
+  <div class="sheet"><div class="wrap layout">
+    <main>
+      <nav class="cats" id="cats"><span class="mini"><img src="/img/brand.png" alt=""></span><button class="sbtn" data-a="search" aria-label="search">${I.search(22)}</button><button class="sbtn coin" data-a="coins" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button><span class="sbox"><input id="sinp" placeholder="${t('searchPh')}" autocomplete="off"><button data-a="sclose" aria-label="close">${I.x('#a3a3ab', 20)}</button></span><div class="pills">${cats.map(c => `<a class="pill" href="#c${c.id}" data-cat="${c.id}">${esc(loc(c, 'name'))}</a>`).join('')}</div><button class="navcart" data-a="cart"></button></nav>
+      <div id="menuv">
+      ${popular.length ? `<h2 class="h2 popular-h" style="margin-top:6px">${t('popular')}</h2><div class="popular">${popular.map(p => `<div class="pop" data-a="prod" data-id="${p.id}">${img(p)}<b>${esc(loc(p, 'name'))}</b><span class="pr">${money(p.price)}</span></div>`).join('')}</div>` : ''}
+      <div class="empty" id="nofound" hidden><b>${t('notFound')}</b></div>
+      ${cats.map(c => `<section class="cat" id="c${c.id}" data-sec="${c.id}"><h2>${esc(loc(c, 'name'))}</h2><div class="grid">${prods().filter(p => p.category_id === c.id).map(card).join('')}</div></section>`).join('')}
+      <section class="deliv" id="delivery"><h2 class="h2">${esc(t('deliveryIn', city))}</h2><div class="g">
+        <div><div class="cap">${t('limited')}</div><div class="zonethumb" data-a="zones"><div class="lm" id="thumbmap"></div><span>${t('zoneThumb')}</span></div></div>
+        <div class="facts">
+          ${Number.isFinite(minOrder) ? `<div class="f"><b>${t('from')} ${money(minOrder)}</b><span>${t('minOrder')}</span></div>` : ''}
+          <div class="f"><b>${s.delivery_fee > 0 ? money(s.delivery_fee) : t('freeDel')}</b><span>${t('fee')}</span></div>
+          ${Number.isFinite(freeFrom) && s.delivery_fee > 0 ? `<div class="f"><b>${t('from')} ${money(freeFrom)}</b><span>${t('freeFrom')}</span></div>` : ''}
+          ${St.zones.length ? `<div class="f plain"><span>${t('zonesCount', St.zones.length)}</span></div>` : ''}
+          <div class="f plain"><span>${t('imgs')}</span></div>
+        </div></div></section>
+      </div><div id="profv" hidden></div>
+    </main>
+    <aside class="aside"><div class="appcard"><h3>${t('appTitle')}</h3><p>${t('appSub')}</p><div class="badges">${storeBadges(true)}</div><div class="coins"></div><div class="art"><div class="tile"><img src="/img/brand.png" alt=""></div></div></div></aside>
+  </div></div>
+  <div class="wrap strip"><div class="in"><span class="ic"><img src="/img/coin.png" alt="WendyCoin"></span><span>${esc(t('stripTx', s.coin_percent || 10))}</span><span class="sp"></span><button data-a="coins">${t('more')}</button></div></div>
+  <footer><div class="wrap">
+    <div class="cols">
+      <div><h4>${esc(brand())}</h4>${s.about_text ? `<button data-a="about">${t('about')}</button>` : ''}<button data-a="zones">${t('ourBranches')}</button><button data-a="legal">${t('legal')}</button><a href="/?m=1">${t('mobile')}</a></div>
+      <div><h4>${t('help')}</h4><button data-a="zones">${t('zones')}</button><button data-a="coins">WendyCoin</button>${St.menu.promos.length ? `<button data-a="promos">${t('promos')}</button>` : ''}</div>
+      <div><h4>${t('contacts')}</h4>${s.support_phone ? `<a href="tel:${esc(s.support_phone.replace(/[^+\d]/g, ''))}">${esc(s.support_phone)}</a>` : ''}${s.support_email ? `<a href="mailto:${esc(s.support_email)}">${esc(s.support_email)}</a>` : ''}</div>
+      <div class="stores">${storeBadges(false)}</div>
+    </div>
+    <div class="stats"><div><b>${num(st.orders_month || 0)}</b><span>${t('ordersMonth', st.orders_month || 0)}</span></div><div><b>${num(st.branches ?? branches().length)} ${t('restaurants', st.branches ?? branches().length)}</b><span>${esc(city)}</span></div>${st.rating ? `<div><b>★ ${st.rating.toFixed(2)}</b><span>${t('rating')} · ${num(st.reviews)}</span></div>` : ''}</div>
+    <div class="bottom"><span class="brand">${esc(brand())}</span><span>© ${new Date().getFullYear()}</span><button data-a="legal">${t('legal')}</button><span class="sp"></span>
+      ${[['instagram_url', IC.ig, 'Instagram'], ['telegram_url', IC.tg, 'Telegram'], ['facebook_url', IC.fb, 'Facebook']].filter(([k]) => s[k]).map(([k, i, n]) => `<a class="soc" href="${esc(s[k])}" target="_blank" rel="noopener" aria-label="${n}">${i}</a>`).join('')}</div>
+  </div></footer>`;
+  renderHead(); renderCartBtns(); thumbMap(); spy(); showView();
+}
+function storeBadges(compact) {
+  const s = St.menu.settings;
+  const b = (url, icon, small, big) => (url ? `<a class="store" href="${esc(url)}" target="_blank" rel="noopener">${icon}<span><small>${small}</small>${big}</span></a>` : `<span class="store soon">${icon}<span><small>${t('soon')}</small>${big}</span></span>`);
+  if (compact && !s.app_store_url && !s.google_play_url) return '';
+  return b(s.app_store_url, IC.apple, t('download'), 'App Store') + b(s.google_play_url, IC.play, t('getOn'), 'Google Play');
+}
+function card(p) {
+  return `<div class="prod" data-a="prod" data-id="${p.id}"><div class="ph">${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}${img(p)}</div>
+    <h3>${esc(loc(p, 'name'))}</h3><p>${esc(loc(p, 'description'))}</p><span class="sp"></span>
+    ${p.old_price > p.price ? `<div class="old">${money(p.old_price)}</div>` : ''}${buyHTML(p)}</div>`;
+}
+function buyHTML(p) {
+  const q = qty(p.id);
+  return q ? `<div class="stepper" data-buy="${p.id}"><button data-a="dec" data-id="${p.id}">−</button><b>${q}</b><button data-a="inc" data-id="${p.id}">+</button></div>`
+    : `<button class="buy" data-buy="${p.id}" data-a="inc" data-id="${p.id}">${money(p.price)}</button>`;
+}
+function renderCartBtns() {
+  const { sub, count } = totals();
+  const html = `${I.bag(22)}<span>${count ? money(sub) : t('cart')}</span>${count ? `<span class="n">${count}</span>` : ''}`;
+  if ($('#cartslot')) $('#cartslot').innerHTML = `<button class="cartbtn" data-a="cart">${html}</button>`;
+  if ($('.navcart')) $('.navcart').innerHTML = html;
+}
+function renderHead() {
+  const st = St.menu?.stats || {};
+  const a = St.addrs.find(x => x.id === St.addrId);
+  const city = branches()[0]?.city || 'Ташкент';
+  const time = st.delivery_min ? `${st.delivery_min} ${t('min')}` : `30–45 ${t('min')}`;
+  const br = St.mode === 'pickup' && branches().find(b => b.id === St.branchId);
+  const place = br ? br.address : a ? a.address : '';
+  if ($('#addrbtn')) $('#addrbtn').innerHTML = `<span class="ic">${St.mode === 'pickup' ? I.fork(24) : I.walk(24)}</span><span style="min-width:0"><span class="l1">${place ? `<em>${esc(br?.city || city)},</em><span>${esc(place.replace(/^(Ташкент|Toshkent|Tashkent|город Ташкент)\s*,?\s*/i, ''))}</span>` : `<span>${t(St.mode === 'pickup' ? 'needBranch' : 'pickAddr')}</span>`}${IC.chev}</span><small>${br ? `${t('pickup')} · ${esc(br.name || '')}` : time}${!br && st.rating ? ` · ${st.rating.toFixed(2)} <span class="st">★</span>` : ''}</small></span>`;
+  if ($('#userslot')) $('#userslot').innerHTML = St.token ? `<button class="avatar" data-a="profile" aria-label="${t('profile')}"><img src="/img/avatars/${St.user?.avatar > 0 ? St.user.avatar : 9}.png" alt=""></button>` : `<button class="loginbtn" data-a="login">${t('login')}</button>`;
+}
+function thumbMap() {
+  const el = $('#thumbmap'); if (!el || !window.L) return;
+  const m = newMap(el, { dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false });
+  tiles().addTo(m); setTimeout(() => { m.invalidateSize(); drawZones(m, { weight: 1.5, fill: .25, pad: [10, 10] }); }, 50);
+}
+function spy() {
+  const nav = $('#cats'); if (!nav) return;
+  let stuck = null, raf = 0;
+  const head = $('.head'), top = () => parseFloat(getComputedStyle(nav).top) || 0;
+  const upd = () => { raf = 0; head.classList.toggle('scrolled', scrollY > 60); const s = scrollY > 0 && nav.getBoundingClientRect().top <= top() + 0.5; if (s !== stuck) { stuck = s; nav.classList.toggle('stuck', s); } };
+  addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(upd); }, { passive: true }); upd();
+  const pills = $('.cats .pills');
+  const io = new IntersectionObserver(es => {
+    for (const e of es) if (e.isIntersecting) {
+      $$('.cats .pill').forEach(p => p.classList.toggle('on', p.dataset.cat === e.target.dataset.sec));
+      const on = $('.cats .pill.on'); if (on) pills.scrollTo({ left: on.offsetLeft - 24, behavior: 'smooth' }); // only the pill row moves, never the page
+    }
+  }, { rootMargin: '-200px 0px -60% 0px' });
+  $$('section.cat').forEach(s => io.observe(s));
+}
+
+/* ---------- modals ---------- */
+function modal(html, cls = '', onClose) {
+  closeModals();
+  const o = document.createElement('div'); o.className = 'ov' + (cls.includes('side') ? ' side' : ''); o.innerHTML = html;
+  o.addEventListener('mousedown', e => { if (e.target === o) closeModals(); });
+  o._close = onClose; $('#modals').appendChild(o); document.body.style.overflow = 'hidden';
+  return o;
+}
+function closeModals() { for (const o of $$('#modals .ov')) { o._close?.(); o.remove(); } document.body.style.overflow = ''; }
+const X = `<button class="x" data-a="close" aria-label="close">${IC.x}</button>`;
+
+function openProduct(id) {
+  const p = prod(id); if (!p) return;
+  const adds = (p.addons || []).map(prod).filter(Boolean);
+  const sel = new Set();
+  const draw = () => {
+    const sum = p.price + [...sel].reduce((n, i) => n + prod(i).price, 0);
+    o.querySelector('.md').innerHTML = `${X}<div class="pmd"><div class="big">${p.image ? `<img src="${esc(p.image)}" alt="">` : `<div class="noimg" style="width:80%;aspect-ratio:1;border-radius:50%;background:var(--card);display:grid;place-items:center">${phOf(p)}</div>`}</div>
+      <div class="info"><div class="sc"><h2>${esc(loc(p, 'name'))}</h2>${p.old_price > p.price ? `<div class="faint" style="text-decoration:line-through;margin-bottom:6px">${money(p.old_price)}</div>` : ''}<p class="muted" style="line-height:1.5;margin:6px 0 0">${esc(loc(p, 'description'))}</p>
+      ${adds.length ? `<h3 style="margin:22px 0 0;font-size:18px">${t('withIt')}</h3><div class="addons">${adds.map(a => `<button class="addon ${sel.has(a.id) ? 'on' : ''}" data-tog="${a.id}">${img(a)}${esc(loc(a, 'name'))}<small>+${money(a.price)}</small></button>`).join('')}</div>` : ''}</div>
+      <button class="btn red wide" style="margin-top:18px;height:56px" data-addp>${t('add')} ${money(sum)}</button></div></div>`;
+  };
+  const o = modal(`<div class="md wide"></div>`); draw();
+  o.addEventListener('click', e => {
+    const tg = e.target.closest('[data-tog]'); if (tg) { const i = Number(tg.dataset.tog); sel.has(i) ? sel.delete(i) : sel.add(i); draw(); }
+    if (e.target.closest('[data-addp]')) { setQty(p.id, 1); sel.forEach(i => setQty(i, 1)); closeModals(); toast(`${loc(p, 'name')} — ${LANG === 'uz' ? 'savatga qo‘shildi' : 'в корзине'}`); }
+  });
+}
+
+function openCart(keep) {
+  const items = cartItems(); const { sub, discount } = totals();
+  const body = items.length ? items.map(c => { const p = prod(c.id); return `<div class="ci">${img(p)}<span><b>${esc(loc(p, 'name'))}</b><small>${money(p.price * c.qty)}</small></span><div class="stepper"><button data-a="dec" data-id="${p.id}">−</button><b>${c.qty}</b><button data-a="inc" data-id="${p.id}">+</button></div></div>`; }).join('')
+    : `<div class="empty"><div class="emptyic">${I.bag(64, '#6f6f78')}</div><b>${t('emptyCart')}</b>${t('emptyCartTx')}</div>`;
+  const rec = prods().filter(p => p.recommended && !qty(p.id)).slice(0, 12);
+  const recs = items.length && rec.length ? `<h3 class="rech">${t('alwaysHandy')}</h3><div class="recs">${rec.map(p => `<div class="rc">${img(p)}<b>${esc(loc(p, 'name'))}</b><button data-a="inc" data-id="${p.id}">+ ${money(p.price)}</button></div>`).join('')}</div>` : '';
+  const html = `<div class="drawer" id="drawer"><div class="hd"><h2>${t('cart')}</h2>${X.replace('class="x"', 'class="x" style="position:static;background:var(--card)"')}</div><div class="bd">${body}${recs}</div>
+    ${items.length ? `<div class="ft"><div class="row"><span class="muted">${t('items')}</span><span>${money(sub)}</span></div>${discount ? `<div class="row"><span class="muted">${t('discount')}</span><span>−${money(discount)}</span></div>` : ''}<div class="row tot"><span>${t('total')}</span><span>${money(sub - discount)}</span></div><button class="btn red wide" style="margin-top:14px;height:58px;font-size:18px" data-a="checkout">${t('checkout')}</button></div>` : ''}</div>`;
+  if (keep && $('#drawer')) { $('#drawer').outerHTML = html; return; }
+  modal(html, 'side');
+}
+
+/* login: phone -> Telegram code -> name */
+function openLogin(next) {
+  let phone = '', timer = null;
+  const o = modal(`<div class="md"></div>`, '', () => clearInterval(timer));
+  const md = o.querySelector('.md');
+  const stepPhone = (err = '') => {
+    md.innerHTML = `${X}<h2>${t('phoneT')}</h2><p class="muted" style="margin:0 0 18px">${t('phoneSub')}</p><div class="phone"><span>+998</span><input id="ph" inputmode="numeric" autocomplete="tel-national" maxlength="12" placeholder="90 123 45 67" value="${esc(phone)}"></div><div class="err">${esc(err)}</div><button class="btn red wide" id="go">${t('getCode')}</button>`;
+    const inp = $('#ph', md); inp.focus();
+    inp.addEventListener('input', () => { const d = inp.value.replace(/\D/g, '').slice(0, 9); inp.value = [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean).join(' '); });
+    const go = async () => {
+      phone = inp.value; const d = phone.replace(/\D/g, '');
+      if (d.length !== 9) return stepPhone(LANG === 'uz' ? 'Raqamning 9 ta raqamini kiriting' : 'Введите 9 цифр номера');
+      $('#go', md).disabled = true;
+      try { const r = await api('/auth/request', { body: { phone: '+998' + d } }); stepCode(r.resend_in || 60); } catch (e) { if (e.status === 429 && e.data?.resend_in) stepCode(e.data.resend_in); else stepPhone(e.message); }
+    };
+    $('#go', md).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+  };
+  const stepCode = (wait, err = '') => {
+    const d = phone.replace(/\D/g, '');
+    md.innerHTML = `${X}<h2>${t('codeT')}</h2><p class="muted" style="margin:0">${t('codeSent', '+998 ' + phone)}</p><div class="code">${[0, 1, 2, 3].map(i => `<input inputmode="numeric" maxlength="1" data-i="${i}" autocomplete="${i ? 'off' : 'one-time-code'}">`).join('')}</div><div class="err" style="text-align:center">${esc(err)}</div>
+      <button class="btn wide" id="rs" disabled></button><button class="btn wide" style="margin-top:8px;background:none" id="chg">${t('change')}</button>`;
+    const ins = $$('.code input', md); ins[0].focus();
+    let left = wait; const tick = () => { const b = $('#rs', md); if (!b) return; b.disabled = left > 0; b.textContent = left > 0 ? t('resendIn', left) : t('resend'); left--; };
+    clearInterval(timer); tick(); timer = setInterval(tick, 1000);
+    $('#rs', md).onclick = async () => { try { const r = await api('/auth/request', { body: { phone: '+998' + d } }); stepCode(r.resend_in || 60); } catch (e) { stepCode(e.data?.resend_in || 30, e.message); } };
+    $('#chg', md).onclick = () => { clearInterval(timer); stepPhone(); };
+    const verify = async () => {
+      const code = ins.map(i => i.value).join(''); if (code.length < 4) return;
+      try {
+        const r = await api('/auth/verify', { body: { phone: '+998' + d, code } });
+        clearInterval(timer); St.token = r.token; St.user = r.user; LS.set('token', r.token); await loadUser();
+        if (r.isNew || !r.user.name) stepName(); else { closeModals(); renderHead(); next?.(); }
+      } catch (e) { ins.forEach(i => { i.value = ''; }); ins[0].focus(); md.querySelector('.err').textContent = e.message; }
+    };
+    ins.forEach((inp, i) => {
+      inp.addEventListener('input', () => { const v = inp.value.replace(/\D/g, ''); if (v.length > 1) { v.split('').slice(0, 4).forEach((ch, k) => { if (ins[k]) ins[k].value = ch; }); verify(); return; } inp.value = v; if (v && ins[i + 1]) ins[i + 1].focus(); if (ins.every(x => x.value)) verify(); });
+      inp.addEventListener('keydown', e => { if (e.key === 'Backspace' && !inp.value && ins[i - 1]) ins[i - 1].focus(); });
+    });
+  };
+  const stepName = () => {
+    md.innerHTML = `<h2>${t('nameT')}</h2><label class="f"><span>${t('name')}</span><input class="inp" id="nm" maxlength="40"></label><div class="err"></div><button class="btn red wide" id="sv">${t('save')}</button><button class="btn wide" style="margin-top:8px;background:none" id="sk">${t('skip')}</button>`;
+    $('#nm', md).focus();
+    const done = () => { closeModals(); renderHead(); next?.(); };
+    $('#sv', md).onclick = async () => { const name = $('#nm', md).value.trim(); if (!name) return; try { St.user = (await api('/me', { method: 'PUT', body: { name } })).user; done(); } catch (e) { md.querySelector('.err').textContent = e.message; } };
+    $('#sk', md).onclick = done;
+  };
+  stepPhone();
+}
+const needLogin = fn => (St.token ? fn() : openLogin(fn));
+
+/* location picker (header address button): full map + floating panel with two tabs.
+   Delivery: saved addresses or a new one (search, pin in the centre, live zone check).
+   Takeaway: the restaurants as a list and on the map, opening hours, choose one. */
+const hhmm = v => v;
+function openLocation(tab, next) {
+  let mode = tab || St.mode, sel = St.branchId, newAddr = !St.addrs.length, q = '', seq = 0, ok = false, deb, sdeb, map;
+  const markers = {};
+  const o = modal(`<div class="md loc"><div class="lm dark-tiles" id="lmap"></div><img class="lpin" id="lpin" src="/img/pin.png" alt="">
+    <div class="lpanel"><div class="lseg"><button data-lm="delivery">${I.walk(20, '#fff')}${t('delivery')}</button><button data-lm="pickup">${I.fork(20)}${t('pickup')}</button></div><div class="lbox" id="lbox"></div></div>
+    ${X}<div class="lctl"><button data-lz="1" aria-label="zoom in">+</button><button data-lz="-1" aria-label="zoom out">−</button><button data-lz="me" aria-label="my location">${I.locate(22)}</button></div></div>`, '', () => map?.remove());
+  map = newMap($('#lmap', o)); tiles().addTo(map);
+  drawZones(map, { fill: .1, weight: 2 });
+  const bIcon = b => L.icon({ iconUrl: b.open_now ? '/img/branch.png' : '/img/branch_closed.png', iconSize: [44, 70], iconAnchor: [22, 66] });
+  for (const b of branches()) markers[b.id] = L.marker([b.lat, b.lng], { icon: bIcon(b) }).on('click', () => { if (mode !== 'pickup') { mode = 'pickup'; } sel = b.id; draw(); });
+  const city = branches()[0]?.city || 'Ташкент';
+  const check = async () => {
+    if (mode !== 'delivery' || !newAddr) return;
+    const c = map.getCenter(), my = ++seq; ok = false;
+    const btn = $('#as', o), note = $('#aq', o); if (!btn) return;
+    btn.disabled = true; note.className = 'note'; note.textContent = t('checking');
+    const [rv, qt] = await Promise.all([api(`/reverse?lat=${c.lat}&lng=${c.lng}`).catch(() => ({})), api('/delivery/quote', { body: { lat: c.lat, lng: c.lng, items: cartItems().map(x => x.id), subtotal: totals().sub } }).catch(e => ({ ok: false, message: e.message }))]);
+    if (my !== seq || !$('#as', o)) return;
+    if (rv.address && !$('#aa', o).dataset.touched) $('#aa', o).value = rv.address;
+    ok = !!qt.ok; $('#as', o).disabled = !ok;
+    $('#aq', o).className = 'note ' + (ok ? 'ok' : 'bad');
+    $('#aq', o).textContent = ok ? t('delivers', qt.branch.name, qt.distance_km) : srv(qt.message) || t('outZone');
+  };
+  const branchRow = b => {
+    const on = b.id === sel;
+    return `<button class="bi ${on ? 'on' : ''}" data-b="${b.id}"><span class="rd"></span><span class="t"><small>${esc(b.city || city)}</small><b>${esc(b.address)}</b>
+      <em class="${b.open_now ? '' : 'bad'}">${b.open_now ? t('openUntil', hhmm(b.close_time)) : t('closedOpens', b.open_time)}</em>
+      ${on ? `<span class="hrs"><span>${t('hall')}</span><span>${t('everyDay')}: ${esc(b.open_time)} — ${esc(hhmm(b.close_time))}</span><span>${t('delivery')}</span><span>${t('everyDay')}: ${esc(b.open_time)} — ${esc(hhmm(b.close_time))}</span>${b.phone ? `<span>${t('phone')}</span><span>${esc(b.phone)}</span>` : ''}</span>` : ''}</span></button>`;
+  };
+  const draw = () => {
+    $$('[data-lm]', o).forEach(x => x.classList.toggle('on', x.dataset.lm === mode));
+    $('#lpin', o).style.display = mode === 'delivery' && newAddr ? '' : 'none';
+    for (const b of branches()) { const m = markers[b.id]; if (mode === 'pickup') { m.addTo(map); m.setOpacity(sel && b.id !== sel ? .55 : 1); } else m.remove(); }
+    const box = $('#lbox', o);
+    if (mode === 'pickup') {
+      const list = branches().filter(b => !q || (b.name + ' ' + b.address).toLowerCase().includes(q.toLowerCase()));
+      box.innerHTML = `<span class="chip">${esc(city)}</span><input class="inp" id="lq" placeholder="${t('branchSearch')}" value="${esc(q)}" autocomplete="off">
+        <p class="lnote">${t('storeNote')}</p><div class="blist">${list.map(branchRow).join('') || `<div class="faint" style="padding:20px;text-align:center">${t('notFound')}</div>`}</div>
+        <button class="btn red wide" id="lsel" ${sel ? '' : 'disabled'}>${t('select')}</button>`;
+      const on = $('.bi.on', box), bl = $('.blist', box); if (on) bl.scrollTop = on.offsetTop - bl.offsetTop - 8; // keep the chosen restaurant in view
+      const inp = $('#lq', box); inp.addEventListener('input', () => { q = inp.value; const pos = inp.selectionStart; draw(); const i2 = $('#lq', o); i2.focus(); i2.setSelectionRange(pos, pos); });
+    } else if (!newAddr) {
+      box.innerHTML = `<div class="muted" style="font-size:14px;margin:4px 4px 8px">${t('myAddrs')}</div><div class="blist">${St.addrs.map(a => `<button class="bi ${a.id === St.addrId ? 'on' : ''}" data-ad="${a.id}"><span class="rd"></span><span class="t"><b style="font-size:16px">${esc(a.address)}</b><small>${[a.entrance && t('entrance') + ' ' + a.entrance, a.floor && t('floor') + ' ' + a.floor, a.apartment && t('apt') + ' ' + a.apartment].filter(Boolean).map(esc).join(', ')}</small></span></button>`).join('')}</div>
+        <button class="btn wide" data-newad>${t('newAddr')}</button><button class="btn red wide" style="margin-top:8px" id="lsel" ${St.addrId ? '' : 'disabled'}>${t('select')}</button>`;
+    } else {
+      box.innerHTML = `<div class="lsearch"><input class="inp" id="ls" placeholder="${t('addrSearch')}" autocomplete="off"><div class="lsug" id="lsug" hidden></div></div>
+        <p class="lnote" style="text-align:left;margin:8px 4px 0">${t('moveMap')}</p>
+        <div class="lform"><label class="f"><span>${t('addr')}</span><input class="inp" id="aa" maxlength="200"></label>
+        <div class="g4"><label class="f"><span>${t('entrance')}</span><input class="inp" id="ae" maxlength="10"></label><label class="f"><span>${t('floor')}</span><input class="inp" id="af" maxlength="10"></label><label class="f"><span>${t('apt')}</span><input class="inp" id="ap" maxlength="10"></label><label class="f"><span>${t('intercom')}</span><input class="inp" id="ai" maxlength="10"></label></div>
+        <label class="f"><span>${t('comment')}</span><input class="inp" id="ac" maxlength="100"></label></div>
+        <div class="note" id="aq">${t('checking')}</div>
+        <div style="display:flex;gap:8px;margin-top:10px">${St.addrs.length ? `<button class="btn" data-oldad>${t('myAddrs')}</button>` : ''}<button class="btn red" style="flex:1" id="as" disabled>${t('saveAddr')}</button></div>`;
+      $('#aa', box).addEventListener('input', e => { e.target.dataset.touched = 1; });
+      const ls = $('#ls', box), sug = $('#lsug', box);
+      ls.addEventListener('input', () => {
+        clearTimeout(sdeb); const v = ls.value.trim(); if (v.length < 3) { sug.hidden = true; return; }
+        sdeb = setTimeout(async () => {
+          const r = await api(`/geocode?lang=${LANG}&q=${encodeURIComponent(v)}`).catch(() => ({ results: [] }));
+          if (ls.value.trim() !== v) return;
+          sug.innerHTML = r.results.length ? r.results.map((x, i) => `<button data-sg="${i}"><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></button>`).join('') : `<div class="faint" style="padding:12px 14px">${t('notFound')}</div>`;
+          sug.hidden = false; sug._r = r.results;
+        }, 350);
+      });
+      check();
+    }
+  };
+  const finish = () => { LS.set('mode', St.mode); St.quote = null; closeModals(); renderHead(); next?.(); };
+  o.addEventListener('click', async e => {
+    const lm = e.target.closest('[data-lm]'); if (lm) { mode = lm.dataset.lm; draw(); if (mode === 'delivery') setTimeout(check, 50); return; }
+    const lz = e.target.closest('[data-lz]');
+    if (lz) { if (lz.dataset.lz === 'me') navigator.geolocation?.getCurrentPosition(p => map.setView([p.coords.latitude, p.coords.longitude], 16), () => toast(t('noGeo'))); else map.setZoom(map.getZoom() + Number(lz.dataset.lz)); return; }
+    const bi = e.target.closest('[data-b]'); if (bi) { sel = Number(bi.dataset.b); const b = branches().find(x => x.id === sel); draw(); map.flyTo([b.lat, b.lng], 15, { duration: .6 }); return; }
+    const ad = e.target.closest('[data-ad]'); if (ad) { St.addrId = Number(ad.dataset.ad); draw(); const a = St.addrs.find(x => x.id === St.addrId); map.flyTo([a.lat, a.lng], 16, { duration: .6 }); return; }
+    if (e.target.closest('[data-newad]')) { newAddr = true; draw(); return; }
+    if (e.target.closest('[data-oldad]')) { newAddr = false; draw(); return; }
+    const sg = e.target.closest('[data-sg]');
+    if (sg) { const x = $('#lsug', o)._r[Number(sg.dataset.sg)]; $('#lsug', o).hidden = true; $('#ls', o).value = x.title; $('#aa', o).value = [x.title, x.sub].filter(Boolean).join(', '); $('#aa', o).dataset.touched = 1; map.setView([x.lat, x.lng], 17); return; }
+    if (e.target.closest('#lsel')) {
+      if (mode === 'pickup') { if (!sel) return; St.mode = 'pickup'; St.branchId = sel; LS.set('branchId', sel); }
+      else { if (!St.addrId) return; St.mode = 'delivery'; LS.set('addrId', St.addrId); }
+      return finish();
+    }
+    if (e.target.closest('#as')) {
+      if (!ok) return; if (!St.token) return openLogin(() => openLocation('delivery', next));
+      const c = map.getCenter(); const v = id => $(id, o).value.trim();
+      if (!v('#aa')) { $('#aa', o).focus(); return; }
+      try {
+        const r = await api('/addresses', { body: { address: v('#aa'), lat: c.lat, lng: c.lng, entrance: v('#ae'), floor: v('#af'), apartment: v('#ap'), intercom: v('#ai'), comment: v('#ac'), label: 'other' } });
+        St.addrs.unshift(r.address); St.addrId = r.address.id; LS.set('addrId', St.addrId); St.mode = 'delivery'; finish();
+      } catch (er) { $('#aq', o).className = 'note bad'; $('#aq', o).textContent = er.message; }
+    }
+  });
+  map.on('movestart', () => $('#lpin', o)?.classList.add('lift'));
+  map.on('moveend', () => { $('#lpin', o)?.classList.remove('lift'); clearTimeout(deb); deb = setTimeout(check, 350); });
+  const cur = mode === 'pickup' ? branches().find(b => b.id === sel) : St.addrs.find(a => a.id === St.addrId);
+  setTimeout(() => { map.invalidateSize(); if (cur) map.setView([cur.lat, cur.lng], mode === 'pickup' ? 14 : 16); else if (!St.zones.length) map.setView([41.3111, 69.2797], 12); draw(); }, 60);
+}
+const openAddress = next => (St.token ? openLocation('delivery', next) : openLogin(() => openLocation('delivery', next)));
+
+/* checkout */
+async function quote() {
+  const a = St.addrs.find(x => x.id === St.addrId); if (!a) { St.quote = null; return; }
+  try { St.quote = await api('/delivery/quote', { body: { lat: a.lat, lng: a.lng, items: cartItems().map(c => c.id), subtotal: Math.max(0, totals().sub - totals().discount) } }); } catch (e) { St.quote = { ok: false, message: e.message }; }
+}
+function openCheckout() {
+  if (!cartItems().length) return;
+  needLogin(async () => {
+    if (St.mode === 'delivery' && !St.quote) await quote();
+    const o = modal(`<div class="md" style="max-width:560px"></div>`); const md = o.querySelector('.md');
+    const draw = (err = '') => {
+      const del = St.mode === 'delivery'; const { sub, discount } = totals(); const a = St.addrs.find(x => x.id === St.addrId);
+      const q = St.quote; const fee = del && q?.ok ? q.fee : 0; const minO = del && q?.ok ? q.min_order : 0;
+      const open = branches().filter(b => b.open_now);
+      if (!del && !branches().some(b => b.id === St.branchId)) St.branchId = open[0]?.id || null;
+      let block = '';
+      if (del && !a) block = t('needAddr'); else if (del && q && !q.ok) block = srv(q.message); else if (del && minO && sub < minO) block = t('minFor', money(minO)); else if (!del && !St.branchId) block = t('needBranch');
+      md.innerHTML = `${X}<h2>${t('checkout')}</h2>
+        <div class="seg"><button class="${del ? 'on' : ''}" data-m="delivery">${I.walk(22)}${t('delivery')}</button><button class="${del ? '' : 'on'}" data-m="pickup">${I.fork(22, del ? '#fff' : '#111')}${t('pickup')}</button></div>
+        ${del ? `<button class="opt on" data-a="addr2"><span class="t">${a ? esc(a.address) : t('pickAddr')}<small>${a ? [a.apartment && t('apt') + ' ' + a.apartment, a.floor && t('floor') + ' ' + a.floor, q?.ok && t('delivers', q.branch.name, q.distance_km)].filter(Boolean).map(esc).join(' · ') : ''}</small></span>${IC.chev}</button>`
+        : branches().map(b => `<button class="opt ${b.id === St.branchId ? 'on' : ''}" data-br="${b.id}" ${b.open_now ? '' : 'disabled style="opacity:.5"'}><span class="rd"></span><span class="t">${esc(b.name || b.address)}<small>${esc(b.address)} · ${esc(b.open_time)}–${esc(b.close_time)}${b.open_now ? '' : ' · ' + t('closed')}</small></span></button>`).join('')}
+        ${del ? '' : `<div class="meths">${[['tray', t('tray')], ['takeaway', t('takeaway')], ['table', t('table')]].map(([k, n]) => `<button class="meth ${St.pickupMethod === k ? 'on' : ''}" data-meth="${k}">${ILL[k]}<span>${n}</span></button>`).join('')}</div>`}
+        <div class="muted" style="font-size:14px;margin:18px 0 0 4px">${t('pay')}</div>
+        <div class="pays" style="margin-top:8px">${[['cash', t('cash'), I.cash(24)], ['click', '', I.click(30)], ['payme', '', I.payme(30)]].map(([k, n, ic]) => `<button class="opt ${St.pay === k ? 'on' : ''}" data-pay="${k}">${ic}${n}</button>`).join('')}</div>
+        ${St.pay !== 'cash' ? `<div class="faint" style="font-size:13px;margin:8px 4px 0">${t('payNote')}</div>` : ''}
+        <div class="g2" style="grid-template-columns:1fr auto;align-items:end"><label class="f"><span>${t('promo')}</span><input class="inp" id="pc" value="${esc(St.promo?.code || '')}" maxlength="30"></label><button class="btn" style="margin-top:14px" data-a="promo">${t('apply')}</button></div>
+        <label class="f"><span>${t('comment')}</span><input class="inp" id="cm" maxlength="200"></label>
+        <div style="margin-top:18px"><div class="row"><span class="muted">${t('items')}</span><span>${money(sub)}</span></div>${discount ? `<div class="row"><span class="muted">${t('discount')} ${esc(St.promo.code)}</span><span>−${money(discount)}</span></div>` : ''}${del ? `<div class="row"><span class="muted">${t('delivery')}</span><span>${q?.ok ? (fee ? money(fee) : t('freeDel')) : '—'}</span></div>` : ''}<div class="row tot"><span>${t('total')}</span><span>${money(sub - discount + fee)}</span></div></div>
+        ${block ? `<div class="note bad">${esc(block)}</div>` : ''}<div class="err">${esc(err)}</div>
+        <button class="btn red wide" style="height:58px;font-size:18px" id="place" ${block ? 'disabled' : ''}>${t('place')} · ${money(sub - discount + fee)}</button>`;
+    };
+    draw();
+    md.addEventListener('click', async e => {
+      const m = e.target.closest('[data-m]'); if (m) { St.mode = m.dataset.m; LS.set('mode', St.mode); if (St.mode === 'delivery' && !St.quote) await quote(); return draw(); }
+      const br = e.target.closest('[data-br]'); if (br) { St.branchId = Number(br.dataset.br); LS.set('branchId', St.branchId); return draw(); }
+      const py = e.target.closest('[data-pay]'); if (py) { St.pay = py.dataset.pay; return draw(); }
+      const me = e.target.closest('[data-meth]'); if (me) { St.pickupMethod = me.dataset.meth; return draw(); }
+      if (e.target.closest('[data-a=addr2]')) return openAddress(openCheckout);
+      if (e.target.closest('[data-a=promo]')) {
+        const code = $('#pc', md).value.trim(); if (!code) { St.promo = null; return draw(); }
+        try { St.promo = await api('/promo/check', { body: { code, subtotal: totals().sub } }); St.quote = null; if (St.mode === 'delivery') await quote(); draw(); } catch (er) { St.promo = null; draw(er.message); }
+        return;
+      }
+      if (e.target.closest('#place')) {
+        const del = St.mode === 'delivery'; const btn = $('#place', md); btn.disabled = true;
+        const body = { type: del ? 'delivery' : 'pickup', items: cartItems().map(c => ({ product_id: c.id, qty: c.qty })), promo: St.promo?.code || '', payment: St.pay, comment: $('#cm', md).value.trim() };
+        if (del) body.address_id = St.addrId; else { body.branch_id = St.branchId; body.pickup_time = 'asap'; body.pickup_method = St.pickupMethod; }
+        try {
+          const r = await api('/orders', { body });
+          St.cart = St.cart.filter(c => c.coin); St.promo = null; St.quote = null; LS.set('cart', St.cart); refreshCart();
+          md.innerHTML = `${X}<div style="text-align:center;padding:10px 0"><div class="okic">${I.check(56)}</div><h2>${t('okT')}</h2><p class="muted">${t('okTx', r.order.id)}</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px">${del ? `<button class="btn red" data-track="${r.order.id}">${t('track')}</button>` : ''}<button class="btn" data-a="close">${t('close')}</button></div></div>`;
+        } catch (er) { draw(er.message); }
+      }
+    });
+  });
+}
+
+/* profile + orders + live tracking */
+async function loadUser() {
+  if (!St.token) return;
+  try {
+    const [me, ad] = await Promise.all([api('/me'), api('/addresses')]);
+    St.user = me.user; St.addrs = ad.addresses;
+    if (!St.addrs.some(a => a.id === St.addrId)) { St.addrId = St.addrs[0]?.id || null; LS.set('addrId', St.addrId); }
+  } catch { /* logged out */ }
+}
+/* profile page (#profile): personal data, avatar, subscriptions, orders */
+function showView() {
+  const prof = location.hash === '#profile' && St.token;
+  if (!$('#profv')) return;
+  $('#menuv').hidden = !!prof; $('#profv').hidden = !prof;
+  document.body.classList.toggle('in-profile', !!prof); // the profile page shows only the profile
+  $$('.cats .pill').forEach(p => p.classList.toggle('on', false));
+  if (prof) { renderProfile(); scrollTo({ top: 0 }); }
+}
+addEventListener('hashchange', () => { const wasProf = !$('#profv')?.hidden; showView(); const id = location.hash.slice(1); if (wasProf && id && $('#' + id)) $('#' + id).scrollIntoView(); });
+const fmtPhone = p => String(p || '').replace(/^\+998(\d{2})(\d{3})(\d{2})(\d{2})$/, '+998 $1-$2-$3-$4');
+async function renderProfile() {
+  const v = $('#profv'), u = St.user || {};
+  const [by, bm, bd] = (u.birthday || '').split('-').map(Number);
+  const opts = (n0, n1, sel, lab, desc) => Array.from({ length: n1 - n0 + 1 }, (_, i) => (desc ? n1 - i : n0 + i)).map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${lab ? lab(n) : n}</option>`).join('');
+  const yNow = new Date().getFullYear();
+  v.innerHTML = `<section class="prof">
+    <h1 class="h2">${t('personal')}</h1>
+    <div class="pf-lab">${t('avatar')}</div>
+    <div class="avas">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="ava ${(u.avatar > 0 ? u.avatar : 9) === n ? 'on' : ''}" data-ava="${n}" aria-label="avatar ${n}"><img src="/img/avatars/${n}.png" alt=""></button>`).join('')}</div>
+    <div class="pf-lab">${t('yourName')}</div>
+    <div class="pf"><input id="pfname" maxlength="40" value="${esc(u.name || '')}" disabled><button data-pf="name">${t('edit')}</button></div>
+    <div class="pf-lab">${t('phone')}</div>
+    <div class="pf"><input value="${esc(fmtPhone(u.phone))}" disabled></div>
+    <div class="pf-lab">${t('birthday')} <span class="hint" title="${esc(t('bdayHint'))}">i</span></div>
+    <div class="bday"><select id="bdd"><option value="">${t('day')}</option>${opts(1, 31, bd)}</select><select id="bdm"><option value="">${t('month')}</option>${opts(1, 12, bm, n => t('months')[n - 1])}</select><select id="bdy"><option value="">${t('year')}</option>${opts(yNow - 100, yNow - 5, by, null, true)}</select><button data-pf="bday">${t('save')}</button></div>
+    <div class="pf-lab">${t('myAddrs')}</div>
+    <div class="pfaddrs">${St.addrs.map(a => `<div class="pfa ${a.id === St.addrId ? 'on' : ''}"><span class="ic">${I.home(20)}</span><span class="t">${esc(a.address)}<small>${[a.entrance && t('entrance') + ' ' + a.entrance, a.floor && t('floor') + ' ' + a.floor, a.apartment && t('apt') + ' ' + a.apartment].filter(Boolean).map(esc).join(', ')}</small></span><button data-pfdel="${a.id}">${t('delete')}</button></div>`).join('')}
+      <button class="btn" data-pfnew>${t('newAddr')}</button></div>
+    <h2 class="h3">${t('subs')}</h2>
+    <label class="chk"><input type="checkbox" id="pfnotify" ${u.notify ? 'checked' : ''}><span>${t('newsletter')}<br><a href="#" data-a="legal">${t('privacy')}.</a></span></label>
+    <div class="note" style="display:flex;justify-content:space-between;align-items:center;margin-top:26px;max-width:520px"><span>${t('balance')}</span><b style="font-size:20px">${num(u.coins || 0)} WendyCoin</b></div>
+    <h2 class="h3">${t('orders')}</h2><div id="pforders"><div class="skel" style="height:80px;max-width:620px"></div></div>
+    <button class="btn" style="margin-top:28px" data-a="logout">${t('logout')}</button></section>`;
+  try { St.orders = (await api('/orders')).orders; } catch { St.orders = []; }
+  if (!$('#pforders')) return;
+  $('#pforders').innerHTML = St.orders.length ? St.orders.slice(0, 12).map(ord => `<div class="order" style="max-width:620px"><div class="top"><span>№${ord.id} · ${money(ord.total)}</span><span class="st ${ord.status}">${ST_NAMES[ord.status]?.[LANG === 'uz' ? 1 : 0] || ord.status}</span></div><div class="faint" style="font-size:13px;margin-top:6px">${esc(ord.created_at)} · ${ord.items.map(i => esc(loc(prod(i.product_id), 'name') || i.name) + ' × ' + i.qty).join(', ')}</div>${ord.type === 'delivery' && ['new', 'cooking', 'ready', 'delivering'].includes(ord.status) ? `<button class="btn red" style="height:40px;margin-top:10px" data-track="${ord.id}">${t('track')}</button>` : ''}</div>`).join('') : `<div class="faint">${t('noOrders')}</div>`;
+}
+async function saveMe(body) {
+  try { St.user = (await api('/me', { method: 'PUT', body })).user; toast(t('saved')); renderHead(); return true; } catch (e) { toast(e.message); return false; }
+}
+document.addEventListener('click', async e => {
+  if (e.target.closest('[data-pfnew]')) return openLocation('delivery', () => renderProfile());
+  const del = e.target.closest('[data-pfdel]');
+  if (del) {
+    const id = Number(del.dataset.pfdel);
+    try { await api('/addresses/' + id, { method: 'DELETE' }); } catch (er) { return toast(er.message); }
+    St.addrs = St.addrs.filter(a => a.id !== id);
+    if (St.addrId === id) { St.addrId = St.addrs[0]?.id || null; LS.set('addrId', St.addrId); St.quote = null; }
+    renderHead(); return renderProfile();
+  }
+  const av = e.target.closest('[data-ava]'); if (av) { if (await saveMe({ avatar: Number(av.dataset.ava) })) renderProfile(); return; }
+  const b = e.target.closest('[data-pf]'); if (!b) return;
+  if (b.dataset.pf === 'name') {
+    const i = $('#pfname'); if (i.disabled) { i.disabled = false; i.focus(); b.textContent = t('save'); return; }
+    if (i.value.trim() && await saveMe({ name: i.value.trim() })) { i.disabled = true; b.textContent = t('edit'); }
+  } else if (b.dataset.pf === 'bday') {
+    const d = $('#bdd').value, m = $('#bdm').value, y = $('#bdy').value;
+    if (!d && !m && !y) return saveMe({ birthday: '' });
+    if (!d || !m || !y) return toast(t('birthday') + ': ' + [t('day'), t('month'), t('year')].join(' / '));
+    saveMe({ birthday: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` });
+  }
+});
+document.addEventListener('change', e => { if (e.target.id === 'pfnotify') saveMe({ notify: e.target.checked ? 1 : 0 }); });
+function openTrack(id) {
+  let timer, map, mk = {}, line;
+  const o = modal(`<div class="md map"><div class="mapbox dark-tiles" style="height:560px"><div class="lm" id="tmap"></div></div><div style="padding:18px 24px" id="tinfo"><div class="skel" style="height:40px"></div></div>${X}</div>`, '', () => { clearInterval(timer); map?.remove(); });
+  map = newMap($('#tmap', o), { zoomControl: true }); tiles().addTo(map); drawZones(map, { fill: .06, weight: 1.5 });
+  const cIcon = L.divIcon({ className: '', html: '<img src="/img/courier.png" style="width:46px" alt="">', iconSize: [46, 46], iconAnchor: [23, 23] });
+  const dIcon = L.divIcon({ className: '', html: IC.pin.replace('class="pinc"', 'style="width:36px;height:44px"'), iconSize: [36, 44], iconAnchor: [18, 44] });
+  let fitted = false;
+  const upd = async () => {
+    let r; try { r = await api(`/orders/${id}/track`); } catch { return; }
+    const pts = [];
+    if (r.dest) { pts.push([r.dest.lat, r.dest.lng]); mk.d = mk.d || L.marker([r.dest.lat, r.dest.lng], { icon: dIcon }).addTo(map); }
+    if (r.courier?.lat) { const ll = [r.courier.lat, r.courier.lng]; pts.push(ll); if (mk.c) mk.c.setLatLng(ll); else mk.c = L.marker(ll, { icon: cIcon }).addTo(map); }
+    else if (r.branch) pts.push([r.branch.lat, r.branch.lng]);
+    if (line) map.removeLayer(line);
+    if (pts.length === 2) line = L.polyline(pts, { color: '#e2203d', weight: 5, dashArray: '10 12' }).addTo(map);
+    if (!fitted && pts.length) { map.fitBounds(pts, { padding: [70, 70], maxZoom: 16 }); fitted = true; }
+    $('#tinfo', o).innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-size:20px">№${r.id} · ${ST_NAMES[r.status]?.[LANG === 'uz' ? 1 : 0] || r.status}</b>${r.courier ? `<span class="muted">${t('courier')}: ${esc(r.courier.name || '')}</span>` : ''}</div>${r.dest ? `<div class="muted" style="margin-top:4px">${esc(r.dest.address)}</div>` : ''}`;
+    if (['done', 'cancelled'].includes(r.status)) clearInterval(timer);
+  };
+  setTimeout(() => { map.invalidateSize(); upd(); }, 60); timer = setInterval(upd, 5000);
+}
+
+/* delivery zones map (all zones + restaurants, grouped when zoomed out) */
+function openZones() {
+  let map;
+  const o = modal(`<div class="md map"><div class="mapbox dark-tiles" style="height:min(78vh,700px)"><div class="lm" id="zmapw"></div>
+    ${St.zones.length ? `<div class="zlegend"><h4>${t('zones')}</h4>${St.zones.map(z => `<div class="z"><i style="background:${esc(z.color)}"></i><span>${esc(z.name)}<small>${t('zoneBranches')}: ${z.branch_ids.map(id => esc(branches().find(b => b.id === id)?.name || '')).filter(Boolean).join(', ') || '—'}</small></span></div>`).join('')}</div>` : ''}</div>${X}</div>`, '', () => map?.remove());
+  map = newMap($('#zmapw', o), { zoomControl: true }); tiles().addTo(map);
+  map.zoomControl.setPosition('bottomright');
+  const grp = L.markerClusterGroup ? L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 60, iconCreateFunction: c => L.divIcon({ className: '', html: `<div class="zcl">${c.getChildCount()}</div>`, iconSize: [52, 52] }) }) : L.layerGroup();
+  for (const b of branches()) grp.addLayer(L.marker([b.lat, b.lng], { icon: logoIcon() }).bindPopup(`<b>${esc(b.name || b.address)}</b><br>${esc(b.address)}<br>${esc(b.open_time)}–${esc(b.close_time)}${b.phone ? '<br>' + esc(b.phone) : ''}`));
+  setTimeout(() => {
+    map.invalidateSize(); const zl = drawZones(map, { fill: .32, weight: 2.5 }); grp.addTo(map);
+    zl.forEach((l, i) => l.bindTooltip(esc(St.zones[i].name), { sticky: true }));
+  }, 60);
+}
+
+function openBanner(id) {
+  const b = St.menu.banners.find(x => x.id === id); if (!b) return;
+  const link = /^https?:\/\//i.test(b.link || '') ? b.link : '';
+  modal(`<div class="md" style="max-width:520px;padding:0;overflow:hidden">${X}${b.image ? `<img src="${esc(b.image)}" alt="" style="width:100%;max-height:70vh;object-fit:contain;background:#000">` : `<div style="height:260px;background:${esc(b.color)};display:grid;place-items:center;font-size:30px;font-weight:800">${esc(loc(b, 'title'))}</div>`}
+    <div style="padding:20px 24px 24px"><h2>${esc(loc(b, 'title'))}</h2>${link ? `<a class="btn red wide" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${t('more')}</a>` : ''}</div></div>`);
+}
+function openPromos() {
+  modal(`<div class="md">${X}<h2>${t('promos')}</h2>${St.menu.promos.map(p => `<div class="order"><div class="faint" style="font-size:12px;font-weight:700;text-transform:uppercase">${esc(loc(p, 'info'))}</div><div style="font-size:20px;font-weight:800;margin-top:4px">${esc(loc(p, 'title'))}</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span class="st">${t('promo')}: <b>${esc(p.code)}</b></span>${p.valid_until ? `<span class="faint" style="font-size:13px">${LANG === 'uz' ? 'gacha' : 'до'} ${esc(p.valid_until)}</span>` : ''}</div></div>`).join('')}</div>`);
+}
+function openCoins() {
+  const p = St.menu.settings.coin_percent || 10;
+  modal(`<div class="md">${X}<img src="/img/coin.png" alt="WendyCoin" style="width:72px;height:72px;margin-bottom:14px"><h2>${t('coinsT')}</h2><p class="muted" style="line-height:1.5">${esc(t('coinsTx', p))}</p>
+    ${St.token ? `<div class="note" style="display:flex;justify-content:space-between"><span>${t('balance')}</span><b>${num(St.user?.coins || 0)}</b></div>` : `<button class="btn red wide" style="margin-top:10px" data-a="login">${t('login')}</button>`}</div>`);
+}
+const openText = (title, text) => modal(`<div class="md">${X}<h2>${esc(title)}</h2><p class="muted" style="line-height:1.6;white-space:pre-line">${esc(text)}</p></div>`);
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const tr = e.target.closest('[data-track]'); if (tr) return openTrack(Number(tr.dataset.track));
+  const el = e.target.closest('[data-a]'); if (!el) { $('#langdd')?.classList.remove('open'); return; }
+  const a = el.dataset.a, id = Number(el.dataset.id);
+  if (a !== 'langdd') $('#langdd')?.classList.remove('open');
+  if (['inc', 'dec'].includes(a)) { e.stopPropagation(); setQty(id, a === 'inc' ? 1 : -1); return; }
+  ({
+    prod: () => openProduct(id), cart: () => openCart(), close: closeModals, checkout: openCheckout, addr: () => openLocation(St.mode), login: () => openLogin(),
+    profile: () => { if (location.hash === '#profile') showView(); else location.hash = 'profile'; }, zones: openZones, banner: () => openBanner(id), promos: openPromos, coins: openCoins,
+    about: () => openText(t('about'), St.menu.settings.about_text), legal: () => openText(t('legal'), t('legalTx')),
+    top: () => { e.preventDefault(); if (location.hash) history.pushState('', '', location.pathname + location.search); closeModals(); showView(); scrollTo({ top: 0 }); },
+    search: () => { $('#cats').classList.add('searching'); $('#sinp').focus(); },
+    sclose: () => { $('#sinp').value = ''; filter(''); $('#cats').classList.remove('searching'); },
+    langdd: () => el.parentElement.classList.toggle('open'),
+    lang: () => { try { localStorage.setItem('lang', el.dataset.v); } catch { /* ignore */ } location.reload(); },
+    logout: async () => { try { await api('/logout', { method: 'POST' }); } catch { /* already out */ } St.token = null; St.user = null; St.addrs = []; St.addrId = null; LS.del('token'); LS.del('addrId'); closeModals(); renderHead(); if (location.hash === '#profile') location.hash = ''; showView(); },
+  })[a]?.();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+document.addEventListener('input', e => { if (e.target.id === 'sinp') filter(e.target.value); });
+function filter(q) {
+  q = q.trim().toLowerCase(); let any = false;
+  for (const s of $$('section.cat')) {
+    let n = 0;
+    for (const c of $$('.prod', s)) { const p = prod(Number(c.dataset.id)); const hit = !q || [p.name, p.name_uz, p.description, p.description_uz].some(v => (v || '').toLowerCase().includes(q)); c.hidden = !hit; n += hit; }
+    s.hidden = !n; any = any || n > 0;
+  }
+  $$('.popular, .popular + h2, h2.popular-h').forEach(x => { x.hidden = !!q; });
+  $('#nofound').hidden = any; if (q) $('#cats').scrollIntoView({ block: 'start' });
+}
+
+(async function boot() {
+  $('#site').innerHTML = '<div class="wrap" style="padding-top:150px"><div class="skel" style="height:240px"></div><div class="skel" style="height:420px;margin-top:20px"></div></div>';
+  try {
+    const [menu, z] = await Promise.all([api('/menu'), api('/zones').catch(() => ({ zones: [] }))]);
+    St.menu = menu; St.zones = z.zones;
+    document.body.classList.toggle('shape-circle', menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
+    St.cart = St.cart.filter(c => prod(c.id)); LS.set('cart', St.cart);
+    await loadUser(); render();
+  } catch (e) { $('#site').innerHTML = `<div class="empty" style="padding-top:160px"><b>${t('netErr')}</b>${esc(e.message)}</div>`; }
+})();
