@@ -356,7 +356,11 @@ function locateMe(silent) {
   const b = $('#loc'); if (!navigator.geolocation) return silent || toast('Геолокация не поддерживается');
   if (b) b.classList.add('busy');
   navigator.geolocation.getCurrentPosition(p => {
-    if (b) b.classList.remove('busy'); if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
+    if (b) b.classList.remove('busy');
+    // on the first (automatic) open, only jump to the person if he is inside some branch's delivery zone; otherwise stay in the city
+    const inZone = (St.menu.branches || []).some(br => br.active && km(p.coords.latitude, p.coords.longitude, br.lat, br.lng) <= (br.delivery_radius || 7));
+    if (silent && !inZone) return toast('Ваше местоположение вне зоны доставки — выберите адрес на карте');
+    if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
   }, () => { if (b) b.classList.remove('busy'); if (!silent) toast('Разрешите доступ к геолокации в браузере'); }, { enableHighAccuracy: true, timeout: 10000 });
 }
 function renderDeliverySheet() {
@@ -512,7 +516,7 @@ function homeView() {
       <button class="avatar" onclick="A.profile()">${avatarInner()}</button>
     </div>
     <div class="home-body" id="hb">
-      <div class="stories">${m.banners.map(b => `<div class="story" style="background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
+      <div class="stories">${m.banners.map(b => `<div class="story" onclick="A.banner(${b.id})" style="cursor:pointer;background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
       <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button><button class="sbtn coinbtn" onclick="A.coinShop()" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button>
         ${m.categories.map(c => `<button class="ch ${c.id === St.cat ? 'on' : ''}" data-cat="${c.id}" onclick="A.gotoCat(${c.id})">${esc(loc(c, 'name'))}</button>`).join('')}</div>
       ${St.searchOpen ? `<div class="searchrow"><input id="sq" placeholder="Поиск по меню" value="${esc(St.q)}"></div>` : ''}
@@ -804,7 +808,7 @@ function renderSettings() {
 A.saveSettings = async () => {
   try {
     const r = await api('/me', { method: 'PUT', body: { name: St.draft.name, notify: St.draft.notify } });
-    St.user = r.user; Sh.close('settings'); homeView();
+    St.user = r.user; Sh.close('settings'); Sh.refresh('profile'); homeView();
   } catch (e) { toast(e.message); }
 };
 A.avatarPicker = () => {
@@ -819,8 +823,20 @@ A.avatarPicker = () => {
     <div class="foot" style="position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--card) 40%)"><button class="btn" ${sel === cur ? 'disabled' : ''} onclick="A.setAvatar()">${sel === cur ? 'Установлен' : 'Установить'}</button></div>`;
   }, 'full');
 };
+/* banner viewer: the whole picture; a button to the banner's link only when the admin set one */
+A.banner = id => {
+  const b = (St.menu.banners || []).find(x => x.id === id); if (!b) return;
+  const link = /^https?:\/\//i.test(b.link || '') ? b.link : '';
+  const title = loc(b, 'title');
+  Sh.open('banner', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 0"><button onclick="Sh.close('banner')">${I.x()}</button><span></span></div>
+    <div class="body" style="padding:10px 16px ${link ? 110 : 24}px">
+      ${b.image ? `<img src="${esc(b.image)}" alt="" style="display:block;width:100%;height:auto;border-radius:22px;background:${esc(b.color)}">` : `<div style="border-radius:22px;padding:28px 22px;min-height:220px;display:flex;align-items:flex-end;font-size:28px;font-weight:800;line-height:1.15;background:${esc(b.color)}">${esc(title)}</div>`}
+      ${b.image && title ? `<h2 style="margin:18px 4px 0;font-size:24px">${esc(title)}</h2>` : ''}
+    </div>
+    ${link ? `<div class="foot"><a class="btn" href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Подробнее</a></div>` : ''}`, 'full');
+};
 A.setAvatar = async () => {
-  try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); homeView(); } catch (e) { toast(e.message); }
+  try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); Sh.refresh('profile'); homeView(); } catch (e) { toast(e.message); }
 };
 
 /* change phone: new number -> code sent to the NEW number -> confirm */

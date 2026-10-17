@@ -268,7 +268,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     branches: ['name', 'city', 'address', 'lat', 'lng', 'phone', 'open_time', 'close_time', 'active', 'delivery_radius', 'delivery_fee', 'free_from', 'min_order'],
     categories: ['name', 'icon', 'sort', 'active', 'name_uz'],
     products: ['category_id', 'name', 'description', 'price', 'old_price', 'image', 'badge', 'big', 'recommended', 'sort', 'active', 'coin_price', 'name_uz', 'description_uz'],
-    banners: ['title', 'text', 'image', 'color', 'sort', 'active', 'title_uz'],
+    banners: ['title', 'text', 'image', 'color', 'sort', 'active', 'title_uz', 'link'],
     promos: ['code', 'percent', 'fixed', 'min_total', 'title', 'info', 'valid_until', 'active', 'title_uz', 'info_uz'],
   };
   const NUMERIC = new Set(['lat', 'lng', 'sort', 'active', 'price', 'old_price', 'big', 'recommended', 'category_id', 'percent', 'fixed', 'min_total', 'delivery_radius', 'coin_price', 'delivery_fee', 'free_from', 'min_order']);
@@ -284,6 +284,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     if (out.color && !/^#[0-9a-fA-F]{6}$/.test(out.color)) out.color = '#ff6900';
     if (out.valid_until !== undefined && out.valid_until !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(out.valid_until)) throw new Error('Дата в формате ГГГГ-ММ-ДД');
     if (out.image !== undefined) { out.image = out.image.trim(); if (!imageOk(out.image)) throw new Error('Неверная ссылка на изображение'); }
+    if (out.link !== undefined) { out.link = out.link.trim(); if (out.link !== '' && !(/^https?:\/\/[^\s"'<>]+$/i.test(out.link) && out.link.length <= 600)) throw new Error('Ссылка должна начинаться с http:// или https://'); }
     for (const f of ['open_time', 'close_time']) if (out[f] !== undefined && !/^\d{2}:\d{2}$/.test(out[f])) throw new Error('Время в формате ЧЧ:ММ');
     return out;
   }

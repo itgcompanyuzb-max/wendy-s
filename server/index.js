@@ -337,7 +337,10 @@ function pickBranch(lat, lng, items) {
   const open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
   if (!open.length) return { error: 'closed' };
   const inRadius = open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
-  if (!inRadius.length) return { error: 'radius' };
+  if (!inRadius.length) { // tell the customer how far the nearest open branch is and what its delivery radius is
+    const near = open.map(b => ({ b, d: dist(lat, lng, b.lat, b.lng) })).sort((x, y) => x.d - y.d)[0];
+    return { error: 'radius', near: { name: near.b.name || near.b.address, km: Math.round(near.d * 10) / 10, radius: near.b.delivery_radius || 7 } };
+  }
   const off = {};
   for (const r of db.prepare('SELECT branch_id, product_id FROM branch_stock WHERE available=0').all()) (off[r.branch_id] = off[r.branch_id] || new Set()).add(r.product_id);
   const missing = b => items.find(i => off[b.id]?.has(i.product_id))?.name || '';
@@ -351,7 +354,7 @@ function pickBranch(lat, lng, items) {
   return { branch: near[0], distance: near[0].d };
 }
 const pickMessage = r => (r.error === 'closed' ? 'Пока не принимаем заказы. Попробуйте заказать позже'
-  : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' : `Сейчас нет в наличии: ${r.name}`);
+  : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' + (r.near ? ` Ближайший филиал «${r.near.name}» — ${r.near.km} км, зона доставки — ${r.near.radius} км.` : '') : `Сейчас нет в наличии: ${r.name}`);
 app.post('/api/delivery/quote', (req, res) => {
   const lat = Number(req.body.lat), lng = Number(req.body.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return fail(res, 400, 'Нет координат');
