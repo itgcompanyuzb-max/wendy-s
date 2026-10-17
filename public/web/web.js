@@ -185,7 +185,7 @@ function render() {
     </main>
     <aside class="aside"><div class="appcard"><h3>${t('appTitle')}</h3><p>${t('appSub')}</p><div class="badges">${storeBadges(true)}</div><div class="coins"></div><div class="art"><div class="tile"><img src="/img/brand.png" alt=""></div></div></div></aside>
   </div></div>
-  <div class="wrap strip"><div class="in"><span class="ic">${IC.coin}</span><span>${esc(t('stripTx', s.coin_percent || 10))}</span><span class="sp"></span><button data-a="coins">${t('more')}</button></div></div>
+  <div class="wrap strip"><div class="in"><span class="ic"><img src="/img/coin.png" alt="WendyCoin"></span><span>${esc(t('stripTx', s.coin_percent || 10))}</span><span class="sp"></span><button data-a="coins">${t('more')}</button></div></div>
   <footer><div class="wrap">
     <div class="cols">
       <div><h4>${esc(brand())}</h4>${s.about_text ? `<button data-a="about">${t('about')}</button>` : ''}<button data-a="zones">${t('ourBranches')}</button><button data-a="legal">${t('legal')}</button><a href="/?m=1">${t('mobile')}</a></div>
@@ -624,7 +624,7 @@ function openPromos() {
 }
 function openCoins() {
   const p = St.menu.settings.coin_percent || 10;
-  modal(`<div class="md">${X}<div style="width:64px;height:64px;border-radius:50%;background:var(--red);display:grid;place-items:center;margin-bottom:14px">${IC.coin}</div><h2>${t('coinsT')}</h2><p class="muted" style="line-height:1.5">${esc(t('coinsTx', p))}</p>
+  modal(`<div class="md">${X}<img src="/img/coin.png" alt="WendyCoin" style="width:72px;height:72px;margin-bottom:14px"><h2>${t('coinsT')}</h2><p class="muted" style="line-height:1.5">${esc(t('coinsTx', p))}</p>
     ${St.token ? `<div class="note" style="display:flex;justify-content:space-between"><span>${t('balance')}</span><b>${num(St.user?.coins || 0)}</b></div>` : `<button class="btn red wide" style="margin-top:10px" data-a="login">${t('login')}</button>`}</div>`);
 }
 const openText = (title, text) => modal(`<div class="md">${X}<h2>${esc(title)}</h2><p class="muted" style="line-height:1.6;white-space:pre-line">${esc(text)}</p></div>`);
