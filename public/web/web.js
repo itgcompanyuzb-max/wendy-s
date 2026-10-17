@@ -60,6 +60,7 @@ const TX = {
   branchSearch: ['Название или адрес ресторана', 'Filial nomi yoki manzili'], storeNote: ['Цены, меню и акции могут отличаться в разных ресторанах', 'Narxlar, menyu va aksiyalar filialga qarab farq qilishi mumkin'],
   openUntil: [v => `Открыто до ${v}`, v => `${v} gacha ochiq`], closedOpens: [v => `Закрыто · откроется в ${v}`, v => `Yopiq · ${v} da ochiladi`], hall: ['Зал', 'Zal'], everyDay: ['Ежедневно', 'Har kuni'],
   select: ['Выбрать', 'Tanlash'], addrSearch: ['Улица, дом, район или метро', 'Ko‘cha, uy, tuman yoki metro'], noGeo: ['Не удалось определить местоположение', 'Joylashuvni aniqlab bo‘lmadi'],
+  alwaysHandy: ['Всегда кстати', 'Har doim kerak'], delete: ['Удалить', 'O‘chirish'],
   rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
   tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
   searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
@@ -284,7 +285,9 @@ function openCart(keep) {
   const items = cartItems(); const { sub, discount } = totals();
   const body = items.length ? items.map(c => { const p = prod(c.id); return `<div class="ci">${img(p)}<span><b>${esc(loc(p, 'name'))}</b><small>${money(p.price * c.qty)}</small></span><div class="stepper"><button data-a="dec" data-id="${p.id}">−</button><b>${c.qty}</b><button data-a="inc" data-id="${p.id}">+</button></div></div>`; }).join('')
     : `<div class="empty"><div class="emptyic">${I.bag(64, '#6f6f78')}</div><b>${t('emptyCart')}</b>${t('emptyCartTx')}</div>`;
-  const html = `<div class="drawer" id="drawer"><div class="hd"><h2>${t('cart')}</h2>${X.replace('class="x"', 'class="x" style="position:static;background:var(--card)"')}</div><div class="bd">${body}</div>
+  const rec = prods().filter(p => p.recommended && !qty(p.id)).slice(0, 12);
+  const recs = items.length && rec.length ? `<h3 class="rech">${t('alwaysHandy')}</h3><div class="recs">${rec.map(p => `<div class="rc">${img(p)}<b>${esc(loc(p, 'name'))}</b><button data-a="inc" data-id="${p.id}">+ ${money(p.price)}</button></div>`).join('')}</div>` : '';
+  const html = `<div class="drawer" id="drawer"><div class="hd"><h2>${t('cart')}</h2>${X.replace('class="x"', 'class="x" style="position:static;background:var(--card)"')}</div><div class="bd">${body}${recs}</div>
     ${items.length ? `<div class="ft"><div class="row"><span class="muted">${t('items')}</span><span>${money(sub)}</span></div>${discount ? `<div class="row"><span class="muted">${t('discount')}</span><span>−${money(discount)}</span></div>` : ''}<div class="row tot"><span>${t('total')}</span><span>${money(sub - discount)}</span></div><button class="btn red wide" style="margin-top:14px;height:58px;font-size:18px" data-a="checkout">${t('checkout')}</button></div>` : ''}</div>`;
   if (keep && $('#drawer')) { $('#drawer').outerHTML = html; return; }
   modal(html, 'side');
@@ -347,13 +350,13 @@ const hhmm = v => v;
 function openLocation(tab, next) {
   let mode = tab || St.mode, sel = St.branchId, newAddr = !St.addrs.length, q = '', seq = 0, ok = false, deb, sdeb, map;
   const markers = {};
-  const o = modal(`<div class="md loc"><div class="lm dark-tiles" id="lmap"></div>${IC.pin.replace('class="pinc"', 'class="pinc" id="lpin"')}
+  const o = modal(`<div class="md loc"><div class="lm dark-tiles" id="lmap"></div><img class="lpin" id="lpin" src="/img/pin.png" alt="">
     <div class="lpanel"><div class="lseg"><button data-lm="delivery">${I.walk(20, '#fff')}${t('delivery')}</button><button data-lm="pickup">${I.fork(20)}${t('pickup')}</button></div><div class="lbox" id="lbox"></div></div>
     ${X}<div class="lctl"><button data-lz="1" aria-label="zoom in">+</button><button data-lz="-1" aria-label="zoom out">−</button><button data-lz="me" aria-label="my location">${I.locate(22)}</button></div></div>`, '', () => map?.remove());
   map = newMap($('#lmap', o)); tiles().addTo(map);
   drawZones(map, { fill: .1, weight: 2 });
   const bIcon = b => L.icon({ iconUrl: b.open_now ? '/img/branch.png' : '/img/branch_closed.png', iconSize: [44, 70], iconAnchor: [22, 66] });
-  for (const b of branches()) markers[b.id] = L.marker([b.lat, b.lng], { icon: bIcon(b) }).addTo(map).on('click', () => { if (mode !== 'pickup') { mode = 'pickup'; } sel = b.id; draw(); });
+  for (const b of branches()) markers[b.id] = L.marker([b.lat, b.lng], { icon: bIcon(b) }).on('click', () => { if (mode !== 'pickup') { mode = 'pickup'; } sel = b.id; draw(); });
   const city = branches()[0]?.city || 'Ташкент';
   const check = async () => {
     if (mode !== 'delivery' || !newAddr) return;
@@ -376,7 +379,7 @@ function openLocation(tab, next) {
   const draw = () => {
     $$('[data-lm]', o).forEach(x => x.classList.toggle('on', x.dataset.lm === mode));
     $('#lpin', o).style.display = mode === 'delivery' && newAddr ? '' : 'none';
-    for (const b of branches()) markers[b.id].setOpacity(mode === 'pickup' && sel && b.id !== sel ? .55 : 1);
+    for (const b of branches()) { const m = markers[b.id]; if (mode === 'pickup') { m.addTo(map); m.setOpacity(sel && b.id !== sel ? .55 : 1); } else m.remove(); }
     const box = $('#lbox', o);
     if (mode === 'pickup') {
       const list = branches().filter(b => !q || (b.name + ' ' + b.address).toLowerCase().includes(q.toLowerCase()));
@@ -436,7 +439,8 @@ function openLocation(tab, next) {
       } catch (er) { $('#aq', o).className = 'note bad'; $('#aq', o).textContent = er.message; }
     }
   });
-  map.on('moveend', () => { clearTimeout(deb); deb = setTimeout(check, 350); });
+  map.on('movestart', () => $('#lpin', o)?.classList.add('lift'));
+  map.on('moveend', () => { $('#lpin', o)?.classList.remove('lift'); clearTimeout(deb); deb = setTimeout(check, 350); });
   const cur = mode === 'pickup' ? branches().find(b => b.id === sel) : St.addrs.find(a => a.id === St.addrId);
   setTimeout(() => { map.invalidateSize(); if (cur) map.setView([cur.lat, cur.lng], mode === 'pickup' ? 14 : 16); else if (!St.zones.length) map.setView([41.3111, 69.2797], 12); draw(); }, 60);
 }
@@ -513,6 +517,7 @@ function showView() {
   const prof = location.hash === '#profile' && St.token;
   if (!$('#profv')) return;
   $('#menuv').hidden = !!prof; $('#profv').hidden = !prof;
+  document.body.classList.toggle('in-profile', !!prof); // the profile page shows only the profile
   $$('.cats .pill').forEach(p => p.classList.toggle('on', false));
   if (prof) { renderProfile(); scrollTo({ top: 0 }); }
 }
@@ -533,8 +538,9 @@ async function renderProfile() {
     <div class="pf"><input value="${esc(fmtPhone(u.phone))}" disabled></div>
     <div class="pf-lab">${t('birthday')} <span class="hint" title="${esc(t('bdayHint'))}">i</span></div>
     <div class="bday"><select id="bdd"><option value="">${t('day')}</option>${opts(1, 31, bd)}</select><select id="bdm"><option value="">${t('month')}</option>${opts(1, 12, bm, n => t('months')[n - 1])}</select><select id="bdy"><option value="">${t('year')}</option>${opts(yNow - 100, yNow - 5, by, null, true)}</select><button data-pf="bday">${t('save')}</button></div>
-    <div class="pf-lab">Email <span class="hint" title="${esc(t('emailHint'))}">i</span></div>
-    <div class="pf"><input id="pfemail" type="email" maxlength="120" value="${esc(u.email || '')}" placeholder="name@mail.uz"><button data-pf="email">${t('save')}</button></div>
+    <div class="pf-lab">${t('myAddrs')}</div>
+    <div class="pfaddrs">${St.addrs.map(a => `<div class="pfa ${a.id === St.addrId ? 'on' : ''}"><span class="ic">${I.home(20)}</span><span class="t">${esc(a.address)}<small>${[a.entrance && t('entrance') + ' ' + a.entrance, a.floor && t('floor') + ' ' + a.floor, a.apartment && t('apt') + ' ' + a.apartment].filter(Boolean).map(esc).join(', ')}</small></span><button data-pfdel="${a.id}">${t('delete')}</button></div>`).join('')}
+      <button class="btn" data-pfnew>${t('newAddr')}</button></div>
     <h2 class="h3">${t('subs')}</h2>
     <label class="chk"><input type="checkbox" id="pfnotify" ${u.notify ? 'checked' : ''}><span>${t('newsletter')}<br><a href="#" data-a="legal">${t('privacy')}.</a></span></label>
     <div class="note" style="display:flex;justify-content:space-between;align-items:center;margin-top:26px;max-width:520px"><span>${t('balance')}</span><b style="font-size:20px">${num(u.coins || 0)} WendyCoin</b></div>
@@ -548,13 +554,21 @@ async function saveMe(body) {
   try { St.user = (await api('/me', { method: 'PUT', body })).user; toast(t('saved')); renderHead(); return true; } catch (e) { toast(e.message); return false; }
 }
 document.addEventListener('click', async e => {
+  if (e.target.closest('[data-pfnew]')) return openLocation('delivery', () => renderProfile());
+  const del = e.target.closest('[data-pfdel]');
+  if (del) {
+    const id = Number(del.dataset.pfdel);
+    try { await api('/addresses/' + id, { method: 'DELETE' }); } catch (er) { return toast(er.message); }
+    St.addrs = St.addrs.filter(a => a.id !== id);
+    if (St.addrId === id) { St.addrId = St.addrs[0]?.id || null; LS.set('addrId', St.addrId); St.quote = null; }
+    renderHead(); return renderProfile();
+  }
   const av = e.target.closest('[data-ava]'); if (av) { if (await saveMe({ avatar: Number(av.dataset.ava) })) renderProfile(); return; }
   const b = e.target.closest('[data-pf]'); if (!b) return;
   if (b.dataset.pf === 'name') {
     const i = $('#pfname'); if (i.disabled) { i.disabled = false; i.focus(); b.textContent = t('save'); return; }
     if (i.value.trim() && await saveMe({ name: i.value.trim() })) { i.disabled = true; b.textContent = t('edit'); }
-  } else if (b.dataset.pf === 'email') saveMe({ email: $('#pfemail').value });
-  else if (b.dataset.pf === 'bday') {
+  } else if (b.dataset.pf === 'bday') {
     const d = $('#bdd').value, m = $('#bdm').value, y = $('#bdy').value;
     if (!d && !m && !y) return saveMe({ birthday: '' });
     if (!d || !m || !y) return toast(t('birthday') + ': ' + [t('day'), t('month'), t('year')].join(' / '));
@@ -626,7 +640,7 @@ document.addEventListener('click', e => {
     prod: () => openProduct(id), cart: () => openCart(), close: closeModals, checkout: openCheckout, addr: () => openLocation(St.mode), login: () => openLogin(),
     profile: () => { if (location.hash === '#profile') showView(); else location.hash = 'profile'; }, zones: openZones, banner: () => openBanner(id), promos: openPromos, coins: openCoins,
     about: () => openText(t('about'), St.menu.settings.about_text), legal: () => openText(t('legal'), t('legalTx')),
-    top: () => { e.preventDefault(); scrollTo({ top: 0 }); },
+    top: () => { e.preventDefault(); if (location.hash) history.pushState('', '', location.pathname + location.search); closeModals(); showView(); scrollTo({ top: 0 }); },
     search: () => { $('#cats').classList.add('searching'); $('#sinp').focus(); },
     sclose: () => { $('#sinp').value = ''; filter(''); $('#cats').classList.remove('searching'); },
     langdd: () => el.parentElement.classList.toggle('open'),
