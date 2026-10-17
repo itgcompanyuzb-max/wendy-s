@@ -57,6 +57,9 @@ const TX = {
   emailHint: ['Для чеков и новостей', 'Cheklar va yangiliklar uchun'], subs: ['Подписки', 'Obunalar'], newsletter: ['Получать новости и акции', 'Yangilik va aksiyalarni olish'],
   privacy: ['Политика конфиденциальности', 'Maxfiylik siyosati'], avatar: ['Аватар', 'Avatar'], saved: ['Сохранено', 'Saqlandi'],
   months: [['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr']],
+  branchSearch: ['Название или адрес ресторана', 'Filial nomi yoki manzili'], storeNote: ['Цены, меню и акции могут отличаться в разных ресторанах', 'Narxlar, menyu va aksiyalar filialga qarab farq qilishi mumkin'],
+  openUntil: [v => `Открыто до ${v}`, v => `${v} gacha ochiq`], closedOpens: [v => `Закрыто · откроется в ${v}`, v => `Yopiq · ${v} da ochiladi`], hall: ['Зал', 'Zal'], everyDay: ['Ежедневно', 'Har kuni'],
+  select: ['Выбрать', 'Tanlash'], addrSearch: ['Улица, дом, район или метро', 'Ko‘cha, uy, tuman yoki metro'], noGeo: ['Не удалось определить местоположение', 'Joylashuvni aniqlab bo‘lmadi'],
   rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
   tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
   searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
@@ -222,7 +225,9 @@ function renderHead() {
   const a = St.addrs.find(x => x.id === St.addrId);
   const city = branches()[0]?.city || 'Ташкент';
   const time = st.delivery_min ? `${st.delivery_min} ${t('min')}` : `30–45 ${t('min')}`;
-  if ($('#addrbtn')) $('#addrbtn').innerHTML = `<span class="ic">${St.mode === 'pickup' ? I.fork(24) : I.walk(24)}</span><span style="min-width:0"><span class="l1">${a ? `<em>${esc(city)},</em><span>${esc(a.address.replace(/^(Ташкент|Toshkent|Tashkent|город Ташкент)\s*,?\s*/i, ''))}</span>` : `<span>${t('pickAddr')}</span>`}${IC.chev}</span><small>${time}${st.rating ? ` · ${st.rating.toFixed(2)} <span class="st">★</span>` : ''}</small></span>`;
+  const br = St.mode === 'pickup' && branches().find(b => b.id === St.branchId);
+  const place = br ? br.address : a ? a.address : '';
+  if ($('#addrbtn')) $('#addrbtn').innerHTML = `<span class="ic">${St.mode === 'pickup' ? I.fork(24) : I.walk(24)}</span><span style="min-width:0"><span class="l1">${place ? `<em>${esc(br?.city || city)},</em><span>${esc(place.replace(/^(Ташкент|Toshkent|Tashkent|город Ташкент)\s*,?\s*/i, ''))}</span>` : `<span>${t(St.mode === 'pickup' ? 'needBranch' : 'pickAddr')}</span>`}${IC.chev}</span><small>${br ? `${t('pickup')} · ${esc(br.name || '')}` : time}${!br && st.rating ? ` · ${st.rating.toFixed(2)} <span class="st">★</span>` : ''}</small></span>`;
   if ($('#userslot')) $('#userslot').innerHTML = St.token ? `<button class="avatar" data-a="profile" aria-label="${t('profile')}"><img src="/img/avatars/${St.user?.avatar > 0 ? St.user.avatar : 9}.png" alt=""></button>` : `<button class="loginbtn" data-a="login">${t('login')}</button>`;
 }
 function thumbMap() {
@@ -335,47 +340,107 @@ function openLogin(next) {
 }
 const needLogin = fn => (St.token ? fn() : openLogin(fn));
 
-/* address picker: map with delivery zones, pin in the centre, quote for the point */
-function openAddress(next) {
-  needLogin(async () => {
-    const o = modal(`<div class="md map"><div class="amd"><div class="mapbox"><div class="lm" id="amap"></div>${IC.pin}</div>
-      <div class="side"><h2>${t('addrT')}</h2>
-      ${St.addrs.length ? `<div class="muted" style="font-size:14px;margin-top:10px">${t('myAddrs')}</div>${St.addrs.map(a => `<button class="opt ${a.id === St.addrId ? 'on' : ''}" data-pick="${a.id}"><span class="rd"></span><span class="t">${esc(a.address)}<small>${[a.apartment && t('apt') + ' ' + a.apartment, a.floor && t('floor') + ' ' + a.floor].filter(Boolean).map(esc).join(', ')}</small></span></button>`).join('')}<div class="muted" style="font-size:14px;margin-top:22px">${t('newAddr').replace('+ ', '')}</div>` : ''}
-      <p class="muted" style="font-size:14px;margin:6px 0 0">${t('moveMap')}</p>
-      <label class="f"><span>${t('addr')}</span><input class="inp" id="aa" maxlength="200"></label>
-      <div class="g4"><label class="f"><span>${t('entrance')}</span><input class="inp" id="ae" maxlength="10"></label><label class="f"><span>${t('floor')}</span><input class="inp" id="af" maxlength="10"></label><label class="f"><span>${t('apt')}</span><input class="inp" id="ap" maxlength="10"></label><label class="f"><span>${t('intercom')}</span><input class="inp" id="ai" maxlength="10"></label></div>
-      <label class="f"><span>${t('comment')}</span><input class="inp" id="ac" maxlength="100"></label>
-      <div class="note" id="aq">${t('checking')}</div>
-      <button class="btn red wide" style="margin-top:14px" id="as" disabled>${t('saveAddr')}</button></div></div>${X}</div>`, '', () => map.remove());
-    const map = newMap($('#amap', o), { zoomControl: true }); tiles().addTo(map);
-    o.querySelector('.mapbox').classList.add('dark-tiles');
-    drawZones(map, { fill: .12, weight: 2 });
-    const cur = St.addrs.find(a => a.id === St.addrId);
-    if (cur) map.setView([cur.lat, cur.lng], 16); else if (!St.zones.length) map.setView([41.3111, 69.2797], 12);
-    let seq = 0, ok = false;
-    const check = async () => {
-      const c = map.getCenter(), my = ++seq; ok = false; $('#as', o).disabled = true; $('#aq', o).className = 'note'; $('#aq', o).textContent = t('checking');
-      const items = cartItems().map(x => x.id);
-      const [rv, q] = await Promise.all([api(`/reverse?lat=${c.lat}&lng=${c.lng}`).catch(() => ({})), api('/delivery/quote', { body: { lat: c.lat, lng: c.lng, items, subtotal: totals().sub } }).catch(e => ({ ok: false, message: e.message }))]);
-      if (my !== seq) return;
-      if (rv.address && !$('#aa', o).dataset.touched) $('#aa', o).value = rv.address;
-      ok = !!q.ok; $('#as', o).disabled = !ok;
-      $('#aq', o).className = 'note ' + (ok ? 'ok' : 'bad');
-      $('#aq', o).textContent = ok ? t('delivers', q.branch.name, q.distance_km) : srv(q.message) || t('outZone');
-    };
-    let deb; map.on('moveend', () => { clearTimeout(deb); deb = setTimeout(check, 350); }); setTimeout(() => { map.invalidateSize(); check(); }, 60);
-    $('#aa', o).addEventListener('input', e => { e.target.dataset.touched = 1; });
-    o.addEventListener('click', e => { const p = e.target.closest('[data-pick]'); if (p) { St.addrId = Number(p.dataset.pick); LS.set('addrId', St.addrId); St.quote = null; closeModals(); renderHead(); next?.(); } });
-    $('#as', o).onclick = async () => {
-      if (!ok) return; const c = map.getCenter(); const v = id => $(id, o).value.trim();
+/* location picker (header address button): full map + floating panel with two tabs.
+   Delivery: saved addresses or a new one (search, pin in the centre, live zone check).
+   Takeaway: the restaurants as a list and on the map, opening hours, choose one. */
+const hhmm = v => v;
+function openLocation(tab, next) {
+  let mode = tab || St.mode, sel = St.branchId, newAddr = !St.addrs.length, q = '', seq = 0, ok = false, deb, sdeb, map;
+  const markers = {};
+  const o = modal(`<div class="md loc"><div class="lm dark-tiles" id="lmap"></div>${IC.pin.replace('class="pinc"', 'class="pinc" id="lpin"')}
+    <div class="lpanel"><div class="lseg"><button data-lm="delivery">${I.walk(20, '#fff')}${t('delivery')}</button><button data-lm="pickup">${I.fork(20)}${t('pickup')}</button></div><div class="lbox" id="lbox"></div></div>
+    ${X}<div class="lctl"><button data-lz="1" aria-label="zoom in">+</button><button data-lz="-1" aria-label="zoom out">−</button><button data-lz="me" aria-label="my location">${I.locate(22)}</button></div></div>`, '', () => map?.remove());
+  map = newMap($('#lmap', o)); tiles().addTo(map);
+  drawZones(map, { fill: .1, weight: 2 });
+  const bIcon = b => L.icon({ iconUrl: b.open_now ? '/img/branch.png' : '/img/branch_closed.png', iconSize: [44, 70], iconAnchor: [22, 66] });
+  for (const b of branches()) markers[b.id] = L.marker([b.lat, b.lng], { icon: bIcon(b) }).addTo(map).on('click', () => { if (mode !== 'pickup') { mode = 'pickup'; } sel = b.id; draw(); });
+  const city = branches()[0]?.city || 'Ташкент';
+  const check = async () => {
+    if (mode !== 'delivery' || !newAddr) return;
+    const c = map.getCenter(), my = ++seq; ok = false;
+    const btn = $('#as', o), note = $('#aq', o); if (!btn) return;
+    btn.disabled = true; note.className = 'note'; note.textContent = t('checking');
+    const [rv, qt] = await Promise.all([api(`/reverse?lat=${c.lat}&lng=${c.lng}`).catch(() => ({})), api('/delivery/quote', { body: { lat: c.lat, lng: c.lng, items: cartItems().map(x => x.id), subtotal: totals().sub } }).catch(e => ({ ok: false, message: e.message }))]);
+    if (my !== seq || !$('#as', o)) return;
+    if (rv.address && !$('#aa', o).dataset.touched) $('#aa', o).value = rv.address;
+    ok = !!qt.ok; $('#as', o).disabled = !ok;
+    $('#aq', o).className = 'note ' + (ok ? 'ok' : 'bad');
+    $('#aq', o).textContent = ok ? t('delivers', qt.branch.name, qt.distance_km) : srv(qt.message) || t('outZone');
+  };
+  const branchRow = b => {
+    const on = b.id === sel;
+    return `<button class="bi ${on ? 'on' : ''}" data-b="${b.id}"><span class="rd"></span><span class="t"><small>${esc(b.city || city)}</small><b>${esc(b.address)}</b>
+      <em class="${b.open_now ? '' : 'bad'}">${b.open_now ? t('openUntil', hhmm(b.close_time)) : t('closedOpens', b.open_time)}</em>
+      ${on ? `<span class="hrs"><span>${t('hall')}</span><span>${t('everyDay')}: ${esc(b.open_time)} — ${esc(hhmm(b.close_time))}</span><span>${t('delivery')}</span><span>${t('everyDay')}: ${esc(b.open_time)} — ${esc(hhmm(b.close_time))}</span>${b.phone ? `<span>${t('phone')}</span><span>${esc(b.phone)}</span>` : ''}</span>` : ''}</span></button>`;
+  };
+  const draw = () => {
+    $$('[data-lm]', o).forEach(x => x.classList.toggle('on', x.dataset.lm === mode));
+    $('#lpin', o).style.display = mode === 'delivery' && newAddr ? '' : 'none';
+    for (const b of branches()) markers[b.id].setOpacity(mode === 'pickup' && sel && b.id !== sel ? .55 : 1);
+    const box = $('#lbox', o);
+    if (mode === 'pickup') {
+      const list = branches().filter(b => !q || (b.name + ' ' + b.address).toLowerCase().includes(q.toLowerCase()));
+      box.innerHTML = `<span class="chip">${esc(city)}</span><input class="inp" id="lq" placeholder="${t('branchSearch')}" value="${esc(q)}" autocomplete="off">
+        <p class="lnote">${t('storeNote')}</p><div class="blist">${list.map(branchRow).join('') || `<div class="faint" style="padding:20px;text-align:center">${t('notFound')}</div>`}</div>
+        <button class="btn red wide" id="lsel" ${sel ? '' : 'disabled'}>${t('select')}</button>`;
+      const on = $('.bi.on', box), bl = $('.blist', box); if (on) bl.scrollTop = on.offsetTop - bl.offsetTop - 8; // keep the chosen restaurant in view
+      const inp = $('#lq', box); inp.addEventListener('input', () => { q = inp.value; const pos = inp.selectionStart; draw(); const i2 = $('#lq', o); i2.focus(); i2.setSelectionRange(pos, pos); });
+    } else if (!newAddr) {
+      box.innerHTML = `<div class="muted" style="font-size:14px;margin:4px 4px 8px">${t('myAddrs')}</div><div class="blist">${St.addrs.map(a => `<button class="bi ${a.id === St.addrId ? 'on' : ''}" data-ad="${a.id}"><span class="rd"></span><span class="t"><b style="font-size:16px">${esc(a.address)}</b><small>${[a.entrance && t('entrance') + ' ' + a.entrance, a.floor && t('floor') + ' ' + a.floor, a.apartment && t('apt') + ' ' + a.apartment].filter(Boolean).map(esc).join(', ')}</small></span></button>`).join('')}</div>
+        <button class="btn wide" data-newad>${t('newAddr')}</button><button class="btn red wide" style="margin-top:8px" id="lsel" ${St.addrId ? '' : 'disabled'}>${t('select')}</button>`;
+    } else {
+      box.innerHTML = `<div class="lsearch"><input class="inp" id="ls" placeholder="${t('addrSearch')}" autocomplete="off"><div class="lsug" id="lsug" hidden></div></div>
+        <p class="lnote" style="text-align:left;margin:8px 4px 0">${t('moveMap')}</p>
+        <div class="lform"><label class="f"><span>${t('addr')}</span><input class="inp" id="aa" maxlength="200"></label>
+        <div class="g4"><label class="f"><span>${t('entrance')}</span><input class="inp" id="ae" maxlength="10"></label><label class="f"><span>${t('floor')}</span><input class="inp" id="af" maxlength="10"></label><label class="f"><span>${t('apt')}</span><input class="inp" id="ap" maxlength="10"></label><label class="f"><span>${t('intercom')}</span><input class="inp" id="ai" maxlength="10"></label></div>
+        <label class="f"><span>${t('comment')}</span><input class="inp" id="ac" maxlength="100"></label></div>
+        <div class="note" id="aq">${t('checking')}</div>
+        <div style="display:flex;gap:8px;margin-top:10px">${St.addrs.length ? `<button class="btn" data-oldad>${t('myAddrs')}</button>` : ''}<button class="btn red" style="flex:1" id="as" disabled>${t('saveAddr')}</button></div>`;
+      $('#aa', box).addEventListener('input', e => { e.target.dataset.touched = 1; });
+      const ls = $('#ls', box), sug = $('#lsug', box);
+      ls.addEventListener('input', () => {
+        clearTimeout(sdeb); const v = ls.value.trim(); if (v.length < 3) { sug.hidden = true; return; }
+        sdeb = setTimeout(async () => {
+          const r = await api(`/geocode?lang=${LANG}&q=${encodeURIComponent(v)}`).catch(() => ({ results: [] }));
+          if (ls.value.trim() !== v) return;
+          sug.innerHTML = r.results.length ? r.results.map((x, i) => `<button data-sg="${i}"><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></button>`).join('') : `<div class="faint" style="padding:12px 14px">${t('notFound')}</div>`;
+          sug.hidden = false; sug._r = r.results;
+        }, 350);
+      });
+      check();
+    }
+  };
+  const finish = () => { LS.set('mode', St.mode); St.quote = null; closeModals(); renderHead(); next?.(); };
+  o.addEventListener('click', async e => {
+    const lm = e.target.closest('[data-lm]'); if (lm) { mode = lm.dataset.lm; draw(); if (mode === 'delivery') setTimeout(check, 50); return; }
+    const lz = e.target.closest('[data-lz]');
+    if (lz) { if (lz.dataset.lz === 'me') navigator.geolocation?.getCurrentPosition(p => map.setView([p.coords.latitude, p.coords.longitude], 16), () => toast(t('noGeo'))); else map.setZoom(map.getZoom() + Number(lz.dataset.lz)); return; }
+    const bi = e.target.closest('[data-b]'); if (bi) { sel = Number(bi.dataset.b); const b = branches().find(x => x.id === sel); draw(); map.flyTo([b.lat, b.lng], 15, { duration: .6 }); return; }
+    const ad = e.target.closest('[data-ad]'); if (ad) { St.addrId = Number(ad.dataset.ad); draw(); const a = St.addrs.find(x => x.id === St.addrId); map.flyTo([a.lat, a.lng], 16, { duration: .6 }); return; }
+    if (e.target.closest('[data-newad]')) { newAddr = true; draw(); return; }
+    if (e.target.closest('[data-oldad]')) { newAddr = false; draw(); return; }
+    const sg = e.target.closest('[data-sg]');
+    if (sg) { const x = $('#lsug', o)._r[Number(sg.dataset.sg)]; $('#lsug', o).hidden = true; $('#ls', o).value = x.title; $('#aa', o).value = [x.title, x.sub].filter(Boolean).join(', '); $('#aa', o).dataset.touched = 1; map.setView([x.lat, x.lng], 17); return; }
+    if (e.target.closest('#lsel')) {
+      if (mode === 'pickup') { if (!sel) return; St.mode = 'pickup'; St.branchId = sel; LS.set('branchId', sel); }
+      else { if (!St.addrId) return; St.mode = 'delivery'; LS.set('addrId', St.addrId); }
+      return finish();
+    }
+    if (e.target.closest('#as')) {
+      if (!ok) return; if (!St.token) return openLogin(() => openLocation('delivery', next));
+      const c = map.getCenter(); const v = id => $(id, o).value.trim();
       if (!v('#aa')) { $('#aa', o).focus(); return; }
       try {
         const r = await api('/addresses', { body: { address: v('#aa'), lat: c.lat, lng: c.lng, entrance: v('#ae'), floor: v('#af'), apartment: v('#ap'), intercom: v('#ai'), comment: v('#ac'), label: 'other' } });
-        St.addrs.unshift(r.address); St.addrId = r.address.id; LS.set('addrId', St.addrId); St.quote = null; closeModals(); renderHead(); next?.();
-      } catch (e) { $('#aq', o).className = 'note bad'; $('#aq', o).textContent = e.message; }
-    };
+        St.addrs.unshift(r.address); St.addrId = r.address.id; LS.set('addrId', St.addrId); St.mode = 'delivery'; finish();
+      } catch (er) { $('#aq', o).className = 'note bad'; $('#aq', o).textContent = er.message; }
+    }
   });
+  map.on('moveend', () => { clearTimeout(deb); deb = setTimeout(check, 350); });
+  const cur = mode === 'pickup' ? branches().find(b => b.id === sel) : St.addrs.find(a => a.id === St.addrId);
+  setTimeout(() => { map.invalidateSize(); if (cur) map.setView([cur.lat, cur.lng], mode === 'pickup' ? 14 : 16); else if (!St.zones.length) map.setView([41.3111, 69.2797], 12); draw(); }, 60);
 }
+const openAddress = next => (St.token ? openLocation('delivery', next) : openLogin(() => openLocation('delivery', next)));
 
 /* checkout */
 async function quote() {
@@ -558,7 +623,7 @@ document.addEventListener('click', e => {
   if (a !== 'langdd') $('#langdd')?.classList.remove('open');
   if (['inc', 'dec'].includes(a)) { e.stopPropagation(); setQty(id, a === 'inc' ? 1 : -1); return; }
   ({
-    prod: () => openProduct(id), cart: () => openCart(), close: closeModals, checkout: openCheckout, addr: () => openAddress(), login: () => openLogin(),
+    prod: () => openProduct(id), cart: () => openCart(), close: closeModals, checkout: openCheckout, addr: () => openLocation(St.mode), login: () => openLogin(),
     profile: () => { if (location.hash === '#profile') showView(); else location.hash = 'profile'; }, zones: openZones, banner: () => openBanner(id), promos: openPromos, coins: openCoins,
     about: () => openText(t('about'), St.menu.settings.about_text), legal: () => openText(t('legal'), t('legalTx')),
     top: () => { e.preventDefault(); scrollTo({ top: 0 }); },

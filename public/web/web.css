@@ -304,3 +304,26 @@ textarea.inp { height: 80px; padding: 14px 16px; resize: vertical; }
 .ava { width: 62px; height: 62px; border-radius: 50%; overflow: hidden; border: 3px solid transparent; background: #ffd1dc; transition: transform .15s; } .ava:hover { transform: scale(1.06); }
 .ava.on { border-color: var(--red); } .ava img { width: 100%; height: 100%; object-fit: cover; }
 .chk { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; line-height: 1.35; cursor: pointer; } .chk input { width: 20px; height: 20px; accent-color: var(--red); margin-top: 1px; } .chk a { color: var(--red-2); font-weight: 600; }
+/* location picker */
+.md.loc { max-width: 1120px; height: min(82vh, 700px); padding: 0; overflow: hidden; }
+.md.loc .lm { position: absolute; inset: 0; } .md.loc .x { top: 20px; right: 20px; background: rgba(23,23,26,.92); }
+.lpanel { position: absolute; left: 22px; top: 22px; bottom: 22px; width: min(400px, calc(100% - 44px)); z-index: 500; display: flex; flex-direction: column; gap: 10px; }
+.lseg { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 26px; background: rgba(23,23,26,.96); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.lseg button { height: 44px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.lseg button.on { background: var(--red); }
+.lbox { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; background: var(--sheet); border-radius: 24px; padding: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.45); overflow: hidden; }
+.lbox .chip { align-self: flex-start; background: var(--card); border-radius: 12px; padding: 7px 12px; font-size: 14px; font-weight: 700; }
+.lnote { text-align: center; color: var(--tx2); font-size: 14px; margin: 0; }
+.blist { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+.bi { display: flex; gap: 14px; width: 100%; text-align: left; padding: 14px 4px; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.bi .rd { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--tx3); flex: none; margin-top: 18px; } .bi.on .rd { border: 7px solid var(--red); }
+.bi .t { flex: 1; min-width: 0; } .bi small { display: block; color: var(--tx2); font-size: 13px; } .bi b { display: block; font-size: 17px; font-weight: 600; margin: 3px 0 4px; }
+.bi em { font-style: normal; font-size: 13px; color: var(--ok); } .bi em.bad { color: var(--tx3); }
+.hrs { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin-top: 14px; font-size: 14px; font-weight: 600; } .hrs span:nth-child(even) { text-align: right; }
+.lsearch { position: relative; } .lsug { position: absolute; left: 0; right: 0; top: 56px; z-index: 5; background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,.5); max-height: 300px; overflow-y: auto; }
+.lsug button { display: block; width: 100%; text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); } .lsug button:hover { background: var(--card-2); }
+.lsug b { display: block; font-size: 15px; } .lsug small { color: var(--tx2); font-size: 13px; }
+.lform { overflow-y: auto; min-height: 0; } .lform .f:first-child { margin-top: 4px; }
+.lctl { position: absolute; right: 20px; bottom: 24px; z-index: 500; display: flex; flex-direction: column; gap: 10px; }
+.lctl button { width: 48px; height: 48px; border-radius: 50%; background: rgba(23,23,26,.92); display: grid; place-items: center; font-size: 26px; font-weight: 500; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+.lctl button:hover { background: var(--card-2); }

@@ -287,6 +287,32 @@ app.get('/api/reverse', wrap(async (req, res) => {
   }
 }));
 
+// address search (street, district, metro) for the website's location picker; biased to the branches' area
+const searchCache = new Map();
+app.get('/api/geocode', wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 120);
+  if (q.length < 3) return res.json({ results: [] });
+  const lang = req.query.lang === 'uz' ? 'uz,ru' : 'ru';
+  const key = lang + '|' + q.toLowerCase();
+  if (searchCache.has(key)) return res.json(searchCache.get(key));
+  const bs = db.prepare('SELECT lat,lng FROM branches WHERE active=1').all();
+  const box = bs.length ? [Math.min(...bs.map(b => b.lng)) - .25, Math.max(...bs.map(b => b.lat)) + .2, Math.max(...bs.map(b => b.lng)) + .25, Math.min(...bs.map(b => b.lat)) - .2].join(',') : '';
+  try {
+    const r = await fetch(`${process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org'}/search?format=jsonv2&addressdetails=1&limit=7&countrycodes=uz&accept-language=${lang}${box ? '&bounded=0&viewbox=' + box : ''}&q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': 'wendys-delivery-app/1.0' }, signal: AbortSignal.timeout(8000),
+    });
+    const rows = await r.json();
+    const out = { results: (Array.isArray(rows) ? rows : []).filter(x => x.lat && x.lon).map(x => {
+      const a = x.address || {};
+      const title = [a.road || a.pedestrian || a.neighbourhood || a.suburb || x.name, a.house_number].filter(Boolean).join(', ') || x.display_name.split(',')[0];
+      const sub = [a.suburb || a.city_district, a.city || a.town || a.village || a.state].filter(Boolean).join(', ');
+      return { title, sub, lat: Number(x.lat), lng: Number(x.lon) };
+    }) };
+    if (searchCache.size > 500) searchCache.clear();
+    searchCache.set(key, out); res.json(out);
+  } catch { res.json({ results: [] }); }
+}));
+
 app.post('/api/promo/check', (req, res) => {
   const code = String(req.body.code || '').trim().toUpperCase();
   const subtotal = Number(req.body.subtotal || 0);
