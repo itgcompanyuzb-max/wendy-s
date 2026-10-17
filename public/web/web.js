@@ -226,7 +226,8 @@ function thumbMap() {
 function spy() {
   const nav = $('#cats'); if (!nav) return;
   let stuck = null, raf = 0;
-  const upd = () => { raf = 0; const s = scrollY > 0 && nav.getBoundingClientRect().top <= 0.5; if (s !== stuck) { stuck = s; nav.classList.toggle('stuck', s); } };
+  const head = $('.head'), top = () => parseFloat(getComputedStyle(nav).top) || 0;
+  const upd = () => { raf = 0; head.classList.toggle('scrolled', scrollY > 60); const s = scrollY > 0 && nav.getBoundingClientRect().top <= top() + 0.5; if (s !== stuck) { stuck = s; nav.classList.toggle('stuck', s); } };
   addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(upd); }, { passive: true }); upd();
   const pills = $('.cats .pills');
   const io = new IntersectionObserver(es => {
@@ -234,7 +235,7 @@ function spy() {
       $$('.cats .pill').forEach(p => p.classList.toggle('on', p.dataset.cat === e.target.dataset.sec));
       const on = $('.cats .pill.on'); if (on) pills.scrollTo({ left: on.offsetLeft - 24, behavior: 'smooth' }); // only the pill row moves, never the page
     }
-  }, { rootMargin: '-120px 0px -65% 0px' });
+  }, { rootMargin: '-200px 0px -60% 0px' });
   $$('section.cat').forEach(s => io.observe(s));
 }
 
