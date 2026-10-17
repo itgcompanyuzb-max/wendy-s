@@ -148,6 +148,7 @@ db.exec('DROP INDEX IF EXISTS idx_admin_phone');
 db.exec('DROP INDEX IF EXISTS idx_admin_phone_ctx');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_phone_role ON admin_users(phone, role, COALESCE(branch_id, 0)) WHERE phone IS NOT NULL');
 try { db.exec('ALTER TABLE users ADD COLUMN avatar INTEGER DEFAULT 0'); } catch { /* column exists */ }
+for (const c of ['birthday', 'email']) { try { db.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`); } catch { /* column exists */ } }
 
 for (const sql of [
   'ALTER TABLE branches ADD COLUMN delivery_radius REAL DEFAULT 7',

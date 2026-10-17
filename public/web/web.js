@@ -52,6 +52,11 @@ const TX = {
   needAddr: ['Укажите адрес доставки', 'Yetkazish manzilini kiriting'], needBranch: ['Выберите ресторан', 'Filialni tanlang'],
   coinsT: ['WendyCoin', 'WendyCoin'], coinsTx: [p => `За каждый заказ возвращаем ${p}% суммы в WendyCoin. Ими можно оплатить следующий заказ или обменять на соусы и напитки в мобильном приложении.`, p => `Har bir buyurtma uchun summaning ${p}% WendyCoin bo‘lib qaytadi. Ular bilan keyingi buyurtmani to‘lash yoki mobil ilovada sous va ichimliklarga almashtirish mumkin.`],
   balance: ['Ваш баланс', 'Balansingiz'], courier: ['Курьер', 'Kuryer'], legalTx: ['Пользовательское соглашение и политика конфиденциальности. Картографические данные: © участники OpenStreetMap.', 'Foydalanuvchi shartnomasi va maxfiylik siyosati. Xarita ma’lumotlari: © OpenStreetMap ishtirokchilari.'],
+  personal: ['Личные данные', 'Shaxsiy ma’lumotlar'], yourName: ['Ваше имя', 'Ismingiz'], edit: ['Изменить', 'O‘zgartirish'], birthday: ['День рождения', 'Tug‘ilgan kun'],
+  bdayHint: ['Пришлём подарок в день рождения', 'Tug‘ilgan kuningizda sovg‘a yuboramiz'], day: ['День', 'Kun'], month: ['Месяц', 'Oy'], year: ['Год', 'Yil'],
+  emailHint: ['Для чеков и новостей', 'Cheklar va yangiliklar uchun'], subs: ['Подписки', 'Obunalar'], newsletter: ['Получать новости и акции', 'Yangilik va aksiyalarni olish'],
+  privacy: ['Политика конфиденциальности', 'Maxfiylik siyosati'], avatar: ['Аватар', 'Avatar'], saved: ['Сохранено', 'Saqlandi'],
+  months: [['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr']],
   rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
   tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
   searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
@@ -63,7 +68,7 @@ const t = (k, ...a) => { const v = TX[k]?.[LANG === 'uz' ? 1 : 0] ?? k; return t
 // server messages come in Russian; translate the common ones for Uzbek visitors
 const SRV_UZ = [[/вне зоны доставки/, 'Manzil yetkazish hududidan tashqarida. Hududlarni xaritada ko‘ring'], [/Пока не принимаем заказы/, 'Hozir buyurtma qabul qilinmayapti. Keyinroq urinib ko‘ring'],
   [/Неверный код/, 'Kod noto‘g‘ri'], [/Код устарел/, 'Kod eskirgan. Yangisini so‘rang'], [/Подождите/, 'Qayta yuborishdan oldin kuting'], [/Минимальная сумма/, 'Buyurtma summasi minimaldan kam'],
-  [/Промокод не найден/, 'Promokod topilmadi'], [/Введите номер/, 'Raqamni to‘liq kiriting'], [/Не удалось отправить код/, 'Kod yuborilmadi. Raqamda Telegram borligini tekshiring'], [/Сейчас нет в наличии/, 'Hozir mavjud emas']];
+  [/Промокод не найден/, 'Promokod topilmadi'], [/Введите номер/, 'Raqamni to‘liq kiriting'], [/Не удалось отправить код/, 'Kod yuborilmadi. Raqamda Telegram borligini tekshiring'], [/Сейчас нет в наличии/, 'Hozir mavjud emas'], [/Неверный e-mail/, 'E-mail noto‘g‘ri'], [/Неверная дата рождения/, 'Tug‘ilgan sana noto‘g‘ri']];
 const srv = m => (LANG === 'uz' ? (SRV_UZ.find(([r]) => r.test(m || ''))?.[1] || m) : m);
 
 /* ---------- state + api ---------- */
@@ -159,6 +164,7 @@ function render() {
   <div class="sheet"><div class="wrap layout">
     <main>
       <nav class="cats" id="cats"><span class="mini"><img src="/img/brand.png" alt=""></span><button class="sbtn" data-a="search" aria-label="search">${I.search(22)}</button><button class="sbtn coin" data-a="coins" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button><span class="sbox"><input id="sinp" placeholder="${t('searchPh')}" autocomplete="off"><button data-a="sclose" aria-label="close">${I.x('#a3a3ab', 20)}</button></span><div class="pills">${cats.map(c => `<a class="pill" href="#c${c.id}" data-cat="${c.id}">${esc(loc(c, 'name'))}</a>`).join('')}</div><button class="navcart" data-a="cart"></button></nav>
+      <div id="menuv">
       ${popular.length ? `<h2 class="h2 popular-h" style="margin-top:6px">${t('popular')}</h2><div class="popular">${popular.map(p => `<div class="pop" data-a="prod" data-id="${p.id}">${img(p)}<b>${esc(loc(p, 'name'))}</b><span class="pr">${money(p.price)}</span></div>`).join('')}</div>` : ''}
       <div class="empty" id="nofound" hidden><b>${t('notFound')}</b></div>
       ${cats.map(c => `<section class="cat" id="c${c.id}" data-sec="${c.id}"><h2>${esc(loc(c, 'name'))}</h2><div class="grid">${prods().filter(p => p.category_id === c.id).map(card).join('')}</div></section>`).join('')}
@@ -171,6 +177,7 @@ function render() {
           ${St.zones.length ? `<div class="f plain"><span>${t('zonesCount', St.zones.length)}</span></div>` : ''}
           <div class="f plain"><span>${t('imgs')}</span></div>
         </div></div></section>
+      </div><div id="profv" hidden></div>
     </main>
     <aside class="aside"><div class="appcard"><h3>${t('appTitle')}</h3><p>${t('appSub')}</p><div class="badges">${storeBadges(true)}</div><div class="coins"></div><div class="art"><div class="tile"><img src="/img/brand.png" alt=""></div></div></div></aside>
   </div></div>
@@ -186,7 +193,7 @@ function render() {
     <div class="bottom"><span class="brand">${esc(brand())}</span><span>© ${new Date().getFullYear()}</span><button data-a="legal">${t('legal')}</button><span class="sp"></span>
       ${[['instagram_url', IC.ig, 'Instagram'], ['telegram_url', IC.tg, 'Telegram'], ['facebook_url', IC.fb, 'Facebook']].filter(([k]) => s[k]).map(([k, i, n]) => `<a class="soc" href="${esc(s[k])}" target="_blank" rel="noopener" aria-label="${n}">${i}</a>`).join('')}</div>
   </div></footer>`;
-  renderHead(); renderCartBtns(); thumbMap(); spy();
+  renderHead(); renderCartBtns(); thumbMap(); spy(); showView();
 }
 function storeBadges(compact) {
   const s = St.menu.settings;
@@ -436,15 +443,60 @@ async function loadUser() {
     if (!St.addrs.some(a => a.id === St.addrId)) { St.addrId = St.addrs[0]?.id || null; LS.set('addrId', St.addrId); }
   } catch { /* logged out */ }
 }
-async function openProfile() {
-  const o = modal(`<div class="md" style="max-width:560px"><div class="skel" style="height:300px"></div></div>`); const md = o.querySelector('.md');
-  try { St.orders = (await api('/orders')).orders; } catch { St.orders = []; }
-  const u = St.user || {};
-  md.innerHTML = `${X}<div style="display:flex;gap:16px;align-items:center"><div class="avatar" style="width:72px;height:72px"><img src="/img/avatars/${u.avatar > 0 ? u.avatar : 9}.png" alt=""></div><div><h2 style="margin:0">${esc(u.name || t('profile'))}</h2><div class="muted">${esc(u.phone || '')}</div></div></div>
-    <div class="note" style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span>${t('balance')}</span><b style="font-size:22px">${num(u.coins || 0)} WendyCoin</b></div>
-    <h3 style="margin:24px 0 4px">${t('orders')}</h3>${St.orders.length ? St.orders.slice(0, 12).map(ord => `<div class="order"><div class="top"><span>№${ord.id} · ${money(ord.total)}</span><span class="st ${ord.status}">${ST_NAMES[ord.status]?.[LANG === 'uz' ? 1 : 0] || ord.status}</span></div><div class="faint" style="font-size:13px;margin-top:6px">${esc(ord.created_at)} · ${ord.items.map(i => esc(loc(prod(i.product_id), 'name') || i.name) + ' × ' + i.qty).join(', ')}</div>${ord.type === 'delivery' && ['new', 'cooking', 'ready', 'delivering'].includes(ord.status) ? `<button class="btn red" style="height:40px;margin-top:10px" data-track="${ord.id}">${t('track')}</button>` : ''}</div>`).join('') : `<div class="empty" style="padding:24px">${t('noOrders')}</div>`}
-    <button class="btn wide" style="margin-top:20px" data-a="logout">${t('logout')}</button>`;
+/* profile page (#profile): personal data, avatar, subscriptions, orders */
+function showView() {
+  const prof = location.hash === '#profile' && St.token;
+  if (!$('#profv')) return;
+  $('#menuv').hidden = !!prof; $('#profv').hidden = !prof;
+  $$('.cats .pill').forEach(p => p.classList.toggle('on', false));
+  if (prof) { renderProfile(); scrollTo({ top: 0 }); }
 }
+addEventListener('hashchange', () => { const wasProf = !$('#profv')?.hidden; showView(); const id = location.hash.slice(1); if (wasProf && id && $('#' + id)) $('#' + id).scrollIntoView(); });
+const fmtPhone = p => String(p || '').replace(/^\+998(\d{2})(\d{3})(\d{2})(\d{2})$/, '+998 $1-$2-$3-$4');
+async function renderProfile() {
+  const v = $('#profv'), u = St.user || {};
+  const [by, bm, bd] = (u.birthday || '').split('-').map(Number);
+  const opts = (n0, n1, sel, lab, desc) => Array.from({ length: n1 - n0 + 1 }, (_, i) => (desc ? n1 - i : n0 + i)).map(n => `<option value="${n}" ${n === sel ? 'selected' : ''}>${lab ? lab(n) : n}</option>`).join('');
+  const yNow = new Date().getFullYear();
+  v.innerHTML = `<section class="prof">
+    <h1 class="h2">${t('personal')}</h1>
+    <div class="pf-lab">${t('avatar')}</div>
+    <div class="avas">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="ava ${(u.avatar > 0 ? u.avatar : 9) === n ? 'on' : ''}" data-ava="${n}" aria-label="avatar ${n}"><img src="/img/avatars/${n}.png" alt=""></button>`).join('')}</div>
+    <div class="pf-lab">${t('yourName')}</div>
+    <div class="pf"><input id="pfname" maxlength="40" value="${esc(u.name || '')}" disabled><button data-pf="name">${t('edit')}</button></div>
+    <div class="pf-lab">${t('phone')}</div>
+    <div class="pf"><input value="${esc(fmtPhone(u.phone))}" disabled></div>
+    <div class="pf-lab">${t('birthday')} <span class="hint" title="${esc(t('bdayHint'))}">i</span></div>
+    <div class="bday"><select id="bdd"><option value="">${t('day')}</option>${opts(1, 31, bd)}</select><select id="bdm"><option value="">${t('month')}</option>${opts(1, 12, bm, n => t('months')[n - 1])}</select><select id="bdy"><option value="">${t('year')}</option>${opts(yNow - 100, yNow - 5, by, null, true)}</select><button data-pf="bday">${t('save')}</button></div>
+    <div class="pf-lab">Email <span class="hint" title="${esc(t('emailHint'))}">i</span></div>
+    <div class="pf"><input id="pfemail" type="email" maxlength="120" value="${esc(u.email || '')}" placeholder="name@mail.uz"><button data-pf="email">${t('save')}</button></div>
+    <h2 class="h3">${t('subs')}</h2>
+    <label class="chk"><input type="checkbox" id="pfnotify" ${u.notify ? 'checked' : ''}><span>${t('newsletter')}<br><a href="#" data-a="legal">${t('privacy')}.</a></span></label>
+    <div class="note" style="display:flex;justify-content:space-between;align-items:center;margin-top:26px;max-width:520px"><span>${t('balance')}</span><b style="font-size:20px">${num(u.coins || 0)} WendyCoin</b></div>
+    <h2 class="h3">${t('orders')}</h2><div id="pforders"><div class="skel" style="height:80px;max-width:620px"></div></div>
+    <button class="btn" style="margin-top:28px" data-a="logout">${t('logout')}</button></section>`;
+  try { St.orders = (await api('/orders')).orders; } catch { St.orders = []; }
+  if (!$('#pforders')) return;
+  $('#pforders').innerHTML = St.orders.length ? St.orders.slice(0, 12).map(ord => `<div class="order" style="max-width:620px"><div class="top"><span>№${ord.id} · ${money(ord.total)}</span><span class="st ${ord.status}">${ST_NAMES[ord.status]?.[LANG === 'uz' ? 1 : 0] || ord.status}</span></div><div class="faint" style="font-size:13px;margin-top:6px">${esc(ord.created_at)} · ${ord.items.map(i => esc(loc(prod(i.product_id), 'name') || i.name) + ' × ' + i.qty).join(', ')}</div>${ord.type === 'delivery' && ['new', 'cooking', 'ready', 'delivering'].includes(ord.status) ? `<button class="btn red" style="height:40px;margin-top:10px" data-track="${ord.id}">${t('track')}</button>` : ''}</div>`).join('') : `<div class="faint">${t('noOrders')}</div>`;
+}
+async function saveMe(body) {
+  try { St.user = (await api('/me', { method: 'PUT', body })).user; toast(t('saved')); renderHead(); return true; } catch (e) { toast(e.message); return false; }
+}
+document.addEventListener('click', async e => {
+  const av = e.target.closest('[data-ava]'); if (av) { if (await saveMe({ avatar: Number(av.dataset.ava) })) renderProfile(); return; }
+  const b = e.target.closest('[data-pf]'); if (!b) return;
+  if (b.dataset.pf === 'name') {
+    const i = $('#pfname'); if (i.disabled) { i.disabled = false; i.focus(); b.textContent = t('save'); return; }
+    if (i.value.trim() && await saveMe({ name: i.value.trim() })) { i.disabled = true; b.textContent = t('edit'); }
+  } else if (b.dataset.pf === 'email') saveMe({ email: $('#pfemail').value });
+  else if (b.dataset.pf === 'bday') {
+    const d = $('#bdd').value, m = $('#bdm').value, y = $('#bdy').value;
+    if (!d && !m && !y) return saveMe({ birthday: '' });
+    if (!d || !m || !y) return toast(t('birthday') + ': ' + [t('day'), t('month'), t('year')].join(' / '));
+    saveMe({ birthday: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` });
+  }
+});
+document.addEventListener('change', e => { if (e.target.id === 'pfnotify') saveMe({ notify: e.target.checked ? 1 : 0 }); });
 function openTrack(id) {
   let timer, map, mk = {}, line;
   const o = modal(`<div class="md map"><div class="mapbox dark-tiles" style="height:560px"><div class="lm" id="tmap"></div></div><div style="padding:18px 24px" id="tinfo"><div class="skel" style="height:40px"></div></div>${X}</div>`, '', () => { clearInterval(timer); map?.remove(); });
@@ -507,14 +559,14 @@ document.addEventListener('click', e => {
   if (['inc', 'dec'].includes(a)) { e.stopPropagation(); setQty(id, a === 'inc' ? 1 : -1); return; }
   ({
     prod: () => openProduct(id), cart: () => openCart(), close: closeModals, checkout: openCheckout, addr: () => openAddress(), login: () => openLogin(),
-    profile: openProfile, zones: openZones, banner: () => openBanner(id), promos: openPromos, coins: openCoins,
+    profile: () => { if (location.hash === '#profile') showView(); else location.hash = 'profile'; }, zones: openZones, banner: () => openBanner(id), promos: openPromos, coins: openCoins,
     about: () => openText(t('about'), St.menu.settings.about_text), legal: () => openText(t('legal'), t('legalTx')),
     top: () => { e.preventDefault(); scrollTo({ top: 0 }); },
     search: () => { $('#cats').classList.add('searching'); $('#sinp').focus(); },
     sclose: () => { $('#sinp').value = ''; filter(''); $('#cats').classList.remove('searching'); },
     langdd: () => el.parentElement.classList.toggle('open'),
     lang: () => { try { localStorage.setItem('lang', el.dataset.v); } catch { /* ignore */ } location.reload(); },
-    logout: async () => { try { await api('/logout', { method: 'POST' }); } catch { /* already out */ } St.token = null; St.user = null; St.addrs = []; St.addrId = null; LS.del('token'); LS.del('addrId'); closeModals(); renderHead(); },
+    logout: async () => { try { await api('/logout', { method: 'POST' }); } catch { /* already out */ } St.token = null; St.user = null; St.addrs = []; St.addrId = null; LS.del('token'); LS.del('addrId'); closeModals(); renderHead(); if (location.hash === '#profile') location.hash = ''; showView(); },
   })[a]?.();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });

@@ -157,7 +157,17 @@ app.put('/api/me', auth, (req, res) => {
     avatar = Number(req.body.avatar);
     if (!Number.isInteger(avatar) || avatar < 0 || avatar > 9) return fail(res, 400, 'Неверный аватар');
   }
-  db.prepare('UPDATE users SET name=?, notify=?, avatar=? WHERE id=?').run(name, notify, avatar, req.user.id);
+  let birthday = req.user.birthday || '', email = req.user.email || '';
+  if (req.body.birthday !== undefined) {
+    birthday = String(req.body.birthday).trim();
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthday), dt = d && new Date(Date.UTC(+d[1], d[2] - 1, +d[3]));
+    if (birthday && !(d && dt.getUTCDate() === +d[3] && +d[1] >= 1900 && dt < new Date())) return fail(res, 400, 'Неверная дата рождения');
+  }
+  if (req.body.email !== undefined) {
+    email = String(req.body.email).trim().toLowerCase().slice(0, 120);
+    if (email && !/^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/.test(email)) return fail(res, 400, 'Неверный e-mail');
+  }
+  db.prepare('UPDATE users SET name=?, notify=?, avatar=?, birthday=?, email=? WHERE id=?').run(name, notify, avatar, birthday, email, req.user.id);
   res.json({ user: db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id) });
 });
 // Full account deletion. Orders stay (anonymised) because they are accounting records; everything personal goes.

@@ -290,3 +290,17 @@ textarea.inp { height: 80px; padding: 14px 16px; resize: vertical; }
 .shape-circle .prod .ph .noimg { width: 80%; border-radius: 50%; background: var(--card); }
 .shape-circle .prod .buy, .shape-circle .prod .stepper { background: var(--card); } .shape-circle .prod:hover .buy { background: var(--card-2); }
 .shape-circle .pop img, .shape-circle .pop .noimg, .shape-circle .ci img, .shape-circle .ci .noimg, .shape-circle .addon img, .shape-circle .addon .noimg, .shape-circle .pmd .big img { border-radius: 50%; }
+/* profile page */
+.prof { padding: 6px 0 20px; }
+.prof .h2 { margin: 18px 0 22px; } .prof .h3 { font-size: 26px; font-weight: 800; margin: 40px 0 14px; letter-spacing: -.01em; }
+.pf-lab { font-size: 15px; font-weight: 600; margin: 22px 0 8px; display: flex; align-items: center; gap: 8px; }
+.hint { width: 18px; height: 18px; border-radius: 50%; background: var(--card-2); color: var(--tx2); font-size: 11px; font-weight: 800; display: inline-grid; place-items: center; cursor: help; font-style: italic; }
+.pf { display: flex; align-items: center; max-width: 360px; height: 48px; border-radius: 14px; background: var(--card); padding: 0 6px 0 16px; }
+.pf input { flex: 1; min-width: 0; background: none; border: 0; outline: none; font-size: 16px; color: var(--tx); } .pf input:disabled { color: var(--tx2); }
+.pf button, .bday button { color: var(--red-2); font-weight: 700; font-size: 15px; padding: 8px 10px; border-radius: 10px; } .pf button:hover, .bday button:hover { background: var(--card-2); }
+.bday { display: flex; align-items: center; gap: 0; } .bday select { height: 46px; width: 118px; background: var(--sheet); color: var(--tx); border: 1px solid #4a4a52; font-size: 16px; padding: 0 12px; outline: none; }
+.bday select:first-child { border-radius: 14px 0 0 14px; } .bday select:nth-child(3) { border-radius: 0 14px 14px 0; } .bday select + select { border-left: 0; } .bday button { margin-left: 8px; }
+.avas { display: flex; flex-wrap: wrap; gap: 10px; max-width: 720px; }
+.ava { width: 62px; height: 62px; border-radius: 50%; overflow: hidden; border: 3px solid transparent; background: #ffd1dc; transition: transform .15s; } .ava:hover { transform: scale(1.06); }
+.ava.on { border-color: var(--red); } .ava img { width: 100%; height: 100%; object-fit: cover; }
+.chk { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; line-height: 1.35; cursor: pointer; } .chk input { width: 20px; height: 20px; accent-color: var(--red); margin-top: 1px; } .chk a { color: var(--red-2); font-weight: 600; }
