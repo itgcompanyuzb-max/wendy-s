@@ -566,7 +566,7 @@ A.product = id => {
     <div class="pc" style="background:none;min-height:0;cursor:default;padding:12px 16px">
       <div class="im" style="aspect-ratio:1.2;background-color:#1b1b1e;background-size:cover;background-position:center;${p.image ? `background-image:url('${esc(p.image)}')` : ''}">${p.image ? '' : ph(p)}</div>
       <h3 style="font-size:28px;margin:16px 0 8px">${esc(loc(p, 'name'))}</h3><p style="font-size:16px;-webkit-line-clamp:unset;margin:0 0 4px">${esc(loc(p, 'description'))}</p></div>${(p.addons || []).map(prod).filter(Boolean).length ? `<div style="padding:4px 16px 8px"><div class="h2" style="font-size:21px;margin:14px 0 12px">С этим берут</div><div class="hscroll">${p.addons.map(prod).filter(Boolean).map(a => `<div class="rec"><div class="im" ${imgOf(a)}>${a.image ? '' : ph(a)}</div><b>${esc(loc(a, 'name'))}</b><span></span><div data-pill="${a.id}">${pillInner(a)}</div></div>`).join('')}</div></div>` : ''}</div>
-    <div class="foot">${p.coin_cost > 0 && St.user ? `<button class="btn gray" style="margin-bottom:10px" onclick="A.addCoin(${p.id});Sh.close('product')">${I.coin(22)}&nbsp;Обменять на ${p.coin_cost} WendyCoin</button>` : ''}<button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
+    <div class="foot"><button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
 };
 
 /* address / mode sheet */
