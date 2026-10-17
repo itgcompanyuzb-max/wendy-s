@@ -28,13 +28,18 @@ Data: SQLite file `data/app.db`; uploaded images in `uploads/`.
   confirmation required for deletes/settings, audit log of all important actions.
 
 ## Order lifecycle
-customer orders -> nearest OPEN branch inside its delivery radius that has every item in stock (ties within 300 m: the less busy branch)
+customer orders -> nearest OPEN branch that serves the address and has every item in stock (ties within 300 m: the less busy branch).
+  "Serves" = the address is inside a delivery zone linked to the branch (admin "Доставка" > "Зоны доставки"); while no zone exists, each branch's delivery radius is used.
 -> POS "accept" (customer notified) -> POS "ready" (customer + the branch's couriers notified)
 -> courier accepts (customer sees the courier live on a map) -> courier "delivered" -> customer is asked to rate the service.
 - POS API (per-branch key from admin "POS"): GET /api/pos/orders, POST /api/pos/orders/{n}/accept|ready|complete. Built-in terminal: /pos/
 - Courier app: /courier/ (role "Курьер", assigned to a branch in admin "Команда"; sign in with phone + Telegram code)
 - Admin orders board is read-only (progress view). Notifications reach customers inside the open app (polling), not as push messages.
-- Maps: set YANDEX_MAPS_KEY in .env to use Yandex tiles; otherwise OpenStreetMap.
+- Maps: set YANDEX_MAPS_KEY in .env (Yandex "API Тайлов" key from developer.tech.yandex.ru) and every map - customer app, website, admin, courier, tracking - uses Yandex; otherwise OpenStreetMap.
+- Delivery zones: admin "Доставка" > "Зоны доставки" > "+ Новая зона", type a district or city (e.g. "Qibray tumani"), pick it from the list and its real border
+  (OpenStreetMap boundary data) is filled in; tick the branches that deliver there and save. Drawing by hand is optional. Zones are shown to customers on the app map and the website.
+- Website for computers: /web/ (desktop browsers opening / are sent there automatically; /?m=1 keeps the mobile version). Header/footer links (App Store, Google Play,
+  Instagram, Telegram, Facebook, e-mail, "about" text) are set in admin "Безопасность" > settings.
 
 ## First start on a new machine / server
 1. `npm install`

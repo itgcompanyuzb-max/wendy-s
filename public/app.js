@@ -67,6 +67,8 @@ const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
 const coinsInCart = () => St.cart.reduce((n, c) => n + (c.coin ? (prod(c.id)?.coin_cost || 0) * c.qty : 0), 0);
 const cartCount = () => St.cart.reduce((s, c) => s + c.qty, 0);
 function saveCart() { LS.set('cart', St.cart); }
+const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
+const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
 function totals() {
   let sub = 0, full = 0;
   for (const c of St.cart) { const p = prod(c.id); if (!p || c.coin) continue; sub += p.price * c.qty; full += (p.old_price || p.price) * c.qty; }
@@ -283,7 +285,7 @@ function nameView() {
 const TASH = [41.3111, 69.2797];
 const tile = () => {
   const key = St.menu.settings.yandex_key;
-  if (key) return L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=ru_RU&x={x}&y={y}&z={z}&l=map&apikey=${key}`, { maxZoom: 19 });
+  if (key) return L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=${window.LANG === 'uz' ? 'uz_UZ' : 'ru_RU'}&x={x}&y={y}&z={z}&l=map&apikey=${key}`, { maxZoom: 19 });
   return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
 };
 const flag = `<span style="font-size:20px">🇺🇿</span>`;
@@ -302,6 +304,9 @@ function mapView(mode = 'delivery') {
   </div>`;
   const map = St.map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: .5, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView(TASH, 12);
   tile().addTo(map);
+  // delivery zones drawn by the admin (real district borders); customers see where we deliver
+  (St.zones ? Promise.resolve() : api('/zones').then(r => { St.zones = r.zones; }).catch(() => { St.zones = []; }))
+    .then(() => { if (St.map === map) St.zones.forEach(z => L.polygon(z.polys, { color: z.color || '#e2203d', weight: 2, fillOpacity: .08, interactive: false }).addTo(map)); });
   $('#mx').onclick = () => go('home');
   document.querySelectorAll('#seg button').forEach(b => b.onclick = () => setMapMode(b.dataset.m));
   $('#loc').onclick = () => locateMe();
@@ -358,7 +363,8 @@ function locateMe(silent) {
   navigator.geolocation.getCurrentPosition(p => {
     if (b) b.classList.remove('busy');
     // on the first (automatic) open, only jump to the person if he is inside some branch's delivery zone; otherwise stay in the city
-    const inZone = (St.menu.branches || []).some(br => br.active && km(p.coords.latitude, p.coords.longitude, br.lat, br.lng) <= (br.delivery_radius || 7));
+    const la = p.coords.latitude, ln = p.coords.longitude;
+    const inZone = St.zones?.length ? St.zones.some(z => inPolys(la, ln, z.polys)) : (St.menu.branches || []).some(br => br.active && km(la, ln, br.lat, br.lng) <= (br.delivery_radius || 7));
     if (silent && !inZone) return toast('Ваше местоположение вне зоны доставки — выберите адрес на карте');
     if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
   }, () => { if (b) b.classList.remove('busy'); if (!silent) toast('Разрешите доступ к геолокации в браузере'); }, { enableHighAccuracy: true, timeout: 10000 });

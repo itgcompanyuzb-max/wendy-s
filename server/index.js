@@ -7,6 +7,7 @@ if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
 
 const express = require('express');
 const db = require('./db');
+const zones = require('./zones');
 
 const PORT = Number(process.env.PORT || 3000);
 const TG_TOKEN = process.env.TELEGRAM_GATEWAY_TOKEN || '';
@@ -231,9 +232,27 @@ app.get('/api/menu', (req, res) => {
       support_phone: setting('support_phone', ''),
       coin_value: Number(setting('coin_value', 1)) || 1,
       yandex_key: process.env.YANDEX_MAPS_KEY || '',
+      ...Object.fromEntries(SITE_KEYS.map(k => [k, setting(k, '')])),
     },
+    stats: siteStats(),
   });
 });
+// links shown on the website (header / footer); set in the admin panel
+const SITE_KEYS = ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url', 'about_text'];
+// numbers for the website header/footer: branch count, rating, typical delivery time, orders this month
+function siteStats() {
+  const r = db.prepare('SELECT AVG(stars) a, COUNT(*) n FROM reviews').get();
+  const t = db.prepare("SELECT AVG((julianday(delivered_at) - julianday(created_at)) * 1440) m FROM orders WHERE type='delivery' AND status='done' AND delivered_at IS NOT NULL AND created_at > datetime('now','-30 days')").get().m;
+  return {
+    branches: db.prepare('SELECT COUNT(*) c FROM branches WHERE active=1').get().c,
+    cities: db.prepare('SELECT COUNT(DISTINCT city) c FROM branches WHERE active=1').get().c,
+    rating: r.n ? Math.round(r.a * 100) / 100 : null,
+    reviews: r.n,
+    delivery_min: t && t > 5 && t < 180 ? Math.round(t) : null,
+    orders_month: db.prepare("SELECT COUNT(*) c FROM orders WHERE status<>'cancelled' AND created_at >= date('now','start of month')").get().c,
+  };
+}
+app.get('/api/zones', (req, res) => res.json({ zones: zones.list(true).map(({ id, name, color, polys, branch_ids }) => ({ id, name, color, polys, branch_ids })) }));
 
 const geoCache = new Map();
 app.get('/api/reverse', wrap(async (req, res) => {
@@ -334,9 +353,17 @@ function branchFee(b, amount) {
 
 // ---------- delivery routing: nearest open branch that can deliver ----------
 function pickBranch(lat, lng, items) {
-  const open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
+  let open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
+  const zs = zones.zonesAt(lat, lng); // null = no zones drawn yet, use each branch's radius
+  if (zs) {
+    if (!zs.length) return { error: 'zone' };
+    const serving = new Set(zs.flatMap(z => z.branch_ids));
+    if (!serving.size) return { error: 'zone' };
+    open = open.filter(b => serving.has(b.id));
+    if (!open.length) return { error: 'closed' };
+  }
   if (!open.length) return { error: 'closed' };
-  const inRadius = open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
+  const inRadius = zs ? open : open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
   if (!inRadius.length) { // tell the customer how far the nearest open branch is and what its delivery radius is
     const near = open.map(b => ({ b, d: dist(lat, lng, b.lat, b.lng) })).sort((x, y) => x.d - y.d)[0];
     return { error: 'radius', near: { name: near.b.name || near.b.address, km: Math.round(near.d * 10) / 10, radius: near.b.delivery_radius || 7 } };
@@ -354,6 +381,7 @@ function pickBranch(lat, lng, items) {
   return { branch: near[0], distance: near[0].d };
 }
 const pickMessage = r => (r.error === 'closed' ? 'Пока не принимаем заказы. Попробуйте заказать позже'
+  : r.error === 'zone' ? 'К сожалению, ваш адрес вне зоны доставки. Посмотрите зоны доставки на карте'
   : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' + (r.near ? ` Ближайший филиал «${r.near.name}» — ${r.near.km} км, зона доставки — ${r.near.radius} км.` : '') : `Сейчас нет в наличии: ${r.name}`);
 app.post('/api/delivery/quote', (req, res) => {
   const lat = Number(req.body.lat), lng = Number(req.body.lng);

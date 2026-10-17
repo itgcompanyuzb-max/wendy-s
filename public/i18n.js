@@ -58,6 +58,7 @@
     'Закажите ещё': 'Yana buyurtma bering', 'Сделайте первый заказ': 'Birinchi buyurtmani bering', 'Смотреть меню': 'Menyuni ko\'rish',
     'Способы оплаты': 'To\'lov usullari', 'Карты': 'Kartalar', 'Мои адреса': 'Manzillarim', 'Адреса': 'Manzillar', 'Акции': 'Aksiyalar',
     'НА ЛЮБОЙ ТИП ЗАКАЗА': 'HAR QANDAY BUYURTMA TURI UCHUN', 'Отменить': 'Bekor qilish', 'Мои заказы': 'Buyurtmalarim',
+    'К сожалению, ваш адрес вне зоны доставки. Посмотрите зоны доставки на карте': 'Afsuski, manzilingiz yetkazib berish hududidan tashqarida. Hududlarni xaritada ko\'ring',
     'Карт пока нет': 'Hozircha kartalar yo\'q', 'Готово': 'Tayyor', 'Подробнее': 'Batafsil', 'Ваше местоположение вне зоны доставки — выберите адрес на карте': 'Joylashuvingiz yetkazib berish zonasidan tashqarida — manzilni xaritadan tanlang', 'Изменить аватар': 'Avatarni o\'zgartirish', 'Изменить': 'O\'zgartirish',
     'Разрешить уведомления': 'Bildirishnomalarga ruxsat berish', 'О рекламных предложениях и новинках в пушах и СМС': 'Reklama takliflari va yangiliklar haqida push va SMS orqali',
     'Выйти из профиля': 'Profildan chiqish', 'Удалить аккаунт': 'Akkauntni o\'chirish', 'Аватар': 'Avatar', 'ВАШИ АВАТАРЫ': 'SIZNING AVATARLARINGIZ',

@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <title>Wendy's — доставка</title>
+<script>
+// computers (mouse + wide screen) get the desktop website; phones and the app WebView stay here. ?m=1 keeps the mobile version.
+(function () { try {
+  var q = location.search; if (/[?&]m=1/.test(q)) localStorage.setItem('site', 'm'); if (/[?&]m=0/.test(q)) localStorage.removeItem('site');
+  if (localStorage.getItem('site') !== 'm' && innerWidth >= 1024 && matchMedia('(pointer: fine)').matches) location.replace('/web/' + location.hash);
+} catch (e) { /* storage blocked: stay on mobile */ } })();
+</script>
 <link rel="icon" href="/img/pin.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

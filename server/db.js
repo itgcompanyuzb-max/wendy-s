@@ -166,6 +166,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cat_ext ON categories(external_id) WHERE e
 CREATE TABLE IF NOT EXISTS product_addons (product_id INTEGER NOT NULL, addon_id INTEGER NOT NULL, sort INTEGER DEFAULT 0, PRIMARY KEY (product_id, addon_id));
 `);
 db.exec(`
+CREATE TABLE IF NOT EXISTS zones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, color TEXT DEFAULT '#e2203d',
+  polys TEXT NOT NULL DEFAULT '[]', active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS zone_branches (zone_id INTEGER NOT NULL, branch_id INTEGER NOT NULL, PRIMARY KEY (zone_id, branch_id));
+`);
+db.exec(`
 CREATE TABLE IF NOT EXISTS courier_location (courier_id INTEGER PRIMARY KEY, lat REAL, lng REAL, updated_at INTEGER);
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, order_id INTEGER, kind TEXT, title TEXT, body TEXT,

@@ -295,6 +295,13 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.put('/settings', need('super'), confirmed, (req, res) => {
     const up = db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
     for (const k of ['delivery_fee', 'coin_percent', 'coin_value', 'brand', 'support_phone']) if (req.body[k] !== undefined) up.run(k, String(req.body[k]).slice(0, 200));
+    for (const k of ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url']) {
+      if (req.body[k] === undefined) continue;
+      const v = String(req.body[k]).trim();
+      if (v && !(k === 'support_email' ? /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(v) : /^https:\/\/[^\s"'<>]+$/i.test(v))) return fail(res, 400, k === 'support_email' ? 'Неверный e-mail' : 'Ссылки должны начинаться с https://');
+      up.run(k, v.slice(0, 300));
+    }
+    if (req.body.about_text !== undefined) up.run('about_text', String(req.body.about_text).trim().slice(0, 600));
     audit(req, 'settings_changed', 'settings'); res.json({ ok: true });
   });
 
@@ -375,6 +382,22 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   });
 
   /* ---------- branches list (never exposes the POS key hash) + POS key management ---------- */
+  /* delivery zones (polygons) */
+  const zones = require('./zones');
+  router.get('/zones', (req, res) => res.json({ rows: zones.list() }));
+  router.get('/zones/lookup', need('super'), async (req, res) => {
+    const q = String(req.query.q || '').trim().slice(0, 120);
+    if (q.length < 2) return fail(res, 400, 'Введите название района или города');
+    try { res.json({ rows: await zones.lookup(q) }); } catch (e) { fail(res, 502, 'Не удалось получить границу: ' + e.message); }
+  });
+  router.post('/zones', need('super'), (req, res) => {
+    try { const z = zones.save(null, req.body); audit(req, 'zone_created', 'zone', z.id, z.name); res.json({ zone: z }); } catch (e) { fail(res, 400, e.message); }
+  });
+  router.put('/zones/:id', need('super'), (req, res) => {
+    try { const z = zones.save(Number(req.params.id), req.body); audit(req, 'zone_updated', 'zone', z.id, z.name); res.json({ zone: z }); } catch (e) { fail(res, 400, e.message); }
+  });
+  router.delete('/zones/:id', need('super'), confirmed, (req, res) => { zones.remove(Number(req.params.id)); audit(req, 'zone_deleted', 'zone', req.params.id); res.json({ ok: true }); });
+
   router.get('/branches', (req, res) => res.json({ rows: db.prepare('SELECT id,name,city,address,lat,lng,phone,open_time,close_time,active,delivery_radius,delivery_fee,free_from,min_order,(pos_key_hash IS NOT NULL) AS has_pos FROM branches ORDER BY id').all() }));
   router.post('/branches/:id/pos-key', need('super'), confirmed, (req, res) => {
     const b = db.prepare('SELECT id FROM branches WHERE id=?').get(req.params.id);
@@ -593,6 +616,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.delete('/:table/:id', isTable, need('super'), confirmed, (req, res) => {
     const t = req.params.table;
     db.prepare(`DELETE FROM ${t} WHERE id=?`).run(req.params.id);
+    if (t === 'branches') db.prepare('DELETE FROM zone_branches WHERE branch_id=?').run(req.params.id);
     audit(req, 'delete', t, req.params.id); res.json({ ok: true });
   });
 
