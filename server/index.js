@@ -238,7 +238,7 @@ app.get('/api/menu', (req, res) => {
   });
 });
 // links shown on the website (header / footer); set in the admin panel
-const SITE_KEYS = ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url', 'about_text'];
+const SITE_KEYS = ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url', 'about_text', 'product_image_shape'];
 // numbers for the website header/footer: branch count, rating, typical delivery time, orders this month
 function siteStats() {
   const r = db.prepare('SELECT AVG(stars) a, COUNT(*) n FROM reviews').get();

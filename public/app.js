@@ -923,6 +923,7 @@ async function loadUserData() {
 (async function boot() {
   try {
     St.menu = await api('/menu');
+    document.body.classList.toggle('img-circle', St.menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
     if (St.token) {
       try { St.user = (await api('/me', { noLogout: true })).user; await loadUserData(); } catch { logoutLocal(); }
     }

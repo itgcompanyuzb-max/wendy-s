@@ -302,6 +302,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
       up.run(k, v.slice(0, 300));
     }
     if (req.body.about_text !== undefined) up.run('about_text', String(req.body.about_text).trim().slice(0, 600));
+    if (req.body.product_image_shape !== undefined) up.run('product_image_shape', req.body.product_image_shape === 'circle' ? 'circle' : 'square');
     audit(req, 'settings_changed', 'settings'); res.json({ ok: true });
   });
 

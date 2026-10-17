@@ -97,11 +97,12 @@ svg { flex: none; }
 section.cat { padding-top: 10px; }
 section.cat h2, .h2 { font-size: 32px; font-weight: 800; letter-spacing: -.02em; margin: 26px 0 26px; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 34px 26px; }
-.prod { display: flex; flex-direction: column; text-align: center; position: relative; cursor: pointer; }
+.prod { display: flex; flex-direction: column; text-align: center; position: relative; cursor: pointer; background: var(--card); border-radius: 30px; padding: 12px 12px 18px; transition: background .15s; }
+.prod:hover { background: #26262b; }
 .prod .ph { aspect-ratio: 1; display: grid; place-items: center; position: relative; }
-.prod .ph img { width: 92%; height: 92%; object-fit: cover; border-radius: 50%; transition: transform .25s; }
+.prod .ph img { width: 100%; height: 100%; object-fit: cover; border-radius: 22px; transition: transform .25s; }
 .prod:hover .ph img { transform: translateY(-4px) scale(1.02); }
-.prod .ph .noimg { width: 80%; aspect-ratio: 1; border-radius: 50%; background: var(--card); display: grid; place-items: center; }
+.prod .ph .noimg { width: 100%; aspect-ratio: 1; border-radius: 22px; background: var(--card-2); display: grid; place-items: center; }
 .noimg svg { width: 70%; height: 70%; }
 .emptyic { display: grid; place-items: center; margin-bottom: 10px; }
 .okic { width: 96px; height: 96px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; margin: 0 auto 16px; }
@@ -111,12 +112,13 @@ section.cat h2, .h2 { font-size: 32px; font-weight: 800; letter-spacing: -.02em;
 .meth { background: var(--card); border-radius: 16px; padding: 10px 6px; border: 1.5px solid transparent; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .meth.on { border-color: var(--red); } .meth img { width: 80px; height: 60px; object-fit: contain; }
 .badge { position: absolute; top: 6px; left: 0; z-index: 2; padding: 6px 13px; border-radius: 14px; background: var(--pink); color: #fff; font-size: 14px; font-weight: 700; transform: rotate(-8deg); box-shadow: 0 6px 14px rgba(255,95,138,.3); }
-.prod h3 { font-size: 20px; font-weight: 600; margin: 16px 0 6px; line-height: 1.25; letter-spacing: -.01em; }
+.prod h3 { font-size: 20px; font-weight: 600; margin: 14px 4px 6px; line-height: 1.25; letter-spacing: -.01em; }
 .prod p { font-size: 14px; color: var(--tx2); margin: 0 0 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .prod .sp { flex: 1; }
 .prod .old { font-size: 16px; font-weight: 600; text-decoration: line-through; text-decoration-color: var(--red-2); text-decoration-thickness: 2px; color: var(--tx); opacity: .9; margin-bottom: 8px; }
-.prod .buy { align-self: center; display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border-radius: 26px; background: var(--card); font-size: 17px; font-weight: 700; transition: background .15s; }
-.prod:hover .buy { background: var(--card-2); }
+.prod .buy { align-self: center; display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border-radius: 26px; background: var(--card-2); font-size: 17px; font-weight: 700; transition: background .15s; }
+.prod:hover .buy { background: #3a3a40; }
+.prod .stepper { background: var(--card-2); }
 .prod .buy.in { background: var(--red); }
 .stepper { display: inline-flex; align-items: center; gap: 4px; height: 52px; border-radius: 26px; background: var(--card); padding: 0 6px; align-self: center; }
 .stepper button { width: 40px; height: 40px; border-radius: 50%; font-size: 22px; font-weight: 700; display: grid; place-items: center; }
@@ -127,7 +129,7 @@ section.cat h2, .h2 { font-size: 32px; font-weight: 800; letter-spacing: -.02em;
 .popular { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 10px 0 10px; }
 .pop { background: var(--card); border-radius: var(--r); padding: 16px 12px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; transition: background .15s; }
 .pop:hover { background: var(--card-2); }
-.pop img, .pop .noimg { width: 104px; height: 104px; border-radius: 50%; object-fit: cover; background: var(--card-2); display: grid; place-items: center; font-size: 34px; }
+.pop img, .pop .noimg { width: 104px; height: 104px; border-radius: 18px; object-fit: cover; background: var(--card-2); display: grid; place-items: center; font-size: 34px; }
 .pop b { font-size: 15px; font-weight: 700; margin: 12px 0 10px; line-height: 1.2; flex: 1; }
 .pop .pr { background: var(--sheet); border-radius: 18px; padding: 8px 14px; font-size: 13px; font-weight: 700; }
 
@@ -186,7 +188,7 @@ footer .soc:hover { color: var(--tx); background: var(--card); }
 .drawer .bd { flex: 1; overflow-y: auto; padding: 6px 26px; }
 .drawer .ft { padding: 18px 26px 26px; border-top: 1px solid var(--line); }
 .ci { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
-.ci img, .ci .noimg { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; background: var(--card); display: grid; place-items: center; }
+.ci img, .ci .noimg { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; background: var(--card); display: grid; place-items: center; }
 .ci b { display: block; font-size: 16px; font-weight: 700; } .ci small { color: var(--tx2); font-size: 14px; }
 .ci .stepper { height: 40px; } .ci .stepper button { width: 32px; height: 32px; font-size: 18px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 52px; padding: 0 24px; border-radius: 26px; background: var(--card); font-weight: 700; font-size: 16px; }
@@ -219,14 +221,14 @@ textarea.inp { height: 80px; padding: 14px 16px; resize: vertical; }
 .note.bad { background: rgba(226,32,61,.16); color: #ff9aa9; } .note.ok { background: rgba(52,209,122,.13); color: #8ff0b8; }
 .pmd { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; }
 .pmd .big { aspect-ratio: 1; display: grid; place-items: center; }
-.pmd .big img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.pmd .big img { width: 100%; height: 100%; object-fit: cover; border-radius: 32px; }
 .pmd .info { display: flex; flex-direction: column; max-height: 560px; }
 .pmd .info .sc { overflow-y: auto; flex: 1; padding-right: 6px; }
 .pmd h2 { padding-right: 40px; }
 .addons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
 .addon { background: var(--card); border-radius: 16px; padding: 10px; text-align: center; border: 1.5px solid transparent; font-size: 13px; font-weight: 600; }
 .addon.on { border-color: var(--red); }
-.addon img, .addon .noimg { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin: 0 auto 6px; background: var(--card-2); display: grid; place-items: center; }
+.addon img, .addon .noimg { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; margin: 0 auto 6px; background: var(--card-2); display: grid; place-items: center; }
 .addon small { display: block; color: var(--tx2); margin-top: 4px; }
 .mapbox { position: relative; height: 640px; }
 .mapbox .lm { position: absolute; inset: 0; }
@@ -278,3 +280,9 @@ textarea.inp { height: 80px; padding: 14px 16px; resize: vertical; }
   .deliv .g { grid-template-columns: 1fr; }
   .wrap { padding: 0 16px; }
 }
+/* admin setting "Круг": round photos without card background (Dodo style) */
+.shape-circle .prod { background: none; padding: 0; border-radius: 0; } .shape-circle .prod:hover { background: none; }
+.shape-circle .prod .ph img { width: 92%; height: 92%; border-radius: 50%; }
+.shape-circle .prod .ph .noimg { width: 80%; border-radius: 50%; background: var(--card); }
+.shape-circle .prod .buy, .shape-circle .prod .stepper { background: var(--card); } .shape-circle .prod:hover .buy { background: var(--card-2); }
+.shape-circle .pop img, .shape-circle .pop .noimg, .shape-circle .ci img, .shape-circle .ci .noimg, .shape-circle .addon img, .shape-circle .addon .noimg, .shape-circle .pmd .big img { border-radius: 50%; }
