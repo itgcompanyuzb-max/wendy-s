@@ -30,10 +30,16 @@
     const base = b.delivery_fee >= 0 ? b.delivery_fee : Number(m.settings.delivery_fee || 0);
     return b.free_from > 0 && amount >= b.free_from ? 0 : base;
   };
+  const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
+  const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
+  // same rule as the server: with delivery zones only the zone's branches deliver, otherwise each branch's radius
   const pickBranch = (m, lat, lng) => {
-    const list = m.branches.filter(b => b.active).map(b => ({ b, d: km(lat, lng, b.lat, b.lng) }))
-      .filter(x => x.d <= (x.b.delivery_radius || 7)).sort((a, b) => a.d - b.d);
-    return list[0] || null;
+    let list = m.branches.filter(b => b.active).map(b => ({ b, d: km(lat, lng, b.lat, b.lng) }));
+    if (m.zones && m.zones.length) {
+      const ids = new Set(m.zones.filter(z => inPolys(lat, lng, z.polys)).flatMap(z => z.branch_ids));
+      list = list.filter(x => ids.has(x.b.id));
+    } else list = list.filter(x => x.d <= (x.b.delivery_radius || 7));
+    return list.sort((a, b) => a.d - b.d)[0] || null;
   };
   const promoOf = (m, code) => (m.promos || []).find(p => p.code === String(code || '').trim().toUpperCase());
 
@@ -80,6 +86,7 @@
     tick();
     let mm;
     if (method === 'GET' && path === '/menu') return J(m);
+    if (path === '/zones') return J({ zones: m.zones || [] });
     if (path === '/auth/request') return J({ ok: true, resend_in: 30 });
     if (path === '/auth/verify') return /^\d{4}$/.test(String(body.code)) ? J({ token: 'demo', user: S.user }) : bad('Неверный код');
     if (path === '/logout') return J({ ok: true });
@@ -131,7 +138,7 @@
     if ((mm = /^\/cards\/(\d+)$/.exec(path)) && method === 'DELETE') { S.cards = S.cards.filter(c => c.id !== +mm[1]); save(); return J({ ok: true }); }
     if (path === '/delivery/quote') {
       const p = pickBranch(m, +body.lat, +body.lng);
-      if (!p) return J({ ok: false, error: 'radius', message: 'К сожалению, доставка на ваш адрес сейчас недоступна.' });
+      if (!p) return J({ ok: false, error: 'radius', message: m.zones && m.zones.length ? 'К сожалению, ваш адрес вне зоны доставки. Посмотрите зоны доставки на карте' : 'К сожалению, доставка на ваш адрес сейчас недоступна.' });
       return J({ ok: true, branch: { id: p.b.id, name: p.b.name || p.b.address, address: p.b.address }, distance_km: Math.round(p.d * 10) / 10, fee: feeOf(m, p.b, Number(body.subtotal) || 0), free_from: p.b.free_from });
     }
     if (path === '/orders' && method === 'POST') {
