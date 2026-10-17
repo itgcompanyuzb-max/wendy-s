@@ -15,6 +15,7 @@ input, textarea, select { font: inherit; color: var(--tx); }
 img { display: block; }
 .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
 .muted { color: var(--tx2); } .faint { color: var(--tx3); }
+[hidden] { display: none !important; }
 svg { flex: none; }
 
 /* top bar */
@@ -66,13 +67,19 @@ svg { flex: none; }
 /* main sheet */
 .sheet { background: var(--sheet); border-radius: 48px 48px 0 0; padding-bottom: 60px; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 282px; gap: 36px; align-items: start; }
-.cats { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px; padding: 18px 0; background: var(--sheet); }
+.cats { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 4px; padding: 18px 0; min-height: 80px; background: var(--sheet); }
+.sbtn { width: 44px; height: 44px; border-radius: 50%; background: var(--card); display: grid; place-items: center; flex: none; margin-right: 4px; }
+.sbtn:hover { background: var(--card-2); } .sbtn.coin img { width: 30px; height: 30px; }
+.sbox { display: none; flex: 1; align-items: center; gap: 6px; height: 44px; border-radius: 22px; background: var(--card); padding: 0 6px 0 18px; }
+.sbox input { flex: 1; background: none; border: 0; outline: none; font-size: 16px; }
+.sbox button { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; }
+.cats.searching .sbox { display: flex; } .cats.searching .pills, .cats.searching .sbtn { display: none; }
 .cats .mini { display: none; width: 40px; height: 40px; border-radius: 12px; background: var(--red); place-items: center; margin-right: 8px; }
 .cats .mini img { width: 34px; height: 34px; }
 .cats.stuck .mini { display: grid; }
-.cats .pills { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+.cats .pills { position: relative; display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
 .cats .pills::-webkit-scrollbar { display: none; }
-.cats .pill { height: 44px; padding: 0 20px; border-radius: 22px; font-weight: 600; font-size: 16px; white-space: nowrap; }
+.cats .pill { flex: none; display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 22px; font-weight: 600; font-size: 16px; white-space: nowrap; }
 .cats .pill:hover { color: var(--red-2); }
 .cats .pill.on { background: #fff; color: #111; }
 .cats .navcart { display: none; height: 44px; padding: 0 18px; border-radius: 22px; background: var(--red); font-weight: 800; white-space: nowrap; }
@@ -94,7 +101,15 @@ section.cat h2, .h2 { font-size: 32px; font-weight: 800; letter-spacing: -.02em;
 .prod .ph { aspect-ratio: 1; display: grid; place-items: center; position: relative; }
 .prod .ph img { width: 92%; height: 92%; object-fit: cover; border-radius: 50%; transition: transform .25s; }
 .prod:hover .ph img { transform: translateY(-4px) scale(1.02); }
-.prod .ph .noimg { width: 80%; aspect-ratio: 1; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: 46px; }
+.prod .ph .noimg { width: 80%; aspect-ratio: 1; border-radius: 50%; background: var(--card); display: grid; place-items: center; }
+.noimg svg { width: 70%; height: 70%; }
+.emptyic { display: grid; place-items: center; margin-bottom: 10px; }
+.okic { width: 96px; height: 96px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; margin: 0 auto 16px; }
+.seg button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.pays .opt img, .pays .opt svg { flex: none; }
+.meths { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.meth { background: var(--card); border-radius: 16px; padding: 10px 6px; border: 1.5px solid transparent; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.meth.on { border-color: var(--red); } .meth img { width: 80px; height: 60px; object-fit: contain; }
 .badge { position: absolute; top: 6px; left: 0; z-index: 2; padding: 6px 13px; border-radius: 14px; background: var(--pink); color: #fff; font-size: 14px; font-weight: 700; transform: rotate(-8deg); box-shadow: 0 6px 14px rgba(255,95,138,.3); }
 .prod h3 { font-size: 20px; font-weight: 600; margin: 16px 0 6px; line-height: 1.25; letter-spacing: -.01em; }
 .prod p { font-size: 14px; color: var(--tx2); margin: 0 0 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

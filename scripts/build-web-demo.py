@@ -41,7 +41,7 @@ if not menu.get('promos'):
 open(os.path.join(OUT, 'menu.json'), 'w', encoding='utf-8').write(rel(json.dumps(menu, ensure_ascii=False)))
 
 css = rd(os.path.join(PUB, 'web', 'web.css')) + '\n' + rd(LEAFLET_CSS).replace('url(images/', 'url(data:,') + '\n:root { color-scheme: dark; }\n'
-js = rel(rd(os.path.join(PUB, 'web', 'web.js')))
+js = rel(rd(os.path.join(PUB, 'icons.js')) + '\n' + rd(os.path.join(PUB, 'web', 'web.js')))
 # demo streets instead of a tile server (light map; the dark map style inverts it like real tiles)
 TILES = r'''const tiles = () => { const g = L.gridLayer({ maxZoom: 19 }); g.createTile = function (c) {
   const t = document.createElement('canvas'); t.width = t.height = 256; const x = t.getContext('2d'), SP = 120, gx0 = c.x * 256, gy0 = c.y * 256;

@@ -53,6 +53,8 @@ const TX = {
   coinsT: ['WendyCoin', 'WendyCoin'], coinsTx: [p => `За каждый заказ возвращаем ${p}% суммы в WendyCoin. Ими можно оплатить следующий заказ или обменять на соусы и напитки в мобильном приложении.`, p => `Har bir buyurtma uchun summaning ${p}% WendyCoin bo‘lib qaytadi. Ular bilan keyingi buyurtmani to‘lash yoki mobil ilovada sous va ichimliklarga almashtirish mumkin.`],
   balance: ['Ваш баланс', 'Balansingiz'], courier: ['Курьер', 'Kuryer'], legalTx: ['Пользовательское соглашение и политика конфиденциальности. Картографические данные: © участники OpenStreetMap.', 'Foydalanuvchi shartnomasi va maxfiylik siyosati. Xarita ma’lumotlari: © OpenStreetMap ishtirokchilari.'],
   rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
+  tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
+  searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
   zoneBranches: ['доставляют', 'yetkazadi'], all: ['Меню', 'Menyu'], phone: ['Телефон', 'Telefon'], payNote: ['Оплата Click/Payme — ссылка придёт после подтверждения заказа', 'Click/Payme orqali to‘lov — havola buyurtma tasdiqlangach keladi'],
 };
 const ST_NAMES = { new: ['Ожидает подтверждения', 'Tasdiqlanishi kutilmoqda'], cooking: ['Готовится', 'Tayyorlanmoqda'], ready: ['Готов', 'Tayyor'], delivering: ['В пути', 'Yo‘lda'], done: ['Выполнен', 'Bajarildi'], cancelled: ['Отменён', 'Bekor qilindi'] };
@@ -65,7 +67,7 @@ const SRV_UZ = [[/вне зоны доставки/, 'Manzil yetkazish hududidan
 const srv = m => (LANG === 'uz' ? (SRV_UZ.find(([r]) => r.test(m || ''))?.[1] || m) : m);
 
 /* ---------- state + api ---------- */
-const St = { token: LS.get('token', null), user: null, menu: null, zones: [], cart: LS.get('cart', []), addrs: [], addrId: LS.get('addrId', null), mode: LS.get('mode', 'delivery'), branchId: LS.get('branchId', null), promo: null, pay: 'cash', quote: null, orders: [] };
+const St = { token: LS.get('token', null), user: null, menu: null, zones: [], cart: LS.get('cart', []), addrs: [], addrId: LS.get('addrId', null), mode: LS.get('mode', 'delivery'), branchId: LS.get('branchId', null), promo: null, pay: 'cash', pickupMethod: 'takeaway', quote: null, orders: [] };
 async function api(path, opts = {}) {
   const r = await fetch('/api' + path, { method: opts.method || (opts.body ? 'POST' : 'GET'), headers: { 'Content-Type': 'application/json', ...(St.token ? { Authorization: 'Bearer ' + St.token } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
   const j = await r.json().catch(() => ({}));
@@ -78,7 +80,8 @@ function toast(m) { const d = document.createElement('div'); d.className = 'toas
 const prods = () => St.menu?.products || [];
 const prod = id => prods().find(p => p.id === id);
 const branches = () => St.menu?.branches || [];
-const img = (p, cls = '') => (p?.image ? `<img class="${cls}" src="${esc(p.image)}" alt="${esc(loc(p, 'name'))}" loading="lazy">` : `<div class="noimg ${cls}">🍔</div>`);
+const img = (p, cls = '') => (p?.image ? `<img class="${cls}" src="${esc(p.image)}" alt="${esc(loc(p, 'name'))}" loading="lazy">` : `<div class="noimg ${cls}">${phOf(p)}</div>`);
+const phOf = p => PH[St.menu?.categories.find(c => c.id === p?.category_id)?.icon] || PH.burger; // icons.js (shared with the mobile app)
 const brand = () => St.menu?.settings?.brand || "Wendy's";
 const cartItems = () => St.cart.filter(c => !c.coin && prod(c.id));
 const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
@@ -155,8 +158,9 @@ function render() {
   ${St.menu.banners.length ? `<section class="wrap stories">${St.menu.banners.slice(0, 6).map(b => `<button class="story ${b.image ? '' : 'noimg'}" data-a="banner" data-id="${b.id}" style="background:${esc(b.color || '#e2203d')}">${b.image ? `<img src="${esc(b.image)}" alt="" onerror="this.remove()">` : ''}<span>${esc(loc(b, 'title'))}</span></button>`).join('')}</section>` : ''}
   <div class="sheet"><div class="wrap layout">
     <main>
-      <nav class="cats" id="cats"><span class="mini"><img src="/img/brand.png" alt=""></span><div class="pills">${cats.map(c => `<a class="pill" href="#c${c.id}" data-cat="${c.id}">${esc(loc(c, 'name'))}</a>`).join('')}</div><button class="navcart" data-a="cart"></button></nav>
-      ${popular.length ? `<h2 class="h2" style="margin-top:6px">${t('popular')}</h2><div class="popular">${popular.map(p => `<div class="pop" data-a="prod" data-id="${p.id}">${img(p)}<b>${esc(loc(p, 'name'))}</b><span class="pr">${money(p.price)}</span></div>`).join('')}</div>` : ''}
+      <nav class="cats" id="cats"><span class="mini"><img src="/img/brand.png" alt=""></span><button class="sbtn" data-a="search" aria-label="search">${I.search(22)}</button><button class="sbtn coin" data-a="coins" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button><span class="sbox"><input id="sinp" placeholder="${t('searchPh')}" autocomplete="off"><button data-a="sclose" aria-label="close">${I.x('#a3a3ab', 20)}</button></span><div class="pills">${cats.map(c => `<a class="pill" href="#c${c.id}" data-cat="${c.id}">${esc(loc(c, 'name'))}</a>`).join('')}</div><button class="navcart" data-a="cart"></button></nav>
+      ${popular.length ? `<h2 class="h2 popular-h" style="margin-top:6px">${t('popular')}</h2><div class="popular">${popular.map(p => `<div class="pop" data-a="prod" data-id="${p.id}">${img(p)}<b>${esc(loc(p, 'name'))}</b><span class="pr">${money(p.price)}</span></div>`).join('')}</div>` : ''}
+      <div class="empty" id="nofound" hidden><b>${t('notFound')}</b></div>
       ${cats.map(c => `<section class="cat" id="c${c.id}" data-sec="${c.id}"><h2>${esc(loc(c, 'name'))}</h2><div class="grid">${prods().filter(p => p.category_id === c.id).map(card).join('')}</div></section>`).join('')}
       <section class="deliv" id="delivery"><h2 class="h2">${esc(t('deliveryIn', city))}</h2><div class="g">
         <div><div class="cap">${t('limited')}</div><div class="zonethumb" data-a="zones"><div class="lm" id="thumbmap"></div><span>${t('zoneThumb')}</span></div></div>
@@ -202,7 +206,7 @@ function buyHTML(p) {
 }
 function renderCartBtns() {
   const { sub, count } = totals();
-  const html = `${IC.bag}<span>${count ? money(sub) : t('cart')}</span>${count ? `<span class="n">${count}</span>` : ''}`;
+  const html = `${I.bag(22)}<span>${count ? money(sub) : t('cart')}</span>${count ? `<span class="n">${count}</span>` : ''}`;
   if ($('#cartslot')) $('#cartslot').innerHTML = `<button class="cartbtn" data-a="cart">${html}</button>`;
   if ($('.navcart')) $('.navcart').innerHTML = html;
 }
@@ -211,7 +215,7 @@ function renderHead() {
   const a = St.addrs.find(x => x.id === St.addrId);
   const city = branches()[0]?.city || 'Ташкент';
   const time = st.delivery_min ? `${st.delivery_min} ${t('min')}` : `30–45 ${t('min')}`;
-  if ($('#addrbtn')) $('#addrbtn').innerHTML = `<span class="ic">${IC.fork}</span><span style="min-width:0"><span class="l1">${a ? `<em>${esc(city)},</em><span>${esc(a.address.replace(/^(Ташкент|Toshkent|Tashkent|город Ташкент)\s*,?\s*/i, ''))}</span>` : `<span>${t('pickAddr')}</span>`}${IC.chev}</span><small>${time}${st.rating ? ` · ${st.rating.toFixed(2)} <span class="st">★</span>` : ''}</small></span>`;
+  if ($('#addrbtn')) $('#addrbtn').innerHTML = `<span class="ic">${St.mode === 'pickup' ? I.fork(24) : I.walk(24)}</span><span style="min-width:0"><span class="l1">${a ? `<em>${esc(city)},</em><span>${esc(a.address.replace(/^(Ташкент|Toshkent|Tashkent|город Ташкент)\s*,?\s*/i, ''))}</span>` : `<span>${t('pickAddr')}</span>`}${IC.chev}</span><small>${time}${st.rating ? ` · ${st.rating.toFixed(2)} <span class="st">★</span>` : ''}</small></span>`;
   if ($('#userslot')) $('#userslot').innerHTML = St.token ? `<button class="avatar" data-a="profile" aria-label="${t('profile')}"><img src="/img/avatars/${St.user?.avatar > 0 ? St.user.avatar : 9}.png" alt=""></button>` : `<button class="loginbtn" data-a="login">${t('login')}</button>`;
 }
 function thumbMap() {
@@ -221,9 +225,15 @@ function thumbMap() {
 }
 function spy() {
   const nav = $('#cats'); if (!nav) return;
-  new IntersectionObserver(([e]) => nav.classList.toggle('stuck', e.intersectionRatio < 1), { threshold: [1], rootMargin: '-1px 0px 0px 0px' }).observe(nav);
+  let stuck = null, raf = 0;
+  const upd = () => { raf = 0; const s = scrollY > 0 && nav.getBoundingClientRect().top <= 0.5; if (s !== stuck) { stuck = s; nav.classList.toggle('stuck', s); } };
+  addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(upd); }, { passive: true }); upd();
+  const pills = $('.cats .pills');
   const io = new IntersectionObserver(es => {
-    for (const e of es) if (e.isIntersecting) { $$('.cats .pill').forEach(p => p.classList.toggle('on', p.dataset.cat === e.target.dataset.sec)); const on = $('.cats .pill.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+    for (const e of es) if (e.isIntersecting) {
+      $$('.cats .pill').forEach(p => p.classList.toggle('on', p.dataset.cat === e.target.dataset.sec));
+      const on = $('.cats .pill.on'); if (on) pills.scrollTo({ left: on.offsetLeft - 24, behavior: 'smooth' }); // only the pill row moves, never the page
+    }
   }, { rootMargin: '-120px 0px -65% 0px' });
   $$('section.cat').forEach(s => io.observe(s));
 }
@@ -245,7 +255,7 @@ function openProduct(id) {
   const sel = new Set();
   const draw = () => {
     const sum = p.price + [...sel].reduce((n, i) => n + prod(i).price, 0);
-    o.querySelector('.md').innerHTML = `${X}<div class="pmd"><div class="big">${p.image ? `<img src="${esc(p.image)}" alt="">` : '<div class="noimg" style="width:80%;aspect-ratio:1;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:80px">🍔</div>'}</div>
+    o.querySelector('.md').innerHTML = `${X}<div class="pmd"><div class="big">${p.image ? `<img src="${esc(p.image)}" alt="">` : `<div class="noimg" style="width:80%;aspect-ratio:1;border-radius:50%;background:var(--card);display:grid;place-items:center">${phOf(p)}</div>`}</div>
       <div class="info"><div class="sc"><h2>${esc(loc(p, 'name'))}</h2>${p.old_price > p.price ? `<div class="faint" style="text-decoration:line-through;margin-bottom:6px">${money(p.old_price)}</div>` : ''}<p class="muted" style="line-height:1.5;margin:6px 0 0">${esc(loc(p, 'description'))}</p>
       ${adds.length ? `<h3 style="margin:22px 0 0;font-size:18px">${t('withIt')}</h3><div class="addons">${adds.map(a => `<button class="addon ${sel.has(a.id) ? 'on' : ''}" data-tog="${a.id}">${img(a)}${esc(loc(a, 'name'))}<small>+${money(a.price)}</small></button>`).join('')}</div>` : ''}</div>
       <button class="btn red wide" style="margin-top:18px;height:56px" data-addp>${t('add')} ${money(sum)}</button></div></div>`;
@@ -260,7 +270,7 @@ function openProduct(id) {
 function openCart(keep) {
   const items = cartItems(); const { sub, discount } = totals();
   const body = items.length ? items.map(c => { const p = prod(c.id); return `<div class="ci">${img(p)}<span><b>${esc(loc(p, 'name'))}</b><small>${money(p.price * c.qty)}</small></span><div class="stepper"><button data-a="dec" data-id="${p.id}">−</button><b>${c.qty}</b><button data-a="inc" data-id="${p.id}">+</button></div></div>`; }).join('')
-    : `<div class="empty"><div style="font-size:60px">🛍️</div><b>${t('emptyCart')}</b>${t('emptyCartTx')}</div>`;
+    : `<div class="empty"><div class="emptyic">${I.bag(64, '#6f6f78')}</div><b>${t('emptyCart')}</b>${t('emptyCartTx')}</div>`;
   const html = `<div class="drawer" id="drawer"><div class="hd"><h2>${t('cart')}</h2>${X.replace('class="x"', 'class="x" style="position:static;background:var(--card)"')}</div><div class="bd">${body}</div>
     ${items.length ? `<div class="ft"><div class="row"><span class="muted">${t('items')}</span><span>${money(sub)}</span></div>${discount ? `<div class="row"><span class="muted">${t('discount')}</span><span>−${money(discount)}</span></div>` : ''}<div class="row tot"><span>${t('total')}</span><span>${money(sub - discount)}</span></div><button class="btn red wide" style="margin-top:14px;height:58px;font-size:18px" data-a="checkout">${t('checkout')}</button></div>` : ''}</div>`;
   if (keep && $('#drawer')) { $('#drawer').outerHTML = html; return; }
@@ -377,11 +387,12 @@ function openCheckout() {
       let block = '';
       if (del && !a) block = t('needAddr'); else if (del && q && !q.ok) block = srv(q.message); else if (del && minO && sub < minO) block = t('minFor', money(minO)); else if (!del && !St.branchId) block = t('needBranch');
       md.innerHTML = `${X}<h2>${t('checkout')}</h2>
-        <div class="seg"><button class="${del ? 'on' : ''}" data-m="delivery">${t('delivery')}</button><button class="${del ? '' : 'on'}" data-m="pickup">${t('pickup')}</button></div>
+        <div class="seg"><button class="${del ? 'on' : ''}" data-m="delivery">${I.walk(22)}${t('delivery')}</button><button class="${del ? '' : 'on'}" data-m="pickup">${I.fork(22, del ? '#fff' : '#111')}${t('pickup')}</button></div>
         ${del ? `<button class="opt on" data-a="addr2"><span class="t">${a ? esc(a.address) : t('pickAddr')}<small>${a ? [a.apartment && t('apt') + ' ' + a.apartment, a.floor && t('floor') + ' ' + a.floor, q?.ok && t('delivers', q.branch.name, q.distance_km)].filter(Boolean).map(esc).join(' · ') : ''}</small></span>${IC.chev}</button>`
         : branches().map(b => `<button class="opt ${b.id === St.branchId ? 'on' : ''}" data-br="${b.id}" ${b.open_now ? '' : 'disabled style="opacity:.5"'}><span class="rd"></span><span class="t">${esc(b.name || b.address)}<small>${esc(b.address)} · ${esc(b.open_time)}–${esc(b.close_time)}${b.open_now ? '' : ' · ' + t('closed')}</small></span></button>`).join('')}
+        ${del ? '' : `<div class="meths">${[['tray', t('tray')], ['takeaway', t('takeaway')], ['table', t('table')]].map(([k, n]) => `<button class="meth ${St.pickupMethod === k ? 'on' : ''}" data-meth="${k}">${ILL[k]}<span>${n}</span></button>`).join('')}</div>`}
         <div class="muted" style="font-size:14px;margin:18px 0 0 4px">${t('pay')}</div>
-        <div class="pays" style="margin-top:8px">${[['cash', t('cash')], ['click', 'Click'], ['payme', 'Payme']].map(([k, n]) => `<button class="opt ${St.pay === k ? 'on' : ''}" data-pay="${k}">${n}</button>`).join('')}</div>
+        <div class="pays" style="margin-top:8px">${[['cash', t('cash'), I.cash(24)], ['click', '', I.click(30)], ['payme', '', I.payme(30)]].map(([k, n, ic]) => `<button class="opt ${St.pay === k ? 'on' : ''}" data-pay="${k}">${ic}${n}</button>`).join('')}</div>
         ${St.pay !== 'cash' ? `<div class="faint" style="font-size:13px;margin:8px 4px 0">${t('payNote')}</div>` : ''}
         <div class="g2" style="grid-template-columns:1fr auto;align-items:end"><label class="f"><span>${t('promo')}</span><input class="inp" id="pc" value="${esc(St.promo?.code || '')}" maxlength="30"></label><button class="btn" style="margin-top:14px" data-a="promo">${t('apply')}</button></div>
         <label class="f"><span>${t('comment')}</span><input class="inp" id="cm" maxlength="200"></label>
@@ -394,6 +405,7 @@ function openCheckout() {
       const m = e.target.closest('[data-m]'); if (m) { St.mode = m.dataset.m; LS.set('mode', St.mode); if (St.mode === 'delivery' && !St.quote) await quote(); return draw(); }
       const br = e.target.closest('[data-br]'); if (br) { St.branchId = Number(br.dataset.br); LS.set('branchId', St.branchId); return draw(); }
       const py = e.target.closest('[data-pay]'); if (py) { St.pay = py.dataset.pay; return draw(); }
+      const me = e.target.closest('[data-meth]'); if (me) { St.pickupMethod = me.dataset.meth; return draw(); }
       if (e.target.closest('[data-a=addr2]')) return openAddress(openCheckout);
       if (e.target.closest('[data-a=promo]')) {
         const code = $('#pc', md).value.trim(); if (!code) { St.promo = null; return draw(); }
@@ -403,11 +415,11 @@ function openCheckout() {
       if (e.target.closest('#place')) {
         const del = St.mode === 'delivery'; const btn = $('#place', md); btn.disabled = true;
         const body = { type: del ? 'delivery' : 'pickup', items: cartItems().map(c => ({ product_id: c.id, qty: c.qty })), promo: St.promo?.code || '', payment: St.pay, comment: $('#cm', md).value.trim() };
-        if (del) body.address_id = St.addrId; else { body.branch_id = St.branchId; body.pickup_time = 'asap'; body.pickup_method = 'takeaway'; }
+        if (del) body.address_id = St.addrId; else { body.branch_id = St.branchId; body.pickup_time = 'asap'; body.pickup_method = St.pickupMethod; }
         try {
           const r = await api('/orders', { body });
           St.cart = St.cart.filter(c => c.coin); St.promo = null; St.quote = null; LS.set('cart', St.cart); refreshCart();
-          md.innerHTML = `${X}<div style="text-align:center;padding:10px 0"><div style="font-size:70px">🎉</div><h2>${t('okT')}</h2><p class="muted">${t('okTx', r.order.id)}</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px">${del ? `<button class="btn red" data-track="${r.order.id}">${t('track')}</button>` : ''}<button class="btn" data-a="close">${t('close')}</button></div></div>`;
+          md.innerHTML = `${X}<div style="text-align:center;padding:10px 0"><div class="okic">${I.check(56)}</div><h2>${t('okT')}</h2><p class="muted">${t('okTx', r.order.id)}</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px">${del ? `<button class="btn red" data-track="${r.order.id}">${t('track')}</button>` : ''}<button class="btn" data-a="close">${t('close')}</button></div></div>`;
         } catch (er) { draw(er.message); }
       }
     });
@@ -497,12 +509,25 @@ document.addEventListener('click', e => {
     profile: openProfile, zones: openZones, banner: () => openBanner(id), promos: openPromos, coins: openCoins,
     about: () => openText(t('about'), St.menu.settings.about_text), legal: () => openText(t('legal'), t('legalTx')),
     top: () => { e.preventDefault(); scrollTo({ top: 0 }); },
+    search: () => { $('#cats').classList.add('searching'); $('#sinp').focus(); },
+    sclose: () => { $('#sinp').value = ''; filter(''); $('#cats').classList.remove('searching'); },
     langdd: () => el.parentElement.classList.toggle('open'),
     lang: () => { try { localStorage.setItem('lang', el.dataset.v); } catch { /* ignore */ } location.reload(); },
     logout: async () => { try { await api('/logout', { method: 'POST' }); } catch { /* already out */ } St.token = null; St.user = null; St.addrs = []; St.addrId = null; LS.del('token'); LS.del('addrId'); closeModals(); renderHead(); },
   })[a]?.();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+document.addEventListener('input', e => { if (e.target.id === 'sinp') filter(e.target.value); });
+function filter(q) {
+  q = q.trim().toLowerCase(); let any = false;
+  for (const s of $$('section.cat')) {
+    let n = 0;
+    for (const c of $$('.prod', s)) { const p = prod(Number(c.dataset.id)); const hit = !q || [p.name, p.name_uz, p.description, p.description_uz].some(v => (v || '').toLowerCase().includes(q)); c.hidden = !hit; n += hit; }
+    s.hidden = !n; any = any || n > 0;
+  }
+  $$('.popular, .popular + h2, h2.popular-h').forEach(x => { x.hidden = !!q; });
+  $('#nofound').hidden = any; if (q) $('#cats').scrollIntoView({ block: 'start' });
+}
 
 (async function boot() {
   $('#site').innerHTML = '<div class="wrap" style="padding-top:150px"><div class="skel" style="height:240px"></div><div class="skel" style="height:420px;margin-top:20px"></div></div>';
