@@ -35,6 +35,9 @@ customer orders -> nearest OPEN branch that serves the address and has every ite
 - POS API (per-branch key from admin "POS"): GET /api/pos/orders, POST /api/pos/orders/{n}/accept|ready|complete. Built-in terminal: /pos/
 - Courier app: /courier/ (role "Курьер", assigned to a branch in admin "Команда"; sign in with phone + Telegram code)
 - Admin orders board is read-only (progress view). Notifications reach customers inside the open app (polling), not as push messages.
+- Login codes: Telegram Gateway (TELEGRAM_GATEWAY_TOKEN) and/or WhatsApp Cloud API (WHATSAPP_TOKEN, WHATSAPP_PHONE_ID,
+  WHATSAPP_TEMPLATE = an approved AUTHENTICATION template with the code as {{1}} and a copy-code button, WHATSAPP_TEMPLATE_LANG).
+  With both set the customer picks where the code goes; if the chosen one fails the other is used. Numbers: +998 (UZ), +7 (RU, KZ).
 - Maps: set YANDEX_MAPS_KEY in .env (Yandex "API Тайлов" key from developer.tech.yandex.ru) and every map - customer app, website, admin, courier, tracking - uses Yandex; otherwise OpenStreetMap.
 - Delivery zones: admin "Доставка" > "Зоны доставки" > "+ Новая зона", type a district or city (e.g. "Qibray tumani"), pick it from the list and its real border
   (OpenStreetMap boundary data) is filled in; tick the branches that deliver there and save. Drawing by hand is optional. Zones are shown to customers on the app map and the website.

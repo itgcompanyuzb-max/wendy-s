@@ -11,6 +11,8 @@ const zones = require('./zones');
 
 const PORT = Number(process.env.PORT || 3000);
 const TG_TOKEN = process.env.TELEGRAM_GATEWAY_TOKEN || '';
+// WhatsApp Cloud API (Meta): an approved "authentication" template with a {{1}} code and a copy-code button
+const WA = { token: process.env.WHATSAPP_TOKEN || '', phoneId: process.env.WHATSAPP_PHONE_ID || '', template: process.env.WHATSAPP_TEMPLATE || 'login_code', lang: process.env.WHATSAPP_TEMPLATE_LANG || 'ru' };
 const CODE_TTL = 5 * 60; // seconds
 const RESEND_COOLDOWN = 60; // seconds
 
@@ -93,15 +95,44 @@ async function sendViaTelegram(phone, code) {
   if (!j.ok) throw new Error(j.error || `Telegram Gateway HTTP ${r.status}`);
   return j.result;
 }
+async function sendViaWhatsApp(phone, code) {
+  if (!WA.token || !WA.phoneId) throw new Error('WhatsApp не настроен (WHATSAPP_TOKEN, WHATSAPP_PHONE_ID)');
+  const r = await fetch(`${process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v21.0'}/${WA.phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${WA.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', to: phone.replace(/^\+/, ''), type: 'template',
+      template: { name: WA.template, language: { code: WA.lang }, components: [
+        { type: 'body', parameters: [{ type: 'text', text: code }] },
+        { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+      ] },
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error?.message || `WhatsApp HTTP ${r.status}`);
+}
+// login code channels that are configured on this server, in the order the app offers them
+const codeChannels = () => [TG_TOKEN && 'telegram', WA.token && WA.phoneId && 'whatsapp'].filter(Boolean);
+// the chosen channel first, the other one as a fallback (e.g. the number has no Telegram)
+async function deliverCode(phone, code, prefer, tag = 'auth') {
+  for (const ch of prefer === 'whatsapp' ? ['whatsapp', 'telegram'] : ['telegram', 'whatsapp']) {
+    try { await (ch === 'whatsapp' ? sendViaWhatsApp : sendViaTelegram)(phone, code); return ch; } catch (e) { console.warn(`[${tag}] ${ch}:`, e.message); }
+  }
+  try { await sendViaSms(phone, code); return 'sms'; } catch (e) { console.warn(`[${tag}] SMS:`, e.message); }
+  return null;
+}
 // SMS-провайдер подключается позже (например Eskiz / Playmobile)
 async function sendViaSms(/* phone, code */) {
   throw new Error('SMS-провайдер ещё не подключён');
 }
 
-async function issueCode(phone, res) {
+async function issueCode(phone, res, prefer) {
   if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер полностью');
   const last = db.prepare('SELECT * FROM codes WHERE phone=? ORDER BY id DESC LIMIT 1').get(phone);
-  if (last && now() - last.created_at < RESEND_COOLDOWN) {
+  // one switch to the other channel ("send it to WhatsApp instead") is allowed without waiting, not more
+  const recent = db.prepare('SELECT COUNT(*) c FROM codes WHERE phone=? AND created_at>?').get(phone, now() - RESEND_COOLDOWN).c;
+  if (last && now() - last.created_at < RESEND_COOLDOWN && !(prefer && prefer !== last.channel && recent < 2)) {
     return res.status(429).json({ error: 'Подождите перед повторной отправкой', resend_in: RESEND_COOLDOWN - (now() - last.created_at) });
   }
   const hourAgo = now() - 3600;
@@ -109,13 +140,8 @@ async function issueCode(phone, res) {
     return fail(res, 429, 'Слишком много попыток. Попробуйте через час');
   }
   const code = String(crypto.randomInt(0, 10000)).padStart(4, '0');
-  let channel = null;
-  try { await sendViaTelegram(phone, code); channel = 'telegram'; }
-  catch (e) {
-    console.warn('[auth] Telegram:', e.message);
-    try { await sendViaSms(phone, code); channel = 'sms'; } catch (e2) { console.warn('[auth] SMS:', e2.message); }
-  }
-  if (!channel) return fail(res, 502, 'Не удалось отправить код. Проверьте, что у номера есть Telegram, и попробуйте ещё раз');
+  const channel = await deliverCode(phone, code, prefer);
+  if (!channel) return fail(res, 502, 'Не удалось отправить код. Проверьте, что у номера есть Telegram или WhatsApp, и попробуйте ещё раз');
   db.prepare('INSERT INTO codes (phone,code,channel,expires_at,created_at) VALUES (?,?,?,?,?)')
     .run(phone, code, channel, now() + CODE_TTL, now());
   res.json({ ok: true, channel, resend_in: RESEND_COOLDOWN });
@@ -123,7 +149,7 @@ async function issueCode(phone, res) {
 
 app.post('/api/auth/request', wrap(async (req, res) => {
   const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
-  await issueCode(phone, res);
+  await issueCode(phone, res, req.body.channel === 'whatsapp' ? 'whatsapp' : req.body.channel === 'telegram' ? 'telegram' : '');
 }));
 
 app.post('/api/auth/verify', wrap(async (req, res) => {
@@ -244,6 +270,7 @@ app.get('/api/menu', (req, res) => {
       coin_value: Number(setting('coin_value', 1)) || 1,
       yandex_key: process.env.YANDEX_MAPS_KEY || '',
       ...Object.fromEntries(SITE_KEYS.map(k => [k, setting(k, '')])),
+      code_channels: codeChannels(),
     },
     stats: siteStats(),
   });
@@ -563,12 +590,7 @@ app.post('/api/chat', auth, (req, res) => {
 require('./ops')(app, { db, fail, auth });
 require('./admin')(app, {
   db, fail, addChat, isOpenNow,
-  sendCode: async (phone, code) => {
-    try { await sendViaTelegram(phone, code); return 'telegram'; } catch (e) {
-      console.warn('[admin-auth] Telegram:', e.message);
-      try { await sendViaSms(phone, code); return 'sms'; } catch { return null; }
-    }
-  },
+  sendCode: (phone, code) => deliverCode(phone, code, '', 'admin-auth'),
 });
 
 app.use('/api', (req, res) => fail(res, 404, 'Не найдено'));
@@ -579,5 +601,6 @@ app.use((err, req, res, next) => { // eslint-disable-line
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Сервер: http://localhost:${PORT}   Админка: http://localhost:${PORT}/admin/`);
-  if (!TG_TOKEN) console.warn('ВНИМАНИЕ: TELEGRAM_GATEWAY_TOKEN не задан');
+  if (!codeChannels().length) console.warn('ВНИМАНИЕ: не настроен ни Telegram (TELEGRAM_GATEWAY_TOKEN), ни WhatsApp (WHATSAPP_TOKEN + WHATSAPP_PHONE_ID) — коды входа не отправляются');
+  else console.log('Коды входа:', codeChannels().join(', '));
 });

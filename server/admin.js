@@ -98,7 +98,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     if (db.prepare('SELECT COUNT(*) c FROM admin_codes WHERE phone=? AND created_at>?').get(phone, now() - 3600).c >= 15) return fail(res, 429, 'Слишком много запросов кода. Попробуйте через час');
     const code = String(crypto.randomInt(0, 10000)).padStart(4, '0');
     const channel = await sendCode(phone, code);
-    if (!channel) return fail(res, 502, 'Не удалось отправить код в Telegram. Проверьте баланс Telegram Gateway и что у номера есть Telegram');
+    if (!channel) return fail(res, 502, 'Не удалось отправить код. Проверьте баланс Telegram Gateway / WhatsApp и что у номера есть Telegram или WhatsApp');
     db.prepare('INSERT INTO admin_codes (phone,code,expires_at,created_at) VALUES (?,?,?,?)').run(phone, code, now() + CODE_TTL, now());
     audit(req, 'login_code_sent', 'phone', phone, channel);
     res.json({ ok: true, resend_in: RESEND });
