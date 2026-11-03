@@ -8,7 +8,8 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
   del(k) { try { localStorage.removeItem(k); } catch { /* private mode */ } },
 };
-const LANG = (() => { try { const s = localStorage.getItem('lang'); return s ? (s === 'uz' ? 'uz' : 'ru') : (/^uz/i.test(navigator.language || '') ? 'uz' : 'ru'); } catch { return 'ru'; } })();
+// Russian by default; Uzbek only after the visitor picks it in the language menu (the choice is remembered)
+const LANG = (() => { try { return localStorage.getItem('lang') === 'uz' ? 'uz' : 'ru'; } catch { return 'ru'; } })();
 document.documentElement.lang = LANG;
 const NB = ' ';
 const num = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0)).replace(/\s/g, NB);
