@@ -41,7 +41,8 @@ svg { display: block; }
 .form-view { padding: 16px 20px max(16px, env(safe-area-inset-bottom)); }
 .form-view h2 { text-align: center; font-size: 25px; font-weight: 700; line-height: 1.25; margin: 38px 20px 34px; }
 .phone-box { display: flex; align-items: center; background: var(--card); border-radius: 20px; height: 66px; padding: 0 18px; gap: 8px; }
-.phone-box .cc { display: flex; align-items: center; gap: 4px; font-size: 25px; font-weight: 700; flex: none; }
+.phone-box .cc { position: relative; display: flex; align-items: center; gap: 4px; font-size: 25px; font-weight: 700; flex: none; cursor: pointer; }
+.phone-box .ccsel { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 16px; } .phone-box .ccflag { font-size: 22px; margin-right: 2px; }
 .phone-box input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-size: 25px; font-weight: 700; caret-color: var(--or); }
 .phone-box input::placeholder { color: #55555a; }
 .err { color: var(--red); text-align: center; font-size: 15px; margin-top: 14px; min-height: 20px; font-weight: 600; }

@@ -342,3 +342,5 @@ textarea.inp { height: 80px; padding: 14px 16px; resize: vertical; }
 .rc { flex: none; width: 128px; background: var(--card); border-radius: 18px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
 .rc img, .rc .noimg { width: 92px; height: 92px; border-radius: 14px; object-fit: cover; background: var(--card-2); display: grid; place-items: center; } .shape-circle .rc img { border-radius: 50%; }
 .rc b { font-size: 13px; line-height: 1.2; flex: 1; } .rc button { width: 100%; height: 34px; border-radius: 17px; background: var(--card-2); font-size: 13px; font-weight: 700; } .rc button:hover { background: var(--red); }
+.phone .ccw { position: relative; display: inline-flex; align-items: center; gap: 6px; flex: none; cursor: pointer; padding-right: 8px; border-right: 1px solid var(--line); }
+.phone .ccw select { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 16px; } .phone .ccw svg { color: var(--tx2); }

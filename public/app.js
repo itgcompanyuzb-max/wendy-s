@@ -160,30 +160,36 @@ A.legal = () => Sh.open('legal', () => `<div class="grab"></div><div class="body
 
 /* ============ phone ============ */
 let PH_DIGITS = '';
-const fmtPhone = d => [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean).join(' ');
+// sign-up countries: Uzbekistan, Russia, Kazakhstan
+const CCS = { uz: { code: '+998', n: 9, g: [2, 3, 2, 2] }, ru: { code: '+7', n: 10, g: [3, 3, 2, 2] }, kz: { code: '+7', n: 10, g: [3, 3, 2, 2] } };
+let CC = CCS[LS.get('cc', 'uz')] ? LS.get('cc', 'uz') : 'uz';
+const ccOf = () => CCS[CC];
+const fmtPhone = (d, c = ccOf()) => { const out = []; let i = 0; for (const n of c.g) { if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; } return out.join(' '); };
+const cleanDigits = v => { const c = ccOf(); let d = String(v).replace(/\D/g, ''); const cd = c.code.slice(1); if (d.startsWith(cd) && d.length > c.n) d = d.slice(cd.length); return d.slice(0, c.n); }; // a pasted full number keeps working
+const ccBox = id => `<label class="cc"><select class="ccsel" id="${id}" aria-label="Страна">${Object.entries(CCS).map(([k, c]) => `<option value="${k}" ${k === CC ? 'selected' : ''}>${{ uz: '🇺🇿 Oʻzbekiston', ru: '🇷🇺 Россия', kz: '🇰🇿 Қазақстан' }[k]} ${c.code}</option>`).join('')}</select><span class="ccflag">${{ uz: '🇺🇿', ru: '🇷🇺', kz: '🇰🇿' }[CC]}</span>${ccOf().code} ${I.down(18, '#8e8e93')}</label>`;
+const onCc = (id, after) => { const s = $('#' + id); if (s) s.onchange = () => { CC = s.value; LS.set('cc', CC); after(); }; };
 function phoneView() {
   $('#view').innerHTML = `
   <div class="view form-view">
     <div class="top-row"><button onclick="go('login')">${I.x()}</button></div>
     <h2>Укажите телефон, чтобы войти в профиль</h2>
-    <div class="phone-box"><div class="cc">+998 ${I.down(18, '#8e8e93')}</div><input id="ph" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="Номер телефона" maxlength="12" value="${fmtPhone(PH_DIGITS)}"></div>
+    <div class="phone-box">${ccBox('ccs')}<input id="ph" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="Номер телефона" maxlength="14" value="${fmtPhone(PH_DIGITS)}"></div>
     <div class="err" id="err"></div>
     <div class="spacer"></div>
     <button class="btn" id="go" disabled>Продолжить</button>
   </div>`;
   const inp = $('#ph'), btn = $('#go');
-  const upd = () => { btn.disabled = PH_DIGITS.length !== 9; };
+  const upd = () => { btn.disabled = PH_DIGITS.length !== ccOf().n; };
+  onCc('ccs', () => { PH_DIGITS = PH_DIGITS.slice(0, ccOf().n); phoneView(); });
   inp.addEventListener('input', () => {
-    let d = inp.value.replace(/\D/g, '');
-    if (d.startsWith('998') && d.length > 9) d = d.slice(3); // вставили номер целиком
-    PH_DIGITS = d.slice(0, 9);
+    PH_DIGITS = cleanDigits(inp.value);
     inp.value = fmtPhone(PH_DIGITS); $('#err').textContent = ''; upd();
   });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && PH_DIGITS.length === 9) btn.click(); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && PH_DIGITS.length === ccOf().n) btn.click(); });
   btn.onclick = async () => {
-    if (PH_DIGITS.length !== 9) { $('#err').textContent = 'Введите 9 цифр номера'; return; }
+    if (PH_DIGITS.length !== ccOf().n) { $('#err').textContent = 'Введите номер полностью'; return; }
     btn.disabled = true;
-    try { const r = await api('/auth/request', { body: { phone: '+998' + PH_DIGITS } }); go('code', { resend: r.resend_in }); }
+    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS } }); go('code', { resend: r.resend_in }); }
     catch (e) { if (e.data?.resend_in) return go('code', { resend: e.data.resend_in }); $('#err').textContent = e.message; upd(); }
   };
   upd(); setTimeout(() => inp.focus(), 50);
@@ -194,7 +200,7 @@ let codeTimer = null;
 function codeView(o = {}) {
   clearInterval(codeTimer);
   let left = o.resend || 60;
-  const phoneFull = '+998 ' + fmtPhone(PH_DIGITS);
+  const phoneFull = ccOf().code + ' ' + fmtPhone(PH_DIGITS);
   $('#view').innerHTML = `
   <div class="view form-view">
     <div class="top-row"><button onclick="clearInterval(codeTimer);go('phone')">${I.back()}</button></div>
@@ -221,7 +227,7 @@ function codeView(o = {}) {
     if (ci.value.length === 4 && !busy) {
       busy = true;
       try {
-        const r = await api('/auth/verify', { body: { phone: '+998' + PH_DIGITS, code: ci.value }, noLogout: true });
+        const r = await api('/auth/verify', { body: { phone: ccOf().code + PH_DIGITS, code: ci.value }, noLogout: true });
         clearInterval(codeTimer);
         St.token = r.token; LS.set('token', r.token); St.user = r.user;
         await loadUserData();
@@ -233,7 +239,7 @@ function codeView(o = {}) {
     }
   });
   $('#rb').onclick = async () => {
-    try { const r = await api('/auth/request', { body: { phone: '+998' + PH_DIGITS } }); left = r.resend_in; $('#err').textContent = ''; tick(); clearInterval(codeTimer); codeTimer = setInterval(() => { left = Math.max(0, left - 1); tick(); if (left <= 0) clearInterval(codeTimer); }, 1000); }
+    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS } }); left = r.resend_in; $('#err').textContent = ''; tick(); clearInterval(codeTimer); codeTimer = setInterval(() => { left = Math.max(0, left - 1); tick(); if (left <= 0) clearInterval(codeTimer); }, 1000); }
     catch (e) { $('#err').textContent = e.message; }
   };
   $('#cr').onclick = () => ci.focus();
@@ -792,7 +798,7 @@ A.settings = () => {
   St.draft = { name: St.user.name, notify: !!St.user.notify };
   Sh.open('settings', renderSettings, 'full');
 };
-const fmtFull = p => '+998 ' + p.slice(4, 6) + ' ' + p.slice(6, 9) + ' ' + p.slice(9, 11) + ' ' + p.slice(11, 13);
+const fmtFull = p => (String(p).startsWith('+998') ? '+998 ' + fmtPhone(p.slice(4), CCS.uz) : String(p).startsWith('+7') ? '+7 ' + fmtPhone(p.slice(2), CCS.ru) : p);
 function renderSettings() {
   const u = St.user, d = St.draft;
   return `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 18px 0;justify-content:flex-end"><button class="link-or" onclick="A.saveSettings()">Готово</button></div>
@@ -861,16 +867,17 @@ A.changePhone = () => {
     Sh.refresh('phonechg');
     const p = $('#pcp');
     if (p) {
-      p.oninput = () => { let d = p.value.replace(/\D/g, ''); if (d.startsWith('998') && d.length > 9) d = d.slice(3); S.digits = d.slice(0, 9); p.value = fmtPhone(S.digits); $('#pcb').disabled = S.digits.length !== 9; $('#pce').textContent = ''; };
+      p.oninput = () => { S.digits = cleanDigits(p.value); p.value = fmtPhone(S.digits); $('#pcb').disabled = S.digits.length !== ccOf().n; $('#pce').textContent = ''; };
+      onCc('pccs', () => { S.digits = S.digits.slice(0, ccOf().n); render(); });
       p.focus();
     }
     const c = $('#pcc');
     if (c) { c.oninput = () => { c.value = c.value.replace(/\D/g, '').slice(0, 4); if (c.value.length === 4) A.pcVerify(); }; c.focus(); }
   };
   A.pcSend = async () => {
-    if (S.digits.length !== 9) return;
+    if (S.digits.length !== ccOf().n) return;
     try {
-      const r = await api('/me/phone/request', { body: { phone: '+998' + S.digits } });
+      const r = await api('/me/phone/request', { body: { phone: ccOf().code + S.digits } });
       S.step = 2; render(); tickStart(r.resend_in);
     } catch (e) {
       if (e.data?.resend_in) { S.step = 2; render(); tickStart(e.data.resend_in); }
@@ -879,18 +886,18 @@ A.changePhone = () => {
   };
   A.pcVerify = async () => {
     try {
-      const r = await api('/me/phone/verify', { body: { phone: '+998' + S.digits, code: $('#pcc').value } });
+      const r = await api('/me/phone/verify', { body: { phone: ccOf().code + S.digits, code: $('#pcc').value } });
       St.user = r.user; Sh.close('phonechg'); Sh.refresh('settings'); toast('Номер обновлён');
     } catch (e) { $('#pce').textContent = e.message; $('#pcc').value = ''; }
   };
   Sh.open('phonechg', () => S.step === 1 ? `<div class="grab"></div><div class="body" style="padding:12px 16px 16px">
       <h2 style="margin:10px 4px 18px;font-size:25px">Новый номер телефона</h2>
-      <div class="phone-box"><div class="cc">+998</div><input id="pcp" type="tel" inputmode="numeric" placeholder="Номер телефона" maxlength="12" value="${fmtPhone(S.digits)}"></div>
+      <div class="phone-box">${ccBox('pccs')}<input id="pcp" type="tel" inputmode="numeric" placeholder="Номер телефона" maxlength="14" value="${fmtPhone(S.digits)}"></div>
       <div class="err" id="pce"></div></div>
-      <div class="foot"><button class="btn" id="pcb" ${S.digits.length === 9 ? '' : 'disabled'} onclick="A.pcSend()">Получить код</button></div>`
+      <div class="foot"><button class="btn" id="pcb" ${S.digits.length === ccOf().n ? '' : 'disabled'} onclick="A.pcSend()">Получить код</button></div>`
     : `<div class="grab"></div><div class="body" style="padding:12px 16px 16px">
       <h2 style="margin:10px 4px 6px;font-size:25px">Введите код из <span style="color:var(--tg)">Telegram</span></h2>
-      <div class="gray-t" style="margin:0 4px 18px">на номер +998 ${fmtPhone(S.digits)}</div>
+      <div class="gray-t" style="margin:0 4px 18px">на номер ${ccOf().code} ${fmtPhone(S.digits)}</div>
       <input id="pcc" class="name-input" style="margin:0;letter-spacing:.6em;text-indent:.6em" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••">
       <div class="err" id="pce"></div><div class="gray-t" id="pcl" style="text-align:center;margin-top:8px"></div></div>
       <div class="foot"><button class="btn gray" id="pcr" disabled onclick="A.pcSend()">Получить новый код</button></div>`,

@@ -62,6 +62,7 @@ const TX = {
   openUntil: [v => `Открыто до ${v}`, v => `${v} gacha ochiq`], closedOpens: [v => `Закрыто · откроется в ${v}`, v => `Yopiq · ${v} da ochiladi`], hall: ['Зал', 'Zal'], everyDay: ['Ежедневно', 'Har kuni'],
   select: ['Выбрать', 'Tanlash'], addrSearch: ['Улица, дом, район или метро', 'Ko‘cha, uy, tuman yoki metro'], noGeo: ['Не удалось определить местоположение', 'Joylashuvni aniqlab bo‘lmadi'],
   alwaysHandy: ['Всегда кстати', 'Har doim kerak'], delete: ['Удалить', 'O‘chirish'],
+  country: ['Страна', 'Davlat'], fullNumber: ['Введите номер полностью', 'Raqamni to‘liq kiriting'],
   rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
   tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
   searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
@@ -296,34 +297,36 @@ function openCart(keep) {
 
 /* login: phone -> Telegram code -> name */
 function openLogin(next) {
-  let phone = '', timer = null;
+  let phone = '', timer = null, cc = CCS[LS.get('cc', 'uz')] ? LS.get('cc', 'uz') : 'uz';
   const o = modal(`<div class="md"></div>`, '', () => clearInterval(timer));
   const md = o.querySelector('.md');
   const stepPhone = (err = '') => {
-    md.innerHTML = `${X}<h2>${t('phoneT')}</h2><p class="muted" style="margin:0 0 18px">${t('phoneSub')}</p><div class="phone"><span>+998</span><input id="ph" inputmode="numeric" autocomplete="tel-national" maxlength="12" placeholder="90 123 45 67" value="${esc(phone)}"></div><div class="err">${esc(err)}</div><button class="btn red wide" id="go">${t('getCode')}</button>`;
+    const c = CCS[cc];
+    md.innerHTML = `${X}<h2>${t('phoneT')}</h2><p class="muted" style="margin:0 0 18px">${t('phoneSub')}</p><div class="phone"><label class="ccw"><select id="ccs" aria-label="${t('country')}">${Object.entries(CCS).map(([k, v]) => `<option value="${k}" ${k === cc ? 'selected' : ''}>${v.flag} ${v.name[LANG === 'uz' ? 1 : 0]} ${v.code}</option>`).join('')}</select><span>${c.flag} ${c.code}</span>${IC.chev}</label><input id="ph" inputmode="numeric" autocomplete="tel-national" maxlength="14" placeholder="${c.ph}" value="${esc(phone)}"></div><div class="err">${esc(err)}</div><button class="btn red wide" id="go">${t('getCode')}</button>`;
     const inp = $('#ph', md); inp.focus();
-    inp.addEventListener('input', () => { const d = inp.value.replace(/\D/g, '').slice(0, 9); inp.value = [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean).join(' '); });
+    $('#ccs', md).onchange = e => { cc = e.target.value; LS.set('cc', cc); phone = fmtDigits(phone.replace(/\D/g, ''), CCS[cc]); stepPhone(); };
+    inp.addEventListener('input', () => { inp.value = fmtDigits(cleanDigits(inp.value, c), c); });
     const go = async () => {
       phone = inp.value; const d = phone.replace(/\D/g, '');
-      if (d.length !== 9) return stepPhone(LANG === 'uz' ? 'Raqamning 9 ta raqamini kiriting' : 'Введите 9 цифр номера');
+      if (d.length !== c.n) return stepPhone(t('fullNumber'));
       $('#go', md).disabled = true;
-      try { const r = await api('/auth/request', { body: { phone: '+998' + d } }); stepCode(r.resend_in || 60); } catch (e) { if (e.status === 429 && e.data?.resend_in) stepCode(e.data.resend_in); else stepPhone(e.message); }
+      try { const r = await api('/auth/request', { body: { phone: c.code + d } }); stepCode(r.resend_in || 60); } catch (e) { if (e.status === 429 && e.data?.resend_in) stepCode(e.data.resend_in); else stepPhone(e.message); }
     };
     $('#go', md).onclick = go; inp.onkeydown = e => { if (e.key === 'Enter') go(); };
   };
   const stepCode = (wait, err = '') => {
     const d = phone.replace(/\D/g, '');
-    md.innerHTML = `${X}<h2>${t('codeT')}</h2><p class="muted" style="margin:0">${t('codeSent', '+998 ' + phone)}</p><div class="code">${[0, 1, 2, 3].map(i => `<input inputmode="numeric" maxlength="1" data-i="${i}" autocomplete="${i ? 'off' : 'one-time-code'}">`).join('')}</div><div class="err" style="text-align:center">${esc(err)}</div>
+    md.innerHTML = `${X}<h2>${t('codeT')}</h2><p class="muted" style="margin:0">${t('codeSent', CCS[cc].code + ' ' + phone)}</p><div class="code">${[0, 1, 2, 3].map(i => `<input inputmode="numeric" maxlength="1" data-i="${i}" autocomplete="${i ? 'off' : 'one-time-code'}">`).join('')}</div><div class="err" style="text-align:center">${esc(err)}</div>
       <button class="btn wide" id="rs" disabled></button><button class="btn wide" style="margin-top:8px;background:none" id="chg">${t('change')}</button>`;
     const ins = $$('.code input', md); ins[0].focus();
     let left = wait; const tick = () => { const b = $('#rs', md); if (!b) return; b.disabled = left > 0; b.textContent = left > 0 ? t('resendIn', left) : t('resend'); left--; };
     clearInterval(timer); tick(); timer = setInterval(tick, 1000);
-    $('#rs', md).onclick = async () => { try { const r = await api('/auth/request', { body: { phone: '+998' + d } }); stepCode(r.resend_in || 60); } catch (e) { stepCode(e.data?.resend_in || 30, e.message); } };
+    $('#rs', md).onclick = async () => { try { const r = await api('/auth/request', { body: { phone: CCS[cc].code + d } }); stepCode(r.resend_in || 60); } catch (e) { stepCode(e.data?.resend_in || 30, e.message); } };
     $('#chg', md).onclick = () => { clearInterval(timer); stepPhone(); };
     const verify = async () => {
       const code = ins.map(i => i.value).join(''); if (code.length < 4) return;
       try {
-        const r = await api('/auth/verify', { body: { phone: '+998' + d, code } });
+        const r = await api('/auth/verify', { body: { phone: CCS[cc].code + d, code } });
         clearInterval(timer); St.token = r.token; St.user = r.user; LS.set('token', r.token); await loadUser();
         if (r.isNew || !r.user.name) stepName(); else { closeModals(); renderHead(); next?.(); }
       } catch (e) { ins.forEach(i => { i.value = ''; }); ins[0].focus(); md.querySelector('.err').textContent = e.message; }
@@ -342,6 +345,10 @@ function openLogin(next) {
   };
   stepPhone();
 }
+// sign-up countries (same list as the mobile app)
+const CCS = { uz: { code: '+998', n: 9, g: [2, 3, 2, 2], flag: '🇺🇿', name: ['Узбекистан', 'O‘zbekiston'], ph: '90 123 45 67' }, ru: { code: '+7', n: 10, g: [3, 3, 2, 2], flag: '🇷🇺', name: ['Россия', 'Rossiya'], ph: '912 345 67 89' }, kz: { code: '+7', n: 10, g: [3, 3, 2, 2], flag: '🇰🇿', name: ['Казахстан', 'Qozog‘iston'], ph: '701 234 56 78' } };
+const fmtDigits = (d, c) => { const out = []; let i = 0; for (const n of c.g) { if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; } return out.join(' '); };
+const cleanDigits = (v, c) => { let d = String(v).replace(/\D/g, ''); const cd = c.code.slice(1); if (d.startsWith(cd) && d.length > c.n) d = d.slice(cd.length); return d.slice(0, c.n); };
 const needLogin = fn => (St.token ? fn() : openLogin(fn));
 
 /* location picker (header address button): full map + floating panel with two tabs.
@@ -523,7 +530,7 @@ function showView() {
   if (prof) { renderProfile(); scrollTo({ top: 0 }); }
 }
 addEventListener('hashchange', () => { const wasProf = !$('#profv')?.hidden; showView(); const id = location.hash.slice(1); if (wasProf && id && $('#' + id)) $('#' + id).scrollIntoView(); });
-const fmtPhone = p => String(p || '').replace(/^\+998(\d{2})(\d{3})(\d{2})(\d{2})$/, '+998 $1-$2-$3-$4');
+const fmtPhone = p => String(p || '').replace(/^\+998(\d{2})(\d{3})(\d{2})(\d{2})$/, '+998 $1-$2-$3-$4').replace(/^\+7(\d{3})(\d{3})(\d{2})(\d{2})$/, '+7 $1-$2-$3-$4');
 async function renderProfile() {
   const v = $('#profv'), u = St.user || {};
   const [by, bm, bd] = (u.birthday || '').split('-').map(Number);

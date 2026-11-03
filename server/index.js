@@ -39,7 +39,8 @@ const fail = (res, status, message) => res.status(status).json({ error: message 
 const now = () => Math.floor(Date.now() / 1000);
 
 // ---------- helpers ----------
-const PHONE_RE = /^\+998\d{9}$/;
+// Uzbekistan +998 and 9 digits; Russia / Kazakhstan +7 and 10 digits
+const PHONE_RE = /^(\+998\d{9}|\+7\d{10})$/;
 
 function tashkentMinutes(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date);
@@ -98,7 +99,7 @@ async function sendViaSms(/* phone, code */) {
 }
 
 async function issueCode(phone, res) {
-  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
+  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер полностью');
   const last = db.prepare('SELECT * FROM codes WHERE phone=? ORDER BY id DESC LIMIT 1').get(phone);
   if (last && now() - last.created_at < RESEND_COOLDOWN) {
     return res.status(429).json({ error: 'Подождите перед повторной отправкой', resend_in: RESEND_COOLDOWN - (now() - last.created_at) });
@@ -197,7 +198,7 @@ app.delete('/api/me', auth, (req, res) => {
 });
 app.post('/api/me/phone/request', auth, wrap(async (req, res) => {
   const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
-  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
+  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер полностью');
   if (phone === req.user.phone) return fail(res, 400, 'Это ваш текущий номер');
   if (db.prepare('SELECT id FROM users WHERE phone=?').get(phone)) return fail(res, 400, 'Этот номер уже используется');
   await issueCode(phone, res);
