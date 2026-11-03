@@ -37,8 +37,8 @@ const TX = {
   emptyCart: ['Ой, пусто!', 'Savat bo‘sh'], emptyCartTx: ['Добавьте бургеры и напитки из меню', 'Menyudan burger va ichimliklarni qo‘shing'],
   checkout: ['Оформить заказ', 'Buyurtmani rasmiylashtirish'], toCart: ['В корзину', 'Savatga'], add: ['Добавить в корзину за', 'Savatga qo‘shish:'],
   withIt: ['С этим берут', 'Bu bilan olishadi'], total: ['Итого', 'Jami'], items: ['Товары', 'Mahsulotlar'], discount: ['Скидка', 'Chegirma'], delivery: ['Доставка', 'Yetkazib berish'],
-  pickup: ['Самовывоз', 'Olib ketish'], phoneT: ['Вход на сайт', 'Saytga kirish'], phoneSub: ['Код придёт в Telegram или WhatsApp', 'Kod Telegram yoki WhatsApp orqali keladi'],
-  getCode: ['Получить код', 'Kod olish'], codeT: ['Введите код', 'Kodni kiriting'], codeSent: [p => `Отправили код на ${p}`, p => `${p} raqamiga kod yubordik`],
+  pickup: ['Самовывоз', 'Olib ketish'], phoneT: ['Вход на сайт', 'Saytga kirish'], phoneSub: ['Отправим код для входа', 'Kirish uchun kod yuboramiz'],
+  getCode: ['Получить код', 'Kod olish'], codeT: ['Введите код', 'Kodni kiriting'], codeSent: [p => `Код отправлен на номер ${p}`, p => `Kod ${p} raqamiga yuborildi`],
   resend: ['Отправить ещё раз', 'Qayta yuborish'], resendIn: [s => `Новый код через ${s} с`, s => `Yangi kod ${s} soniyadan keyin`], change: ['Изменить номер', 'Raqamni o‘zgartirish'],
   nameT: ['Как вас зовут?', 'Ismingiz nima?'], name: ['Имя', 'Ism'], save: ['Сохранить', 'Saqlash'], skip: ['Пропустить', 'O‘tkazib yuborish'],
   addrT: ['Адрес доставки', 'Yetkazish manzili'], addr: ['Улица, дом', 'Ko‘cha, uy'], entrance: ['Подъезд', 'Podyezd'], floor: ['Этаж', 'Qavat'], apt: ['Кв./офис', 'Xonadon'],
@@ -62,8 +62,7 @@ const TX = {
   openUntil: [v => `Открыто до ${v}`, v => `${v} gacha ochiq`], closedOpens: [v => `Закрыто · откроется в ${v}`, v => `Yopiq · ${v} da ochiladi`], hall: ['Зал', 'Zal'], everyDay: ['Ежедневно', 'Har kuni'],
   select: ['Выбрать', 'Tanlash'], addrSearch: ['Улица, дом, район или метро', 'Ko‘cha, uy, tuman yoki metro'], noGeo: ['Не удалось определить местоположение', 'Joylashuvni aniqlab bo‘lmadi'],
   alwaysHandy: ['Всегда кстати', 'Har doim kerak'], delete: ['Удалить', 'O‘chirish'],
-  country: ['Страна', 'Davlat'], codeTg: ['Получить код в Telegram', 'Kodni Telegram’da olish'], codeWa: ['Получить код в WhatsApp', 'Kodni WhatsApp’da olish'],
-  sendWa: ['Отправить код в WhatsApp', 'Kodni WhatsApp’ga yuborish'], sendTg: ['Отправить код в Telegram', 'Kodni Telegram’ga yuborish'], fullNumber: ['Введите номер полностью', 'Raqamni to‘liq kiriting'],
+  country: ['Страна', 'Davlat'],  fullNumber: ['Введите номер полностью', 'Raqamni to‘liq kiriting'],
   rating: ['оценка', 'reyting'], netErr: ['Ошибка сети', 'Tarmoq xatosi'], outZone: ['Адрес вне зоны доставки', 'Manzil yetkazish hududidan tashqarida'],
   tray: ['На подносе', 'Patnisda'], takeaway: ['С собой', 'Olib ketish'], table: ['К столику', 'Stolga olib kelish'],
   searchPh: ['Найти бургер, напиток…', 'Burger, ichimlik qidirish…'], notFound: ['Ничего не нашли', 'Hech narsa topilmadi'],
@@ -298,33 +297,31 @@ function openCart(keep) {
 
 /* login: phone -> Telegram code -> name */
 function openLogin(next) {
-  let phone = '', timer = null, ch = 'telegram', cc = CCS[LS.get('cc', 'uz')] ? LS.get('cc', 'uz') : 'uz';
+  let phone = '', timer = null, cc = CCS[LS.get('cc', 'uz')] ? LS.get('cc', 'uz') : 'uz';
   const o = modal(`<div class="md"></div>`, '', () => clearInterval(timer));
   const md = o.querySelector('.md');
   const stepPhone = (err = '') => {
     const c = CCS[cc];
-    md.innerHTML = `${X}<h2>${t('phoneT')}</h2><p class="muted" style="margin:0 0 18px">${t('phoneSub')}</p><div class="phone"><label class="ccw"><select id="ccs" aria-label="${t('country')}">${Object.entries(CCS).map(([k, v]) => `<option value="${k}" ${k === cc ? 'selected' : ''}>${v.flag} ${v.name[LANG === 'uz' ? 1 : 0]} ${v.code}</option>`).join('')}</select><span>${c.flag} ${c.code}</span>${IC.chev}</label><input id="ph" inputmode="numeric" autocomplete="tel-national" maxlength="14" placeholder="${c.ph}" value="${esc(phone)}"></div><div class="err">${esc(err)}</div>${chans().length > 1 ? `<button class="btn red wide" data-go="telegram">${t('codeTg')}</button><button class="btn wide wa" data-go="whatsapp">${t('codeWa')}</button>` : `<button class="btn red wide" data-go="${chans()[0]}">${t('getCode')}</button>`}`;
+    md.innerHTML = `${X}<h2>${t('phoneT')}</h2><p class="muted" style="margin:0 0 18px">${t('phoneSub')}</p><div class="phone"><label class="ccw"><select id="ccs" aria-label="${t('country')}">${Object.entries(CCS).map(([k, v]) => `<option value="${k}" ${k === cc ? 'selected' : ''}>${v.flag} ${v.name[LANG === 'uz' ? 1 : 0]} ${v.code}</option>`).join('')}</select><span>${c.flag} ${c.code}</span>${IC.chev}</label><input id="ph" inputmode="numeric" autocomplete="tel-national" maxlength="14" placeholder="${c.ph}" value="${esc(phone)}"></div><div class="err">${esc(err)}</div><button class="btn red wide" data-go>${t('getCode')}</button>`;
     const inp = $('#ph', md); inp.focus();
     $('#ccs', md).onchange = e => { cc = e.target.value; LS.set('cc', cc); phone = fmtDigits(phone.replace(/\D/g, ''), CCS[cc]); stepPhone(); };
     inp.addEventListener('input', () => { inp.value = fmtDigits(cleanDigits(inp.value, c), c); });
-    const go = async want => {
+    const go = async () => {
       phone = inp.value; const d = phone.replace(/\D/g, '');
       if (d.length !== c.n) return stepPhone(t('fullNumber'));
       $$('[data-go]', md).forEach(b => { b.disabled = true; });
-      try { const r = await api('/auth/request', { body: { phone: c.code + d, channel: want } }); ch = r.channel; stepCode(r.resend_in || 60); } catch (e) { if (e.status === 429 && e.data?.resend_in) { ch = want; stepCode(e.data.resend_in); } else stepPhone(e.message); }
+      try { const r = await api('/auth/request', { body: { phone: c.code + d } }); stepCode(r.resend_in || 60); } catch (e) { if (e.status === 429 && e.data?.resend_in) stepCode(e.data.resend_in); else stepPhone(e.message); }
     };
-    $$('[data-go]', md).forEach(b => { b.onclick = () => go(b.dataset.go); }); inp.onkeydown = e => { if (e.key === 'Enter') go(chans()[0]); };
+    $('[data-go]', md).onclick = () => go(); inp.onkeydown = e => { if (e.key === 'Enter') go(); };
   };
   const stepCode = (wait, err = '') => {
     const d = phone.replace(/\D/g, '');
-    const alt = chans().find(x => x !== ch);
-    md.innerHTML = `${X}<h2>${t('codeT')}</h2><p class="muted" style="margin:0">${t('codeSent', CCS[cc].code + ' ' + phone)} · <b style="color:${ch === 'whatsapp' ? '#25d366' : '#2aabee'}">${ch === 'whatsapp' ? 'WhatsApp' : 'Telegram'}</b></p><div class="code">${[0, 1, 2, 3].map(i => `<input inputmode="numeric" maxlength="1" data-i="${i}" autocomplete="${i ? 'off' : 'one-time-code'}">`).join('')}</div><div class="err" style="text-align:center">${esc(err)}</div>
-      <button class="btn wide" id="rs" disabled></button>${alt ? `<button class="btn wide" style="margin-top:8px" id="alt">${t(alt === 'whatsapp' ? 'sendWa' : 'sendTg')}</button>` : ''}<button class="btn wide" style="margin-top:8px;background:none" id="chg">${t('change')}</button>`;
+    md.innerHTML = `${X}<h2>${t('codeT')}</h2><p class="muted" style="margin:0">${t('codeSent', CCS[cc].code + ' ' + phone)}</p><div class="code">${[0, 1, 2, 3].map(i => `<input inputmode="numeric" maxlength="1" data-i="${i}" autocomplete="${i ? 'off' : 'one-time-code'}">`).join('')}</div><div class="err" style="text-align:center">${esc(err)}</div>
+      <button class="btn wide" id="rs" disabled></button><button class="btn wide" style="margin-top:8px;background:none" id="chg">${t('change')}</button>`;
     const ins = $$('.code input', md); ins[0].focus();
     let left = wait; const tick = () => { const b = $('#rs', md); if (!b) return; b.disabled = left > 0; b.textContent = left > 0 ? t('resendIn', left) : t('resend'); left--; };
     clearInterval(timer); tick(); timer = setInterval(tick, 1000);
-    $('#rs', md).onclick = async () => { try { const r = await api('/auth/request', { body: { phone: CCS[cc].code + d, channel: ch } }); ch = r.channel; stepCode(r.resend_in || 60); } catch (e) { stepCode(e.data?.resend_in || 30, e.message); } };
-    if (alt) $('#alt', md).onclick = async () => { try { const r = await api('/auth/request', { body: { phone: CCS[cc].code + d, channel: alt } }); ch = r.channel; stepCode(r.resend_in || 60); } catch (e) { stepCode(e.data?.resend_in || 30, e.message); } };
+    $('#rs', md).onclick = async () => { try { const r = await api('/auth/request', { body: { phone: CCS[cc].code + d } }); stepCode(r.resend_in || 60); } catch (e) { stepCode(e.data?.resend_in || 30, e.message); } };
     $('#chg', md).onclick = () => { clearInterval(timer); stepPhone(); };
     const verify = async () => {
       const code = ins.map(i => i.value).join(''); if (code.length < 4) return;
@@ -352,7 +349,6 @@ function openLogin(next) {
 const CCS = { uz: { code: '+998', n: 9, g: [2, 3, 2, 2], flag: '🇺🇿', name: ['Узбекистан', 'O‘zbekiston'], ph: '90 123 45 67' }, ru: { code: '+7', n: 10, g: [3, 3, 2, 2], flag: '🇷🇺', name: ['Россия', 'Rossiya'], ph: '912 345 67 89' }, kz: { code: '+7', n: 10, g: [3, 3, 2, 2], flag: '🇰🇿', name: ['Казахстан', 'Qozog‘iston'], ph: '701 234 56 78' } };
 const fmtDigits = (d, c) => { const out = []; let i = 0; for (const n of c.g) { if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; } return out.join(' '); };
 const cleanDigits = (v, c) => { let d = String(v).replace(/\D/g, ''); const cd = c.code.slice(1); if (d.startsWith(cd) && d.length > c.n) d = d.slice(cd.length); return d.slice(0, c.n); };
-const chans = () => St.menu?.settings?.code_channels?.length ? St.menu.settings.code_channels : ['telegram'];
 const needLogin = fn => (St.token ? fn() : openLogin(fn));
 
 /* location picker (header address button): full map + floating panel with two tabs.

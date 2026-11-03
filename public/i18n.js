@@ -23,7 +23,7 @@
     'Пользовательское соглашение и политика конфиденциальности.': 'Foydalanuvchi shartnomasi va maxfiylik siyosati.',
     'Картографические данные: © участники OpenStreetMap (openstreetmap.org/copyright).': 'Xarita ma\'lumotlari: © OpenStreetMap ishtirokchilari (openstreetmap.org/copyright).',
     'Укажите телефон, чтобы войти в профиль': 'Profilga kirish uchun telefon raqamini kiriting',
-    'Номер телефона': 'Telefon raqami', 'Продолжить': 'Davom etish', 'Введите 9 цифр номера': 'Raqamning 9 ta raqamini kiriting', 'Введите номер полностью': 'Raqamni to\'liq kiriting', 'Получить код в Telegram': 'Kodni Telegram\'da olish', 'Получить код в WhatsApp': 'Kodni WhatsApp\'da olish', 'Отправить код в WhatsApp': 'Kodni WhatsApp\'ga yuborish', 'Отправить код в Telegram': 'Kodni Telegram\'ga yuborish', 'Страна': 'Davlat',
+    'Номер телефона': 'Telefon raqami', 'Продолжить': 'Davom etish', 'Введите 9 цифр номера': 'Raqamning 9 ta raqamini kiriting', 'Введите номер полностью': 'Raqamni to\'liq kiriting', 'Введите код': 'Kodni kiriting', 'Код отправлен на номер': 'Kod yuborildi:', 'Получить код в Telegram': 'Kodni Telegram\'da olish', 'Получить код в WhatsApp': 'Kodni WhatsApp\'da olish', 'Отправить код в WhatsApp': 'Kodni WhatsApp\'ga yuborish', 'Отправить код в Telegram': 'Kodni Telegram\'ga yuborish', 'Страна': 'Davlat',
     'Введите код из': 'Kodni kiriting:', 'или СМС': 'yoki SMS', 'Получить новый код': 'Yangi kod olish',
     'Если код не пришел,': 'Agar kod kelmagan bo\'lsa,', 'запросите новый': 'yangisini so\'rang',
     'Пропустить': 'O\'tkazib yuborish', 'Придумайте имя': 'Ismingizni kiriting', 'Ваше имя': 'Ismingiz',

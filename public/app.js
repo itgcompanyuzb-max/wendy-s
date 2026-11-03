@@ -160,8 +160,6 @@ A.legal = () => Sh.open('legal', () => `<div class="grab"></div><div class="body
 
 /* ============ phone ============ */
 let PH_DIGITS = '';
-const chans = () => St.menu?.settings?.code_channels?.length ? St.menu.settings.code_channels : ['telegram']; // Telegram and/or WhatsApp, as the server is set up
-const CH_NAME = { telegram: 'Telegram', whatsapp: 'WhatsApp', sms: 'СМС' };
 // sign-up countries: Uzbekistan, Russia, Kazakhstan
 const CCS = { uz: { code: '+998', n: 9, g: [2, 3, 2, 2] }, ru: { code: '+7', n: 10, g: [3, 3, 2, 2] }, kz: { code: '+7', n: 10, g: [3, 3, 2, 2] } };
 let CC = CCS[LS.get('cc', 'uz')] ? LS.get('cc', 'uz') : 'uz';
@@ -178,9 +176,9 @@ function phoneView() {
     <div class="phone-box">${ccBox('ccs')}<input id="ph" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="Номер телефона" maxlength="14" value="${fmtPhone(PH_DIGITS)}"></div>
     <div class="err" id="err"></div>
     <div class="spacer"></div>
-    ${chans().length > 1 ? `<button class="btn" id="go" data-ch="telegram" disabled>Получить код в Telegram</button><button class="btn wa" id="go2" data-ch="whatsapp" disabled>Получить код в WhatsApp</button>` : '<button class="btn" id="go" disabled>Продолжить</button>'}
+    <button class="btn" id="go" disabled>Продолжить</button>
   </div>`;
-  const inp = $('#ph'), btn = $('#go'), btns = [...document.querySelectorAll('#go, #go2')];
+  const inp = $('#ph'), btn = $('#go'), btns = [btn];
   const upd = () => { btns.forEach(b => { b.disabled = PH_DIGITS.length !== ccOf().n; }); };
   onCc('ccs', () => { PH_DIGITS = PH_DIGITS.slice(0, ccOf().n); phoneView(); });
   inp.addEventListener('input', () => {
@@ -191,9 +189,8 @@ function phoneView() {
   btns.forEach(b => { b.onclick = async () => {
     if (PH_DIGITS.length !== ccOf().n) { $('#err').textContent = 'Введите номер полностью'; return; }
     btns.forEach(x => { x.disabled = true; });
-    const ch = b.dataset.ch || chans()[0];
-    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS, channel: ch } }); go('code', { resend: r.resend_in, channel: r.channel }); }
-    catch (e) { if (e.data?.resend_in) return go('code', { resend: e.data.resend_in, channel: ch }); $('#err').textContent = e.message; upd(); }
+    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS } }); go('code', { resend: r.resend_in }); }
+    catch (e) { if (e.data?.resend_in) return go('code', { resend: e.data.resend_in }); $('#err').textContent = e.message; upd(); }
   }; });
   upd(); setTimeout(() => inp.focus(), 50);
 }
@@ -204,19 +201,17 @@ function codeView(o = {}) {
   clearInterval(codeTimer);
   let left = o.resend || 60;
   const phoneFull = ccOf().code + ' ' + fmtPhone(PH_DIGITS);
-  const ch = o.channel || chans()[0], alt = chans().find(c => c !== ch);
   $('#view').innerHTML = `
   <div class="view form-view">
     <div class="top-row"><button onclick="clearInterval(codeTimer);go('phone')">${I.back()}</button></div>
-    <h2>Введите код из <span style="color:${ch === 'whatsapp' ? '#25d366' : 'var(--tg)'}">${CH_NAME[ch] || 'Telegram'}</span></h2>
-    <div class="code-sub">на номер ${esc(phoneFull)}</div>
+    <h2>Введите код</h2>
+    <div class="code-sub">Код отправлен на номер ${esc(phoneFull)}</div>
     <div class="code-row" id="cr">${[0, 1, 2, 3].map(i => `<div class="code-cell" data-i="${i}"></div>`).join('')}
       <input class="code-input" id="ci" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="4"></div>
     <div class="err" id="err"></div>
     <div class="spacer"></div>
     <div class="resend-note" id="rn"></div>
     <button class="btn" id="rb" disabled>Получить новый код</button>
-    ${alt ? `<button class="btn alt" id="alt">Отправить код в ${CH_NAME[alt]}</button>` : ''}
   </div>`;
   const ci = $('#ci'), cells = [...document.querySelectorAll('.code-cell')];
   const paint = () => { const v = ci.value; cells.forEach((c, i) => { c.textContent = v[i] || ''; c.classList.toggle('act', i === Math.min(v.length, 3)); }); };
@@ -244,11 +239,7 @@ function codeView(o = {}) {
     }
   });
   $('#rb').onclick = async () => {
-    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS, channel: ch } }); left = r.resend_in; $('#err').textContent = ''; tick(); clearInterval(codeTimer); codeTimer = setInterval(() => { left = Math.max(0, left - 1); tick(); if (left <= 0) clearInterval(codeTimer); }, 1000); }
-    catch (e) { $('#err').textContent = e.message; }
-  };
-  if (alt) $('#alt').onclick = async () => {
-    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS, channel: alt } }); codeView({ resend: r.resend_in, channel: r.channel }); }
+    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS } }); left = r.resend_in; $('#err').textContent = ''; tick(); clearInterval(codeTimer); codeTimer = setInterval(() => { left = Math.max(0, left - 1); tick(); if (left <= 0) clearInterval(codeTimer); }, 1000); }
     catch (e) { $('#err').textContent = e.message; }
   };
   $('#cr').onclick = () => ci.focus();
