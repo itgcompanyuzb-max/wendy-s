@@ -8,3 +8,4 @@ uploads/*
 .expo/
 dist/
 demo-dist/
+demo-web/

@@ -2,11 +2,8 @@
  * (also toasts and server messages) is translated on the fly from this dictionary. Menu data has its own *_uz fields. */
 (function () {
   let lang = 'ru';
-  // no saved choice: follow the phone/browser language (Uzbek -> uz, anything else -> ru); Settings > "Язык приложения" still overrides it
-  try {
-    const saved = localStorage.getItem('lang');
-    lang = saved ? (saved === 'uz' ? 'uz' : 'ru') : (/^uz/i.test(navigator.language || '') ? 'uz' : 'ru');
-  } catch { lang = /^uz/i.test(navigator.language || '') ? 'uz' : 'ru'; }
+  // Russian unless the customer chose Uzbek (Settings > "Язык приложения" or the website's language menu)
+  try { lang = localStorage.getItem('lang') === 'uz' ? 'uz' : 'ru'; } catch { lang = 'ru'; }
   window.LANG = lang;
   window.loc = (o, f) => ((!o || !o[f]) ? '' : ((lang === 'uz' && o[f + '_uz']) ? o[f + '_uz'] : o[f])); // an emptied Russian text hides the Uzbek one too
   window.setLang = l => { try { localStorage.setItem('lang', l); } catch { /* ignore */ } location.reload(); };
@@ -23,7 +20,7 @@
     'Пользовательское соглашение и политика конфиденциальности.': 'Foydalanuvchi shartnomasi va maxfiylik siyosati.',
     'Картографические данные: © участники OpenStreetMap (openstreetmap.org/copyright).': 'Xarita ma\'lumotlari: © OpenStreetMap ishtirokchilari (openstreetmap.org/copyright).',
     'Укажите телефон, чтобы войти в профиль': 'Profilga kirish uchun telefon raqamini kiriting',
-    'Номер телефона': 'Telefon raqami', 'Продолжить': 'Davom etish', 'Введите 9 цифр номера': 'Raqamning 9 ta raqamini kiriting',
+    'Номер телефона': 'Telefon raqami', 'Продолжить': 'Davom etish', 'Введите 9 цифр номера': 'Raqamning 9 ta raqamini kiriting', 'Введите номер полностью': 'Raqamni to\'liq kiriting', 'Введите код': 'Kodni kiriting', 'Код отправлен на номер': 'Kod yuborildi:', 'Получить код в Telegram': 'Kodni Telegram\'da olish', 'Получить код в WhatsApp': 'Kodni WhatsApp\'da olish', 'Отправить код в WhatsApp': 'Kodni WhatsApp\'ga yuborish', 'Отправить код в Telegram': 'Kodni Telegram\'ga yuborish', 'Страна': 'Davlat',
     'Введите код из': 'Kodni kiriting:', 'или СМС': 'yoki SMS', 'Получить новый код': 'Yangi kod olish',
     'Если код не пришел,': 'Agar kod kelmagan bo\'lsa,', 'запросите новый': 'yangisini so\'rang',
     'Пропустить': 'O\'tkazib yuborish', 'Придумайте имя': 'Ismingizni kiriting', 'Ваше имя': 'Ismingiz',
@@ -58,7 +55,8 @@
     'Закажите ещё': 'Yana buyurtma bering', 'Сделайте первый заказ': 'Birinchi buyurtmani bering', 'Смотреть меню': 'Menyuni ko\'rish',
     'Способы оплаты': 'To\'lov usullari', 'Карты': 'Kartalar', 'Мои адреса': 'Manzillarim', 'Адреса': 'Manzillar', 'Акции': 'Aksiyalar',
     'НА ЛЮБОЙ ТИП ЗАКАЗА': 'HAR QANDAY BUYURTMA TURI UCHUN', 'Отменить': 'Bekor qilish', 'Мои заказы': 'Buyurtmalarim',
-    'Карт пока нет': 'Hozircha kartalar yo\'q', 'Готово': 'Tayyor', 'Изменить аватар': 'Avatarni o\'zgartirish', 'Изменить': 'O\'zgartirish',
+    'К сожалению, ваш адрес вне зоны доставки. Посмотрите зоны доставки на карте': 'Afsuski, manzilingiz yetkazib berish hududidan tashqarida. Hududlarni xaritada ko\'ring',
+    'Карт пока нет': 'Hozircha kartalar yo\'q', 'Готово': 'Tayyor', 'Подробнее': 'Batafsil', 'Ваше местоположение вне зоны доставки — выберите адрес на карте': 'Joylashuvingiz yetkazib berish zonasidan tashqarida — manzilni xaritadan tanlang', 'Изменить аватар': 'Avatarni o\'zgartirish', 'Изменить': 'O\'zgartirish',
     'Разрешить уведомления': 'Bildirishnomalarga ruxsat berish', 'О рекламных предложениях и новинках в пушах и СМС': 'Reklama takliflari va yangiliklar haqida push va SMS orqali',
     'Выйти из профиля': 'Profildan chiqish', 'Удалить аккаунт': 'Akkauntni o\'chirish', 'Аватар': 'Avatar', 'ВАШИ АВАТАРЫ': 'SIZNING AVATARLARINGIZ',
     'Установлен': 'O\'rnatilgan', 'Установить': 'O\'rnatish', 'Номер обновлён': 'Raqam yangilandi', 'Новый номер телефона': 'Yangi telefon raqami',
@@ -126,6 +124,7 @@
     [/^Новый код можно запросить через (\d+) сек$/, n => `Yangi kodni ${n} soniyadan keyin so'rash mumkin`],
     [/^на номер (.+)$/, t => `${t} raqamiga`],
     [/^Не хватает (\d+) WendyCoin$/, n => `${n} WendyCoin yetishmaydi`],
+    [/^К сожалению, доставка на ваш адрес сейчас недоступна\. Ближайший филиал «(.+)» — ([\d.]+) км, зона доставки — (\d+) км\.$/, (n, d, r) => `Afsuski, hozir manzilingizga yetkazib berish mavjud emas. Eng yaqin filial «${n}» — ${d} km, yetkazib berish zonasi — ${r} km.`],
     [/^Оплатить (\d+) WendyCoin$/, n => `${n} WendyCoin to'lash`],
     [/^Минимальный заказ (.+)$/, t => `Minimal buyurtma: ${t}`],
     [/^Минимальная сумма заказа для доставки: (.+)$/, t => `Yetkazib berish uchun minimal buyurtma summasi: ${t}`],

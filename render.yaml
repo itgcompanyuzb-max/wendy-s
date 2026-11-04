@@ -14,6 +14,14 @@ services:
         value: /storage
       - key: TELEGRAM_GATEWAY_TOKEN
         sync: false          # you type it in the Render dashboard, it is never stored in git
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_TEMPLATE
+        value: login_code
+      - key: WHATSAPP_TEMPLATE_LANG
+        value: ru
       - key: ADMIN_PHONE
         sync: false
       - key: YANDEX_MAPS_KEY

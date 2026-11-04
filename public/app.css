@@ -41,7 +41,8 @@ svg { display: block; }
 .form-view { padding: 16px 20px max(16px, env(safe-area-inset-bottom)); }
 .form-view h2 { text-align: center; font-size: 25px; font-weight: 700; line-height: 1.25; margin: 38px 20px 34px; }
 .phone-box { display: flex; align-items: center; background: var(--card); border-radius: 20px; height: 66px; padding: 0 18px; gap: 8px; }
-.phone-box .cc { display: flex; align-items: center; gap: 4px; font-size: 25px; font-weight: 700; flex: none; }
+.phone-box .cc { position: relative; display: flex; align-items: center; gap: 4px; font-size: 25px; font-weight: 700; flex: none; cursor: pointer; }
+.phone-box .ccsel { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 16px; } .phone-box .ccflag { font-size: 22px; margin-right: 2px; }
 .phone-box input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-size: 25px; font-weight: 700; caret-color: var(--or); }
 .phone-box input::placeholder { color: #55555a; }
 .err { color: var(--red); text-align: center; font-size: 15px; margin-top: 14px; min-height: 20px; font-weight: 600; }
@@ -414,3 +415,5 @@ svg { display: block; }
 .cpill i { width: 38px; height: 38px; border-radius: 12px; background: #a8171e; display: grid; place-items: center; flex: none; }
 .cpill b { font-size: 16px; font-weight: 700; }
 .cp-stick { width: 3px; height: 24px; background: #1d1d1f; border-radius: 2px; }
+.img-circle .pc .im, .img-circle .ci .th, .img-circle .rec .im { border-radius: 50%; }
+.btn.wa { background: #1fa855; margin-top: 10px; } .btn.alt { background: var(--card); color: #fff; margin-top: 10px; }

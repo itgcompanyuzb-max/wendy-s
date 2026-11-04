@@ -148,6 +148,7 @@ db.exec('DROP INDEX IF EXISTS idx_admin_phone');
 db.exec('DROP INDEX IF EXISTS idx_admin_phone_ctx');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_phone_role ON admin_users(phone, role, COALESCE(branch_id, 0)) WHERE phone IS NOT NULL');
 try { db.exec('ALTER TABLE users ADD COLUMN avatar INTEGER DEFAULT 0'); } catch { /* column exists */ }
+for (const c of ['birthday', 'email']) { try { db.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`); } catch { /* column exists */ } }
 
 for (const sql of [
   'ALTER TABLE branches ADD COLUMN delivery_radius REAL DEFAULT 7',
@@ -159,11 +160,18 @@ for (const sql of [
   'ALTER TABLE orders ADD COLUMN delivered_at TEXT',
   'ALTER TABLE orders ADD COLUMN coins_spent INTEGER DEFAULT 0',
 ]) { try { db.exec(sql); } catch { /* column exists */ } }
-for (const sql of ['ALTER TABLE products ADD COLUMN name_uz TEXT DEFAULT \'\'', 'ALTER TABLE products ADD COLUMN description_uz TEXT DEFAULT \'\'', 'ALTER TABLE categories ADD COLUMN name_uz TEXT DEFAULT \'\'', 'ALTER TABLE banners ADD COLUMN title_uz TEXT DEFAULT \'\'', 'ALTER TABLE promos ADD COLUMN title_uz TEXT DEFAULT \'\'', 'ALTER TABLE promos ADD COLUMN info_uz TEXT DEFAULT \'\'', 'ALTER TABLE branches ADD COLUMN delivery_fee INTEGER DEFAULT -1', 'ALTER TABLE branches ADD COLUMN free_from INTEGER DEFAULT 0', 'ALTER TABLE branches ADD COLUMN min_order INTEGER DEFAULT 0', 'ALTER TABLE promos ADD COLUMN info TEXT DEFAULT \'\'', 'ALTER TABLE promos ADD COLUMN valid_until TEXT DEFAULT \'\'', 'ALTER TABLE products ADD COLUMN external_id TEXT', 'ALTER TABLE categories ADD COLUMN external_id TEXT']) { try { db.exec(sql); } catch { /* exists */ } }
+for (const sql of ['ALTER TABLE products ADD COLUMN name_uz TEXT DEFAULT \'\'', 'ALTER TABLE products ADD COLUMN description_uz TEXT DEFAULT \'\'', 'ALTER TABLE categories ADD COLUMN name_uz TEXT DEFAULT \'\'', 'ALTER TABLE banners ADD COLUMN title_uz TEXT DEFAULT \'\'', 'ALTER TABLE banners ADD COLUMN link TEXT DEFAULT \'\'', 'ALTER TABLE promos ADD COLUMN title_uz TEXT DEFAULT \'\'', 'ALTER TABLE promos ADD COLUMN info_uz TEXT DEFAULT \'\'', 'ALTER TABLE branches ADD COLUMN delivery_fee INTEGER DEFAULT -1', 'ALTER TABLE branches ADD COLUMN free_from INTEGER DEFAULT 0', 'ALTER TABLE branches ADD COLUMN min_order INTEGER DEFAULT 0', 'ALTER TABLE promos ADD COLUMN info TEXT DEFAULT \'\'', 'ALTER TABLE promos ADD COLUMN valid_until TEXT DEFAULT \'\'', 'ALTER TABLE products ADD COLUMN external_id TEXT', 'ALTER TABLE categories ADD COLUMN external_id TEXT']) { try { db.exec(sql); } catch { /* exists */ } }
 db.exec(`
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prod_ext ON products(external_id) WHERE external_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cat_ext ON categories(external_id) WHERE external_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS product_addons (product_id INTEGER NOT NULL, addon_id INTEGER NOT NULL, sort INTEGER DEFAULT 0, PRIMARY KEY (product_id, addon_id));
+`);
+db.exec(`
+CREATE TABLE IF NOT EXISTS zones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, color TEXT DEFAULT '#e2203d',
+  polys TEXT NOT NULL DEFAULT '[]', active INTEGER DEFAULT 1, sort INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS zone_branches (zone_id INTEGER NOT NULL, branch_id INTEGER NOT NULL, PRIMARY KEY (zone_id, branch_id));
 `);
 db.exec(`
 CREATE TABLE IF NOT EXISTS courier_location (courier_id INTEGER PRIMARY KEY, lat REAL, lng REAL, updated_at INTEGER);
