@@ -116,6 +116,46 @@ const Sh = {
     $('#app').appendChild(w);
     this.stack[name] = { render, el: w, onclose };
     this.refresh(name);
+    this.swipe(w, name);
+  },
+  // pull a sheet down with the finger to close it (from the grab line, or anywhere while its content is scrolled to the top)
+  swipe(w, name) {
+    const sheet = w.querySelector('.sheet'), back = w.querySelector('.back');
+    if (sheet.classList.contains('full') || sheet.classList.contains('act')) return;
+    let y0 = null, dy = 0, t0 = 0, on = false;
+    sheet.addEventListener('touchstart', e => {
+      const body = sheet.querySelector('.body');
+      if (e.touches.length > 1 || e.target.closest('input, textarea, select, .leaflet-container, .hscroll')) { y0 = null; return; }
+      if (!e.target.closest('.grab') && body && body.contains(e.target) && body.scrollTop > 0) { y0 = null; return; }
+      y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); on = false;
+    }, { passive: true });
+    sheet.addEventListener('touchmove', e => {
+      if (y0 === null) return;
+      dy = e.touches[0].clientY - y0;
+      if (!on) {
+        if (dy < -4) { y0 = null; return; } // moving up: let the content scroll
+        if (dy < 8) return;
+        on = true; sheet.style.animation = 'none'; sheet.style.transition = 'none';
+      }
+      e.preventDefault();
+      sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      back.style.opacity = String(Math.max(0, 1 - dy / 500));
+    }, { passive: false });
+    const end = () => {
+      if (y0 === null) return; y0 = null;
+      if (!on) return; on = false;
+      const fast = dy / Math.max(1, Date.now() - t0) > 0.45; // px per ms: a flick
+      if (dy > 90 || (fast && dy > 40)) {
+        sheet.style.transition = 'transform .2s ease-in'; sheet.style.transform = 'translateY(105%)';
+        back.style.transition = 'opacity .2s'; back.style.opacity = '0';
+        setTimeout(() => this.close(name), 190);
+      } else {
+        sheet.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'; sheet.style.transform = '';
+        back.style.opacity = '';
+      }
+    };
+    sheet.addEventListener('touchend', end);
+    sheet.addEventListener('touchcancel', end);
   },
   refresh(name) {
     const s = this.stack[name]; if (!s) return;
