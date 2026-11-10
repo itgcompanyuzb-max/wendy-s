@@ -1,0 +1,62 @@
+# Builds an UNSIGNED iPhone app (.ipa) on a GitHub macOS runner.
+# Install it with Sideloadly / AltStore: they sign it with your own Apple ID on your computer.
+# Download: GitHub > Actions > "iOS IPA" > the latest run > Artifacts > Wendys-ipa.
+name: iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, claude/shu-dasturni-yukla-igrjhp]
+    paths: ['mobile/**', '.github/workflows/ios-ipa.yml']
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Use the newest Xcode on the runner
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate the iOS project (Expo prebuild + CocoaPods)
+        env:
+          CI: '1'
+        run: npx expo prebuild -p ios --clean
+
+      - name: Build the app without code signing
+        working-directory: mobile/ios
+        run: |
+          xcodebuild -workspace Wendys.xcworkspace -scheme Wendys -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 80
+
+      - name: Pack the .ipa
+        run: |
+          APP=$(find ios/build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          test -n "$APP"
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          (cd out && zip -qry ../Wendys-unsigned.ipa Payload)
+          ls -lh Wendys-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Wendys-ipa
+          path: mobile/Wendys-unsigned.ipa
+          retention-days: 14
