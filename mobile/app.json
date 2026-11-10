@@ -6,7 +6,17 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0c0c0e",
-    "ios": { "supportsTablet": false },
-    "android": { "backgroundColor": "#0c0c0e" }
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#0c0c0e" },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "uz.itgcompany.wendys",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Чтобы показать ваш адрес на карте и курьера рядом с вами",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": { "package": "uz.itgcompany.wendys", "backgroundColor": "#0c0c0e" }
   }
 }

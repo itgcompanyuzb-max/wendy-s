@@ -4,7 +4,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 const S = { token: sessionStorage.getItem('ctoken') || '', me: null, data: null, seen: null, timer: null, geo: null, pos: null, lastSent: 0, map: null, mk: {}, line: null, routeAt: 0, idle: null, activeId: null };
 let MAPKEY = '';
-fetch('/api/menu').then(r => r.json()).then(m => { MAPKEY = m.settings.yandex_key || ''; }).catch(() => { });
+const KEY_READY = fetch('/api/menu').then(r => r.json()).then(m => { MAPKEY = m.settings.yandex_key || ''; }).catch(() => { }); // maps wait for it, so Yandex is used from the first draw
 const tiles = () => (MAPKEY ? L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=ru_RU&x={x}&y={y}&z={z}&l=map&apikey=${MAPKEY}`, { maxZoom: 19 }) : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }));
 
 async function api(path, method = 'GET', body) {
@@ -57,6 +57,7 @@ function login(msg, step = 1, st = {}) {
 
 /* ---------- main ---------- */
 async function init() {
+  await KEY_READY;
   try {
     const me = (await api('auth/me')).admin;
     if (me.role !== 'courier') { signOut('Этот вход только для курьеров'); return; }

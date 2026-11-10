@@ -7,9 +7,12 @@ if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
 
 const express = require('express');
 const db = require('./db');
+const zones = require('./zones');
 
 const PORT = Number(process.env.PORT || 3000);
 const TG_TOKEN = process.env.TELEGRAM_GATEWAY_TOKEN || '';
+// WhatsApp Cloud API (Meta): an approved "authentication" template with a {{1}} code and a copy-code button
+const WA = { token: process.env.WHATSAPP_TOKEN || '', phoneId: process.env.WHATSAPP_PHONE_ID || '', template: process.env.WHATSAPP_TEMPLATE || 'login_code', lang: process.env.WHATSAPP_TEMPLATE_LANG || 'ru' };
 const CODE_TTL = 5 * 60; // seconds
 const RESEND_COOLDOWN = 60; // seconds
 
@@ -38,7 +41,8 @@ const fail = (res, status, message) => res.status(status).json({ error: message 
 const now = () => Math.floor(Date.now() / 1000);
 
 // ---------- helpers ----------
-const PHONE_RE = /^\+998\d{9}$/;
+// Uzbekistan +998 and 9 digits; Russia / Kazakhstan +7 and 10 digits
+const PHONE_RE = /^(\+998\d{9}|\+7\d{10})$/;
 
 function tashkentMinutes(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date);
@@ -91,15 +95,44 @@ async function sendViaTelegram(phone, code) {
   if (!j.ok) throw new Error(j.error || `Telegram Gateway HTTP ${r.status}`);
   return j.result;
 }
+async function sendViaWhatsApp(phone, code) {
+  if (!WA.token || !WA.phoneId) throw new Error('WhatsApp не настроен (WHATSAPP_TOKEN, WHATSAPP_PHONE_ID)');
+  const r = await fetch(`${process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v21.0'}/${WA.phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${WA.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', to: phone.replace(/^\+/, ''), type: 'template',
+      template: { name: WA.template, language: { code: WA.lang }, components: [
+        { type: 'body', parameters: [{ type: 'text', text: code }] },
+        { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+      ] },
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error?.message || `WhatsApp HTTP ${r.status}`);
+}
+// login code channels that are configured on this server, in the order the app offers them
+const codeChannels = () => [TG_TOKEN && 'telegram', WA.token && WA.phoneId && 'whatsapp'].filter(Boolean);
+// the chosen channel first, the other one as a fallback (e.g. the number has no Telegram)
+async function deliverCode(phone, code, prefer, tag = 'auth') {
+  for (const ch of prefer === 'whatsapp' ? ['whatsapp', 'telegram'] : ['telegram', 'whatsapp']) {
+    try { await (ch === 'whatsapp' ? sendViaWhatsApp : sendViaTelegram)(phone, code); return ch; } catch (e) { console.warn(`[${tag}] ${ch}:`, e.message); }
+  }
+  try { await sendViaSms(phone, code); return 'sms'; } catch (e) { console.warn(`[${tag}] SMS:`, e.message); }
+  return null;
+}
 // SMS-провайдер подключается позже (например Eskiz / Playmobile)
 async function sendViaSms(/* phone, code */) {
   throw new Error('SMS-провайдер ещё не подключён');
 }
 
-async function issueCode(phone, res) {
-  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
+async function issueCode(phone, res, prefer) {
+  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер полностью');
   const last = db.prepare('SELECT * FROM codes WHERE phone=? ORDER BY id DESC LIMIT 1').get(phone);
-  if (last && now() - last.created_at < RESEND_COOLDOWN) {
+  // one switch to the other channel ("send it to WhatsApp instead") is allowed without waiting, not more
+  const recent = db.prepare('SELECT COUNT(*) c FROM codes WHERE phone=? AND created_at>?').get(phone, now() - RESEND_COOLDOWN).c;
+  if (last && now() - last.created_at < RESEND_COOLDOWN && !(prefer && prefer !== last.channel && recent < 2)) {
     return res.status(429).json({ error: 'Подождите перед повторной отправкой', resend_in: RESEND_COOLDOWN - (now() - last.created_at) });
   }
   const hourAgo = now() - 3600;
@@ -107,13 +140,8 @@ async function issueCode(phone, res) {
     return fail(res, 429, 'Слишком много попыток. Попробуйте через час');
   }
   const code = String(crypto.randomInt(0, 10000)).padStart(4, '0');
-  let channel = null;
-  try { await sendViaTelegram(phone, code); channel = 'telegram'; }
-  catch (e) {
-    console.warn('[auth] Telegram:', e.message);
-    try { await sendViaSms(phone, code); channel = 'sms'; } catch (e2) { console.warn('[auth] SMS:', e2.message); }
-  }
-  if (!channel) return fail(res, 502, 'Не удалось отправить код. Проверьте, что у номера есть Telegram, и попробуйте ещё раз');
+  const channel = await deliverCode(phone, code, prefer);
+  if (!channel) return fail(res, 502, 'Не удалось отправить код. Проверьте, что у номера есть Telegram или WhatsApp, и попробуйте ещё раз');
   db.prepare('INSERT INTO codes (phone,code,channel,expires_at,created_at) VALUES (?,?,?,?,?)')
     .run(phone, code, channel, now() + CODE_TTL, now());
   res.json({ ok: true, channel, resend_in: RESEND_COOLDOWN });
@@ -121,7 +149,7 @@ async function issueCode(phone, res) {
 
 app.post('/api/auth/request', wrap(async (req, res) => {
   const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
-  await issueCode(phone, res);
+  await issueCode(phone, res, req.body.channel === 'whatsapp' ? 'whatsapp' : req.body.channel === 'telegram' ? 'telegram' : '');
 }));
 
 app.post('/api/auth/verify', wrap(async (req, res) => {
@@ -156,7 +184,17 @@ app.put('/api/me', auth, (req, res) => {
     avatar = Number(req.body.avatar);
     if (!Number.isInteger(avatar) || avatar < 0 || avatar > 9) return fail(res, 400, 'Неверный аватар');
   }
-  db.prepare('UPDATE users SET name=?, notify=?, avatar=? WHERE id=?').run(name, notify, avatar, req.user.id);
+  let birthday = req.user.birthday || '', email = req.user.email || '';
+  if (req.body.birthday !== undefined) {
+    birthday = String(req.body.birthday).trim();
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthday), dt = d && new Date(Date.UTC(+d[1], d[2] - 1, +d[3]));
+    if (birthday && !(d && dt.getUTCDate() === +d[3] && +d[1] >= 1900 && dt < new Date())) return fail(res, 400, 'Неверная дата рождения');
+  }
+  if (req.body.email !== undefined) {
+    email = String(req.body.email).trim().toLowerCase().slice(0, 120);
+    if (email && !/^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/.test(email)) return fail(res, 400, 'Неверный e-mail');
+  }
+  db.prepare('UPDATE users SET name=?, notify=?, avatar=?, birthday=?, email=? WHERE id=?').run(name, notify, avatar, birthday, email, req.user.id);
   res.json({ user: db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id) });
 });
 // Full account deletion. Orders stay (anonymised) because they are accounting records; everything personal goes.
@@ -186,7 +224,7 @@ app.delete('/api/me', auth, (req, res) => {
 });
 app.post('/api/me/phone/request', auth, wrap(async (req, res) => {
   const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
-  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер из 9 цифр после +998');
+  if (!PHONE_RE.test(phone)) return fail(res, 400, 'Введите номер полностью');
   if (phone === req.user.phone) return fail(res, 400, 'Это ваш текущий номер');
   if (db.prepare('SELECT id FROM users WHERE phone=?').get(phone)) return fail(res, 400, 'Этот номер уже используется');
   await issueCode(phone, res);
@@ -231,9 +269,28 @@ app.get('/api/menu', (req, res) => {
       support_phone: setting('support_phone', ''),
       coin_value: Number(setting('coin_value', 1)) || 1,
       yandex_key: process.env.YANDEX_MAPS_KEY || '',
+      ...Object.fromEntries(SITE_KEYS.map(k => [k, setting(k, '')])),
+      code_channels: codeChannels(),
     },
+    stats: siteStats(),
   });
 });
+// links shown on the website (header / footer); set in the admin panel
+const SITE_KEYS = ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url', 'about_text', 'product_image_shape'];
+// numbers for the website header/footer: branch count, rating, typical delivery time, orders this month
+function siteStats() {
+  const r = db.prepare('SELECT AVG(stars) a, COUNT(*) n FROM reviews').get();
+  const t = db.prepare("SELECT AVG((julianday(delivered_at) - julianday(created_at)) * 1440) m FROM orders WHERE type='delivery' AND status='done' AND delivered_at IS NOT NULL AND created_at > datetime('now','-30 days')").get().m;
+  return {
+    branches: db.prepare('SELECT COUNT(*) c FROM branches WHERE active=1').get().c,
+    cities: db.prepare('SELECT COUNT(DISTINCT city) c FROM branches WHERE active=1').get().c,
+    rating: r.n ? Math.round(r.a * 100) / 100 : null,
+    reviews: r.n,
+    delivery_min: t && t > 5 && t < 180 ? Math.round(t) : null,
+    orders_month: db.prepare("SELECT COUNT(*) c FROM orders WHERE status<>'cancelled' AND created_at >= date('now','start of month')").get().c,
+  };
+}
+app.get('/api/zones', (req, res) => res.json({ zones: zones.list(true).map(({ id, name, color, polys, branch_ids }) => ({ id, name, color, polys, branch_ids })) }));
 
 const geoCache = new Map();
 app.get('/api/reverse', wrap(async (req, res) => {
@@ -256,6 +313,32 @@ app.get('/api/reverse', wrap(async (req, res) => {
   } catch {
     res.json({ address: '', lat, lng });
   }
+}));
+
+// address search (street, district, metro) for the website's location picker; biased to the branches' area
+const searchCache = new Map();
+app.get('/api/geocode', wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 120);
+  if (q.length < 3) return res.json({ results: [] });
+  const lang = req.query.lang === 'uz' ? 'uz,ru' : 'ru';
+  const key = lang + '|' + q.toLowerCase();
+  if (searchCache.has(key)) return res.json(searchCache.get(key));
+  const bs = db.prepare('SELECT lat,lng FROM branches WHERE active=1').all();
+  const box = bs.length ? [Math.min(...bs.map(b => b.lng)) - .25, Math.max(...bs.map(b => b.lat)) + .2, Math.max(...bs.map(b => b.lng)) + .25, Math.min(...bs.map(b => b.lat)) - .2].join(',') : '';
+  try {
+    const r = await fetch(`${process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org'}/search?format=jsonv2&addressdetails=1&limit=7&countrycodes=uz&accept-language=${lang}${box ? '&bounded=0&viewbox=' + box : ''}&q=${encodeURIComponent(q)}`, {
+      headers: { 'User-Agent': 'wendys-delivery-app/1.0' }, signal: AbortSignal.timeout(8000),
+    });
+    const rows = await r.json();
+    const out = { results: (Array.isArray(rows) ? rows : []).filter(x => x.lat && x.lon).map(x => {
+      const a = x.address || {};
+      const title = [a.road || a.pedestrian || a.neighbourhood || a.suburb || x.name, a.house_number].filter(Boolean).join(', ') || x.display_name.split(',')[0];
+      const sub = [a.suburb || a.city_district, a.city || a.town || a.village || a.state].filter(Boolean).join(', ');
+      return { title, sub, lat: Number(x.lat), lng: Number(x.lon) };
+    }) };
+    if (searchCache.size > 500) searchCache.clear();
+    searchCache.set(key, out); res.json(out);
+  } catch { res.json({ results: [] }); }
 }));
 
 app.post('/api/promo/check', (req, res) => {
@@ -334,10 +417,21 @@ function branchFee(b, amount) {
 
 // ---------- delivery routing: nearest open branch that can deliver ----------
 function pickBranch(lat, lng, items) {
-  const open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
+  let open = db.prepare('SELECT * FROM branches WHERE active=1').all().filter(isOpenNow);
+  const zs = zones.zonesAt(lat, lng); // null = no zones drawn yet, use each branch's radius
+  if (zs) {
+    if (!zs.length) return { error: 'zone' };
+    const serving = new Set(zs.flatMap(z => z.branch_ids));
+    if (!serving.size) return { error: 'zone' };
+    open = open.filter(b => serving.has(b.id));
+    if (!open.length) return { error: 'closed' };
+  }
   if (!open.length) return { error: 'closed' };
-  const inRadius = open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
-  if (!inRadius.length) return { error: 'radius' };
+  const inRadius = zs ? open : open.filter(b => dist(lat, lng, b.lat, b.lng) <= (b.delivery_radius || 7));
+  if (!inRadius.length) { // tell the customer how far the nearest open branch is and what its delivery radius is
+    const near = open.map(b => ({ b, d: dist(lat, lng, b.lat, b.lng) })).sort((x, y) => x.d - y.d)[0];
+    return { error: 'radius', near: { name: near.b.name || near.b.address, km: Math.round(near.d * 10) / 10, radius: near.b.delivery_radius || 7 } };
+  }
   const off = {};
   for (const r of db.prepare('SELECT branch_id, product_id FROM branch_stock WHERE available=0').all()) (off[r.branch_id] = off[r.branch_id] || new Set()).add(r.product_id);
   const missing = b => items.find(i => off[b.id]?.has(i.product_id))?.name || '';
@@ -351,7 +445,8 @@ function pickBranch(lat, lng, items) {
   return { branch: near[0], distance: near[0].d };
 }
 const pickMessage = r => (r.error === 'closed' ? 'Пока не принимаем заказы. Попробуйте заказать позже'
-  : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' : `Сейчас нет в наличии: ${r.name}`);
+  : r.error === 'zone' ? 'К сожалению, ваш адрес вне зоны доставки. Посмотрите зоны доставки на карте'
+  : r.error === 'radius' ? 'К сожалению, доставка на ваш адрес сейчас недоступна.' + (r.near ? ` Ближайший филиал «${r.near.name}» — ${r.near.km} км, зона доставки — ${r.near.radius} км.` : '') : `Сейчас нет в наличии: ${r.name}`);
 app.post('/api/delivery/quote', (req, res) => {
   const lat = Number(req.body.lat), lng = Number(req.body.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return fail(res, 400, 'Нет координат');
@@ -495,12 +590,7 @@ app.post('/api/chat', auth, (req, res) => {
 require('./ops')(app, { db, fail, auth });
 require('./admin')(app, {
   db, fail, addChat, isOpenNow,
-  sendCode: async (phone, code) => {
-    try { await sendViaTelegram(phone, code); return 'telegram'; } catch (e) {
-      console.warn('[admin-auth] Telegram:', e.message);
-      try { await sendViaSms(phone, code); return 'sms'; } catch { return null; }
-    }
-  },
+  sendCode: (phone, code) => deliverCode(phone, code, '', 'admin-auth'),
 });
 
 app.use('/api', (req, res) => fail(res, 404, 'Не найдено'));
@@ -511,5 +601,6 @@ app.use((err, req, res, next) => { // eslint-disable-line
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Сервер: http://localhost:${PORT}   Админка: http://localhost:${PORT}/admin/`);
-  if (!TG_TOKEN) console.warn('ВНИМАНИЕ: TELEGRAM_GATEWAY_TOKEN не задан');
+  if (!codeChannels().length) console.warn('ВНИМАНИЕ: не настроен ни Telegram (TELEGRAM_GATEWAY_TOKEN), ни WhatsApp (WHATSAPP_TOKEN + WHATSAPP_PHONE_ID) — коды входа не отправляются');
+  else console.log('Коды входа:', codeChannels().join(', '));
 });

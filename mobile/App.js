@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 
 const KEY = 'wendys_server_url';
+// the live site; the app opens it straight away (long-press the gear in the corner to use another server)
+const DEFAULT_URL = 'https://wendy-s-r2cm.onrender.com';
 const RED = '#e21d3c';
 const BG = '#0c0c0e';
 
@@ -28,7 +30,7 @@ export default function App() {
 
   useEffect(() => {
     AsyncStorage.getItem(KEY).then((v) => {
-      if (v) { setUrl(v); setDraft(v); }
+      setUrl(v || DEFAULT_URL); setDraft(v || DEFAULT_URL);
       setReady(true);
     });
   }, []);
@@ -67,26 +69,22 @@ export default function App() {
         <Text style={s.title}>Wendy's</Text>
         <Text style={s.hint}>
           {failed
-            ? 'Serverga ulanib bo\'lmadi. Manzilni tekshiring.'
-            : 'Server manzilini kiriting'}
+            ? 'Не удалось открыть Wendy\'s. Проверьте интернет и нажмите «Открыть».'
+            : 'Адрес сервера'}
         </Text>
         <TextInput
           style={s.input}
           value={draft}
           onChangeText={setDraft}
-          placeholder="http://192.168.1.5:3000"
+          placeholder={DEFAULT_URL}
           placeholderTextColor="#666"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
         />
         <Pressable style={s.btn} onPress={save}>
-          <Text style={s.btnText}>Ochish</Text>
+          <Text style={s.btnText}>Открыть</Text>
         </Pressable>
-        <Text style={s.small}>
-          Kompyuterda `npm start` ishlab tursin, telefon va kompyuter bitta Wi-Fi'da bo'lsin.
-          Yoki deploy qilingan https manzilni yozing.
-        </Text>
       </SafeAreaView>
     );
   }

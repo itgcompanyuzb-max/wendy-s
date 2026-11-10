@@ -67,6 +67,8 @@ const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
 const coinsInCart = () => St.cart.reduce((n, c) => n + (c.coin ? (prod(c.id)?.coin_cost || 0) * c.qty : 0), 0);
 const cartCount = () => St.cart.reduce((s, c) => s + c.qty, 0);
 function saveCart() { LS.set('cart', St.cart); }
+const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
+const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
 function totals() {
   let sub = 0, full = 0;
   for (const c of St.cart) { const p = prod(c.id); if (!p || c.coin) continue; sub += p.price * c.qty; full += (p.old_price || p.price) * c.qty; }
@@ -158,32 +160,38 @@ A.legal = () => Sh.open('legal', () => `<div class="grab"></div><div class="body
 
 /* ============ phone ============ */
 let PH_DIGITS = '';
-const fmtPhone = d => [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean).join(' ');
+// sign-up countries: Uzbekistan, Russia, Kazakhstan
+const CCS = { uz: { code: '+998', n: 9, g: [2, 3, 2, 2] }, ru: { code: '+7', n: 10, g: [3, 3, 2, 2] }, kz: { code: '+7', n: 10, g: [3, 3, 2, 2] } };
+let CC = CCS[LS.get('cc', 'uz')] ? LS.get('cc', 'uz') : 'uz';
+const ccOf = () => CCS[CC];
+const fmtPhone = (d, c = ccOf()) => { const out = []; let i = 0; for (const n of c.g) { if (i >= d.length) break; out.push(d.slice(i, i + n)); i += n; } return out.join(' '); };
+const cleanDigits = v => { const c = ccOf(); let d = String(v).replace(/\D/g, ''); const cd = c.code.slice(1); if (d.startsWith(cd) && d.length > c.n) d = d.slice(cd.length); return d.slice(0, c.n); }; // a pasted full number keeps working
+const ccBox = id => `<label class="cc"><select class="ccsel" id="${id}" aria-label="Страна">${Object.entries(CCS).map(([k, c]) => `<option value="${k}" ${k === CC ? 'selected' : ''}>${{ uz: '🇺🇿 Oʻzbekiston', ru: '🇷🇺 Россия', kz: '🇰🇿 Қазақстан' }[k]} ${c.code}</option>`).join('')}</select><span class="ccflag">${{ uz: '🇺🇿', ru: '🇷🇺', kz: '🇰🇿' }[CC]}</span>${ccOf().code} ${I.down(18, '#8e8e93')}</label>`;
+const onCc = (id, after) => { const s = $('#' + id); if (s) s.onchange = () => { CC = s.value; LS.set('cc', CC); after(); }; };
 function phoneView() {
   $('#view').innerHTML = `
   <div class="view form-view">
     <div class="top-row"><button onclick="go('login')">${I.x()}</button></div>
     <h2>Укажите телефон, чтобы войти в профиль</h2>
-    <div class="phone-box"><div class="cc">+998 ${I.down(18, '#8e8e93')}</div><input id="ph" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="Номер телефона" maxlength="12" value="${fmtPhone(PH_DIGITS)}"></div>
+    <div class="phone-box">${ccBox('ccs')}<input id="ph" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="Номер телефона" maxlength="14" value="${fmtPhone(PH_DIGITS)}"></div>
     <div class="err" id="err"></div>
     <div class="spacer"></div>
     <button class="btn" id="go" disabled>Продолжить</button>
   </div>`;
-  const inp = $('#ph'), btn = $('#go');
-  const upd = () => { btn.disabled = PH_DIGITS.length !== 9; };
+  const inp = $('#ph'), btn = $('#go'), btns = [btn];
+  const upd = () => { btns.forEach(b => { b.disabled = PH_DIGITS.length !== ccOf().n; }); };
+  onCc('ccs', () => { PH_DIGITS = PH_DIGITS.slice(0, ccOf().n); phoneView(); });
   inp.addEventListener('input', () => {
-    let d = inp.value.replace(/\D/g, '');
-    if (d.startsWith('998') && d.length > 9) d = d.slice(3); // вставили номер целиком
-    PH_DIGITS = d.slice(0, 9);
+    PH_DIGITS = cleanDigits(inp.value);
     inp.value = fmtPhone(PH_DIGITS); $('#err').textContent = ''; upd();
   });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && PH_DIGITS.length === 9) btn.click(); });
-  btn.onclick = async () => {
-    if (PH_DIGITS.length !== 9) { $('#err').textContent = 'Введите 9 цифр номера'; return; }
-    btn.disabled = true;
-    try { const r = await api('/auth/request', { body: { phone: '+998' + PH_DIGITS } }); go('code', { resend: r.resend_in }); }
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && PH_DIGITS.length === ccOf().n) btn.click(); });
+  btns.forEach(b => { b.onclick = async () => {
+    if (PH_DIGITS.length !== ccOf().n) { $('#err').textContent = 'Введите номер полностью'; return; }
+    btns.forEach(x => { x.disabled = true; });
+    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS } }); go('code', { resend: r.resend_in }); }
     catch (e) { if (e.data?.resend_in) return go('code', { resend: e.data.resend_in }); $('#err').textContent = e.message; upd(); }
-  };
+  }; });
   upd(); setTimeout(() => inp.focus(), 50);
 }
 
@@ -192,12 +200,12 @@ let codeTimer = null;
 function codeView(o = {}) {
   clearInterval(codeTimer);
   let left = o.resend || 60;
-  const phoneFull = '+998 ' + fmtPhone(PH_DIGITS);
+  const phoneFull = ccOf().code + ' ' + fmtPhone(PH_DIGITS);
   $('#view').innerHTML = `
   <div class="view form-view">
     <div class="top-row"><button onclick="clearInterval(codeTimer);go('phone')">${I.back()}</button></div>
-    <h2>Введите код из <span style="color:var(--tg)">Telegram</span> или СМС</h2>
-    <div class="code-sub">на номер ${esc(phoneFull)}</div>
+    <h2>Введите код</h2>
+    <div class="code-sub">Код отправлен на номер ${esc(phoneFull)}</div>
     <div class="code-row" id="cr">${[0, 1, 2, 3].map(i => `<div class="code-cell" data-i="${i}"></div>`).join('')}
       <input class="code-input" id="ci" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="4"></div>
     <div class="err" id="err"></div>
@@ -219,7 +227,7 @@ function codeView(o = {}) {
     if (ci.value.length === 4 && !busy) {
       busy = true;
       try {
-        const r = await api('/auth/verify', { body: { phone: '+998' + PH_DIGITS, code: ci.value }, noLogout: true });
+        const r = await api('/auth/verify', { body: { phone: ccOf().code + PH_DIGITS, code: ci.value }, noLogout: true });
         clearInterval(codeTimer);
         St.token = r.token; LS.set('token', r.token); St.user = r.user;
         await loadUserData();
@@ -231,7 +239,7 @@ function codeView(o = {}) {
     }
   });
   $('#rb').onclick = async () => {
-    try { const r = await api('/auth/request', { body: { phone: '+998' + PH_DIGITS } }); left = r.resend_in; $('#err').textContent = ''; tick(); clearInterval(codeTimer); codeTimer = setInterval(() => { left = Math.max(0, left - 1); tick(); if (left <= 0) clearInterval(codeTimer); }, 1000); }
+    try { const r = await api('/auth/request', { body: { phone: ccOf().code + PH_DIGITS } }); left = r.resend_in; $('#err').textContent = ''; tick(); clearInterval(codeTimer); codeTimer = setInterval(() => { left = Math.max(0, left - 1); tick(); if (left <= 0) clearInterval(codeTimer); }, 1000); }
     catch (e) { $('#err').textContent = e.message; }
   };
   $('#cr').onclick = () => ci.focus();
@@ -283,7 +291,7 @@ function nameView() {
 const TASH = [41.3111, 69.2797];
 const tile = () => {
   const key = St.menu.settings.yandex_key;
-  if (key) return L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=ru_RU&x={x}&y={y}&z={z}&l=map&apikey=${key}`, { maxZoom: 19 });
+  if (key) return L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=${window.LANG === 'uz' ? 'uz_UZ' : 'ru_RU'}&x={x}&y={y}&z={z}&l=map&apikey=${key}`, { maxZoom: 19 });
   return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
 };
 const flag = `<span style="font-size:20px">🇺🇿</span>`;
@@ -302,6 +310,9 @@ function mapView(mode = 'delivery') {
   </div>`;
   const map = St.map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: .5, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView(TASH, 12);
   tile().addTo(map);
+  // delivery zones drawn by the admin (real district borders); customers see where we deliver
+  (St.zones ? Promise.resolve() : api('/zones').then(r => { St.zones = r.zones; }).catch(() => { St.zones = []; }))
+    .then(() => { if (St.map === map) St.zones.forEach(z => L.polygon(z.polys, { color: z.color || '#e2203d', weight: 2, fillOpacity: .08, interactive: false }).addTo(map)); });
   $('#mx').onclick = () => go('home');
   document.querySelectorAll('#seg button').forEach(b => b.onclick = () => setMapMode(b.dataset.m));
   $('#loc').onclick = () => locateMe();
@@ -356,7 +367,12 @@ function locateMe(silent) {
   const b = $('#loc'); if (!navigator.geolocation) return silent || toast('Геолокация не поддерживается');
   if (b) b.classList.add('busy');
   navigator.geolocation.getCurrentPosition(p => {
-    if (b) b.classList.remove('busy'); if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
+    if (b) b.classList.remove('busy');
+    // on the first (automatic) open, only jump to the person if he is inside some branch's delivery zone; otherwise stay in the city
+    const la = p.coords.latitude, ln = p.coords.longitude;
+    const inZone = St.zones?.length ? St.zones.some(z => inPolys(la, ln, z.polys)) : (St.menu.branches || []).some(br => br.active && km(la, ln, br.lat, br.lng) <= (br.delivery_radius || 7));
+    if (silent && !inZone) return toast('Ваше местоположение вне зоны доставки — выберите адрес на карте');
+    if (St.map) St.map.flyTo([p.coords.latitude, p.coords.longitude], 17, { duration: .8 });
   }, () => { if (b) b.classList.remove('busy'); if (!silent) toast('Разрешите доступ к геолокации в браузере'); }, { enableHighAccuracy: true, timeout: 10000 });
 }
 function renderDeliverySheet() {
@@ -512,7 +528,7 @@ function homeView() {
       <button class="avatar" onclick="A.profile()">${avatarInner()}</button>
     </div>
     <div class="home-body" id="hb">
-      <div class="stories">${m.banners.map(b => `<div class="story" style="background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
+      <div class="stories">${m.banners.map(b => `<div class="story" onclick="A.banner(${b.id})" style="cursor:pointer;background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
       <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button><button class="sbtn coinbtn" onclick="A.coinShop()" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button>
         ${m.categories.map(c => `<button class="ch ${c.id === St.cat ? 'on' : ''}" data-cat="${c.id}" onclick="A.gotoCat(${c.id})">${esc(loc(c, 'name'))}</button>`).join('')}</div>
       ${St.searchOpen ? `<div class="searchrow"><input id="sq" placeholder="Поиск по меню" value="${esc(St.q)}"></div>` : ''}
@@ -566,7 +582,7 @@ A.product = id => {
     <div class="pc" style="background:none;min-height:0;cursor:default;padding:12px 16px">
       <div class="im" style="aspect-ratio:1.2;background-color:#1b1b1e;background-size:cover;background-position:center;${p.image ? `background-image:url('${esc(p.image)}')` : ''}">${p.image ? '' : ph(p)}</div>
       <h3 style="font-size:28px;margin:16px 0 8px">${esc(loc(p, 'name'))}</h3><p style="font-size:16px;-webkit-line-clamp:unset;margin:0 0 4px">${esc(loc(p, 'description'))}</p></div>${(p.addons || []).map(prod).filter(Boolean).length ? `<div style="padding:4px 16px 8px"><div class="h2" style="font-size:21px;margin:14px 0 12px">С этим берут</div><div class="hscroll">${p.addons.map(prod).filter(Boolean).map(a => `<div class="rec"><div class="im" ${imgOf(a)}>${a.image ? '' : ph(a)}</div><b>${esc(loc(a, 'name'))}</b><span></span><div data-pill="${a.id}">${pillInner(a)}</div></div>`).join('')}</div></div>` : ''}</div>
-    <div class="foot">${p.coin_cost > 0 && St.user ? `<button class="btn gray" style="margin-bottom:10px" onclick="A.addCoin(${p.id});Sh.close('product')">${I.coin(22)}&nbsp;Обменять на ${p.coin_cost} WendyCoin</button>` : ''}<button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
+    <div class="foot"><button class="btn" onclick="A.add(${p.id});Sh.close('product')">Добавить в корзину за ${money(p.price)}</button></div>`);
 };
 
 /* address / mode sheet */
@@ -782,7 +798,7 @@ A.settings = () => {
   St.draft = { name: St.user.name, notify: !!St.user.notify };
   Sh.open('settings', renderSettings, 'full');
 };
-const fmtFull = p => '+998 ' + p.slice(4, 6) + ' ' + p.slice(6, 9) + ' ' + p.slice(9, 11) + ' ' + p.slice(11, 13);
+const fmtFull = p => (String(p).startsWith('+998') ? '+998 ' + fmtPhone(p.slice(4), CCS.uz) : String(p).startsWith('+7') ? '+7 ' + fmtPhone(p.slice(2), CCS.ru) : p);
 function renderSettings() {
   const u = St.user, d = St.draft;
   return `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 18px 0;justify-content:flex-end"><button class="link-or" onclick="A.saveSettings()">Готово</button></div>
@@ -804,7 +820,7 @@ function renderSettings() {
 A.saveSettings = async () => {
   try {
     const r = await api('/me', { method: 'PUT', body: { name: St.draft.name, notify: St.draft.notify } });
-    St.user = r.user; Sh.close('settings'); homeView();
+    St.user = r.user; Sh.close('settings'); Sh.refresh('profile'); homeView();
   } catch (e) { toast(e.message); }
 };
 A.avatarPicker = () => {
@@ -819,8 +835,20 @@ A.avatarPicker = () => {
     <div class="foot" style="position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--card) 40%)"><button class="btn" ${sel === cur ? 'disabled' : ''} onclick="A.setAvatar()">${sel === cur ? 'Установлен' : 'Установить'}</button></div>`;
   }, 'full');
 };
+/* banner viewer: the whole picture; a button to the banner's link only when the admin set one */
+A.banner = id => {
+  const b = (St.menu.banners || []).find(x => x.id === id); if (!b) return;
+  const link = /^https?:\/\//i.test(b.link || '') ? b.link : '';
+  const title = loc(b, 'title');
+  Sh.open('banner', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 0"><button onclick="Sh.close('banner')">${I.x()}</button><span></span></div>
+    <div class="body" style="padding:10px 16px ${link ? 110 : 24}px">
+      ${b.image ? `<img src="${esc(b.image)}" alt="" style="display:block;width:100%;height:auto;border-radius:22px;background:${esc(b.color)}">` : `<div style="border-radius:22px;padding:28px 22px;min-height:220px;display:flex;align-items:flex-end;font-size:28px;font-weight:800;line-height:1.15;background:${esc(b.color)}">${esc(title)}</div>`}
+      ${b.image && title ? `<h2 style="margin:18px 4px 0;font-size:24px">${esc(title)}</h2>` : ''}
+    </div>
+    ${link ? `<div class="foot"><a class="btn" href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Подробнее</a></div>` : ''}`, 'full');
+};
 A.setAvatar = async () => {
-  try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); homeView(); } catch (e) { toast(e.message); }
+  try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); Sh.refresh('profile'); homeView(); } catch (e) { toast(e.message); }
 };
 
 /* change phone: new number -> code sent to the NEW number -> confirm */
@@ -839,16 +867,17 @@ A.changePhone = () => {
     Sh.refresh('phonechg');
     const p = $('#pcp');
     if (p) {
-      p.oninput = () => { let d = p.value.replace(/\D/g, ''); if (d.startsWith('998') && d.length > 9) d = d.slice(3); S.digits = d.slice(0, 9); p.value = fmtPhone(S.digits); $('#pcb').disabled = S.digits.length !== 9; $('#pce').textContent = ''; };
+      p.oninput = () => { S.digits = cleanDigits(p.value); p.value = fmtPhone(S.digits); $('#pcb').disabled = S.digits.length !== ccOf().n; $('#pce').textContent = ''; };
+      onCc('pccs', () => { S.digits = S.digits.slice(0, ccOf().n); render(); });
       p.focus();
     }
     const c = $('#pcc');
     if (c) { c.oninput = () => { c.value = c.value.replace(/\D/g, '').slice(0, 4); if (c.value.length === 4) A.pcVerify(); }; c.focus(); }
   };
   A.pcSend = async () => {
-    if (S.digits.length !== 9) return;
+    if (S.digits.length !== ccOf().n) return;
     try {
-      const r = await api('/me/phone/request', { body: { phone: '+998' + S.digits } });
+      const r = await api('/me/phone/request', { body: { phone: ccOf().code + S.digits } });
       S.step = 2; render(); tickStart(r.resend_in);
     } catch (e) {
       if (e.data?.resend_in) { S.step = 2; render(); tickStart(e.data.resend_in); }
@@ -857,18 +886,18 @@ A.changePhone = () => {
   };
   A.pcVerify = async () => {
     try {
-      const r = await api('/me/phone/verify', { body: { phone: '+998' + S.digits, code: $('#pcc').value } });
+      const r = await api('/me/phone/verify', { body: { phone: ccOf().code + S.digits, code: $('#pcc').value } });
       St.user = r.user; Sh.close('phonechg'); Sh.refresh('settings'); toast('Номер обновлён');
     } catch (e) { $('#pce').textContent = e.message; $('#pcc').value = ''; }
   };
   Sh.open('phonechg', () => S.step === 1 ? `<div class="grab"></div><div class="body" style="padding:12px 16px 16px">
       <h2 style="margin:10px 4px 18px;font-size:25px">Новый номер телефона</h2>
-      <div class="phone-box"><div class="cc">+998</div><input id="pcp" type="tel" inputmode="numeric" placeholder="Номер телефона" maxlength="12" value="${fmtPhone(S.digits)}"></div>
+      <div class="phone-box">${ccBox('pccs')}<input id="pcp" type="tel" inputmode="numeric" placeholder="Номер телефона" maxlength="14" value="${fmtPhone(S.digits)}"></div>
       <div class="err" id="pce"></div></div>
-      <div class="foot"><button class="btn" id="pcb" ${S.digits.length === 9 ? '' : 'disabled'} onclick="A.pcSend()">Получить код</button></div>`
+      <div class="foot"><button class="btn" id="pcb" ${S.digits.length === ccOf().n ? '' : 'disabled'} onclick="A.pcSend()">Получить код</button></div>`
     : `<div class="grab"></div><div class="body" style="padding:12px 16px 16px">
       <h2 style="margin:10px 4px 6px;font-size:25px">Введите код из <span style="color:var(--tg)">Telegram</span></h2>
-      <div class="gray-t" style="margin:0 4px 18px">на номер +998 ${fmtPhone(S.digits)}</div>
+      <div class="gray-t" style="margin:0 4px 18px">на номер ${ccOf().code} ${fmtPhone(S.digits)}</div>
       <input id="pcc" class="name-input" style="margin:0;letter-spacing:.6em;text-indent:.6em" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••">
       <div class="err" id="pce"></div><div class="gray-t" id="pcl" style="text-align:center;margin-top:8px"></div></div>
       <div class="foot"><button class="btn gray" id="pcr" disabled onclick="A.pcSend()">Получить новый код</button></div>`,
@@ -901,6 +930,7 @@ async function loadUserData() {
 (async function boot() {
   try {
     St.menu = await api('/menu');
+    document.body.classList.toggle('img-circle', St.menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
     if (St.token) {
       try { St.user = (await api('/me', { noLogout: true })).user; await loadUserData(); } catch { logoutLocal(); }
     }
