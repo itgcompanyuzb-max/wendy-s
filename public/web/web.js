@@ -274,7 +274,7 @@ function openProduct(id) {
     o.querySelector('.md').innerHTML = `${X}<div class="pmd"><div class="big">${p.image ? `<img src="${esc(p.image)}" alt="">` : `<div class="noimg" style="width:80%;aspect-ratio:1;border-radius:50%;background:var(--card);display:grid;place-items:center">${phOf(p)}</div>`}</div>
       <div class="info"><div class="sc"><h2>${esc(loc(p, 'name'))}</h2>${p.old_price > p.price ? `<div class="faint" style="text-decoration:line-through;margin-bottom:6px">${money(p.old_price)}</div>` : ''}<p class="muted" style="line-height:1.5;margin:6px 0 0">${esc(loc(p, 'description'))}</p>
       ${adds.length ? `<h3 style="margin:22px 0 0;font-size:18px">${t('withIt')}</h3><div class="addons">${adds.map(a => `<button class="addon ${sel.has(a.id) ? 'on' : ''}" data-tog="${a.id}">${img(a)}${esc(loc(a, 'name'))}<small>+${money(a.price)}</small></button>`).join('')}</div>` : ''}</div>
-      <button class="btn red wide" style="margin-top:18px;height:56px" data-addp>${t('add')} ${money(sum)}</button></div></div>`;
+      <button class="btn red wide" style="margin-top:18px;height:56px" data-addp>${money(sum)}</button></div></div>`;
   };
   const o = modal(`<div class="md wide"></div>`); draw();
   o.addEventListener('click', e => {
