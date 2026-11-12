@@ -140,7 +140,7 @@ const Sh = {
     let y0 = null, dy = 0, t0 = 0, on = false;
     sheet.addEventListener('touchstart', e => {
       const body = sheet.querySelector('.body');
-      if (e.touches.length > 1 || e.target.closest('input, textarea, select, .leaflet-container, .hscroll')) { y0 = null; return; }
+      if (e.touches.length > 1 || e.target.closest('input, textarea, select, .leaflet-container, .hscroll, .seg')) { y0 = null; return; }
       if (!e.target.closest('.grab') && body && body.contains(e.target) && body.scrollTop > 0) { y0 = null; return; }
       y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); on = false;
     }, { passive: true });
@@ -185,6 +185,57 @@ const Sh = {
   },
   closeAll() { Object.keys(this.stack).forEach(n => this.close(n)); },
 };
+
+/* ============ glass switch: press and slide, the lens follows the finger ============ */
+// Every .seg gets a lens behind its buttons. Tap works as before; press and drag moves the lens
+// with the finger (it turns into clear glass while held) and the button under it is chosen on release.
+function glassSeg(seg) {
+  if (seg.classList.contains('glass')) return;
+  seg.classList.add('glass');
+  const lens = document.createElement('i'); lens.className = 'lens'; seg.prepend(lens);
+  const btns = () => [...seg.querySelectorAll('button')];
+  const place = (b, anim) => {
+    if (!b) return;
+    lens.style.transition = anim ? '' : 'none';
+    lens.style.left = b.offsetLeft + 'px'; lens.style.width = b.offsetWidth + 'px'; lens.style.top = b.offsetTop + 'px'; lens.style.height = b.offsetHeight + 'px';
+  };
+  const sync = () => place(btns().find(b => b.classList.contains('on')), true);
+  new MutationObserver(sync).observe(seg, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  new ResizeObserver(() => place(btns().find(b => b.classList.contains('on')), false)).observe(seg);
+  requestAnimationFrame(() => place(btns().find(b => b.classList.contains('on')), false));
+  let x0 = null, moved = false, over = null, blockClick = false;
+  const under = x => { const bs = btns(); return bs.reduce((a, b) => Math.abs(b.offsetLeft + b.offsetWidth / 2 - x) < Math.abs(a.offsetLeft + a.offsetWidth / 2 - x) ? b : a, bs[0]); };
+  seg.addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
+    x0 = e.clientX; moved = false; over = null;
+    try { seg.setPointerCapture(e.pointerId); } catch { /* old browser */ }
+  });
+  seg.addEventListener('pointermove', e => {
+    if (x0 === null) return;
+    if (!moved && Math.abs(e.clientX - x0) < 6) return;
+    if (!moved) { moved = true; seg.classList.add('drag'); haptic('light'); }
+    const r = seg.getBoundingClientRect(), x = e.clientX - r.left, w = lens.offsetWidth;
+    lens.style.transition = 'none';
+    lens.style.left = Math.max(-6, Math.min(r.width - w + 6, x - w / 2)) + 'px';
+    const b = under(x);
+    if (b !== over) { if (over) haptic('select'); over = b; btns().forEach(z => z.classList.toggle('hover', z === b)); }
+  });
+  const end = e => {
+    if (x0 === null) return; x0 = null;
+    seg.classList.remove('drag'); btns().forEach(z => z.classList.remove('hover'));
+    if (!moved) return;
+    const b = under(e.clientX - seg.getBoundingClientRect().left);
+    place(b, true);
+    blockClick = true; setTimeout(() => { blockClick = false; }, 60);
+    if (b && !b.classList.contains('on')) { haptic('medium'); b.click(); } else sync();
+  };
+  seg.addEventListener('pointerup', end);
+  seg.addEventListener('pointercancel', end);
+  // the synthetic click after a drag must not pick the button the finger started on
+  seg.addEventListener('click', e => { if (blockClick && e.isTrusted) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+new MutationObserver(() => document.querySelectorAll('.seg:not(.glass)').forEach(glassSeg))
+  .observe(document.documentElement, { childList: true, subtree: true });
 
 /* ============ swipe from the left edge = back ============ */
 (() => {

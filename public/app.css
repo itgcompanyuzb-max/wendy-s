@@ -438,3 +438,13 @@ svg { display: block; }
 .st-prev, .st-next { position: absolute; z-index: 2; top: 80px; bottom: 120px; width: 35%; } .st-prev { left: 0; } .st-next { right: 0; }
 .st-btn { position: absolute; z-index: 3; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); width: auto; text-decoration: none; }
 .st-tag.st-new { color: #ffc83d; background: rgba(255,200,61,.15); } .st-tag.st-cooking { color: #ffa24a; background: rgba(255,162,74,.15); } .st-tag.st-ready, .st-tag.st-delivering { color: #5ab0ff; background: rgba(90,176,255,.15); } .st-tag.st-done { color: #34d17a; background: rgba(52,209,122,.15); } .st-tag.st-cancelled { color: #ff6b81; background: rgba(226,32,61,.15); }
+/* ===== Liquid Glass ===== */
+.seg, .map-x, .locate { background: rgba(30,30,34,.5) !important; -webkit-backdrop-filter: blur(22px) saturate(1.9); backdrop-filter: blur(22px) saturate(1.9); border: .5px solid rgba(255,255,255,.16); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -1px 0 rgba(0,0,0,.25), 0 10px 30px rgba(0,0,0,.35); }
+.seg[style*="static"] { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+.seg.glass { position: absolute; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.seg.glass[style*="static"] { position: relative !important; }
+.seg.glass button { position: relative; z-index: 1; background: none !important; transition: transform .25s cubic-bezier(.3,1.4,.5,1), opacity .2s; }
+.seg.glass .lens { position: absolute; z-index: 0; top: 5px; height: 0; left: 5px; width: 0; border-radius: 26px; background: var(--or); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 6px rgba(0,0,0,.18), 0 4px 14px rgba(226,32,61,.35); transition: left .38s cubic-bezier(.3,1.35,.5,1), width .38s cubic-bezier(.3,1.35,.5,1), transform .3s cubic-bezier(.3,1.5,.5,1), background .25s, box-shadow .25s; pointer-events: none; }
+.seg.glass.drag .lens { transform: scale(1.12, 1.28); background: rgba(255,255,255,.14); -webkit-backdrop-filter: blur(1.5px) saturate(2.2) brightness(1.15); backdrop-filter: blur(1.5px) saturate(2.2) brightness(1.15); box-shadow: inset 0 1.5px 0 rgba(255,255,255,.75), inset 0 -1.5px 1px rgba(255,255,255,.3), inset 0 0 12px rgba(255,255,255,.18), 0 10px 26px rgba(0,0,0,.4); }
+.seg.glass.drag button.hover { transform: scale(1.06); }
+.cart-fab { background-image: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 55%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -2px 6px rgba(0,0,0,.15), 0 10px 28px rgba(226,32,61,.45); border: .5px solid rgba(255,255,255,.25); }
