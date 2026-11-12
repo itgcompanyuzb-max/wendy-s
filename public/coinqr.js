@@ -22,7 +22,6 @@ function renderCoinQR() {
     <div class="cq-code">${CQ.code ? CQ.code.replace(/^(..)(....)(....)(..)$/, '$1 $2 $3 $4') : '&nbsp;'}</div>
     <div class="cq-timer"><div class="cq-bar"><i style="width:${CQ.code ? (left / total) * 100 : 0}%"></i></div><span id="cqt">${CQ.code ? `Обновится через ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Создаём код…'}</span></div>
     <div class="cq-bal"><span>На балансе</span><b>${cqFmt(St.user?.coins)} <img src="/img/coin.png" alt=""></b></div>
-    <div class="cq-more">${walletBtn()}<button class="cq-hist" onclick="A.coinLog()">История операций</button></div>
   </div>`;
 }
 
@@ -31,6 +30,7 @@ async function cqNew() {
     const r = await api('/coins/qr', { method: 'POST' });
     CQ.code = r.code; CQ.total = r.expires_in; CQ.exp = Date.now() + r.expires_in * 1000; CQ.err = '';
     if (St.user) St.user.coins = r.coins;
+    renderCoinBar();
   } catch (e) { CQ.code = ''; CQ.err = e.message; }
   Sh.refresh('coinqr');
 }
@@ -54,51 +54,45 @@ A.coinQR = () => {
       const r = await api('/coins/qr/' + CQ.code);
       if (r.state === 'used') {
         CQ.done = r; if (St.user) St.user.coins = r.coins;
-        clearInterval(CQ.poll); haptic('success'); Sh.refresh('coinqr'); Sh.refresh('profile'); Sh.refresh('coinshop');
+        clearInterval(CQ.poll); haptic('success'); Sh.refresh('coinqr'); Sh.refresh('profile'); Sh.refresh('coinshop'); Sh.refresh('coins'); renderCoinBar();
       }
     } catch { /* offline for a moment: try again on the next tick */ }
   }, 2500);
 };
 
-/* ---------- WendyCoin history ---------- */
-const CL = { items: null, err: '' };
+/* ---------- WendyCoin screen: balance, QR for the restaurant, history ---------- */
+const CL = { items: null, err: '', tab: 'hist' };
 const clDate = s => { const d = new Date(String(s).replace(' ', 'T') + 'Z'); return isNaN(d) ? s : d.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); };
-const clIcon = it => it.delta > 0 ? '＋' : /ресторан/i.test(it.reason) ? '🏪' : /заказ/i.test(it.reason) ? '🛍' : '−';
-function renderCoinLog() {
-  const list = CL.items;
-  return `<div class="grab"></div><div class="body cl">
-    <h2 class="cq-t" style="text-align:left;margin:4px 4px 14px">История WendyCoin</h2>
-    <div class="cl-bal"><div><small>Баланс</small><b>${cqFmt(St.user?.coins)}</b></div><img src="/img/coin.png" alt=""></div>
-    <div class="cl-acts"><button onclick="A.coinQR()">${I.qr(20)} QR для оплаты</button>${walletBtn()}</div>
-    ${list === null ? `<div class="gray-t" style="padding:24px;text-align:center">${CL.err ? esc(CL.err) : 'Загружаем…'}</div>`
-      : list.length ? list.map(it => `<div class="cl-it"><span class="cl-ic ${it.delta > 0 ? 'in' : 'out'}">${clIcon(it)}</span><div class="cl-tx"><b>${esc(it.reason || (it.delta > 0 ? 'Начисление' : 'Списание'))}</b><small>${esc(clDate(it.created_at))}</small></div><span class="cl-d ${it.delta > 0 ? 'in' : 'out'}">${it.delta > 0 ? '+' : '−'}${cqFmt(Math.abs(it.delta))}</span></div>`).join('')
-      : '<div class="gray-t" style="padding:28px 10px;text-align:center">Пока нет операций. За каждый заказ мы начисляем WendyCoin.</div>'}
-    ${St.menu.settings.wallet && isApple() ? `<button class="cl-reissue" onclick="A.walletReissue()">Перевыпустить карту Apple Wallet</button>` : ''}
-  </div>`;
+const clIcon = it => it.delta > 0 ? I.plus(20, '#34c759') : /ресторан/i.test(it.reason) ? I.qr(20, '#ddd') : I.bag(20, '#ddd');
+function renderCoins() {
+  const list = CL.items, coins = St.user?.coins || 0, pct = St.menu.settings.coin_percent || 10, rate = St.menu.settings.coin_value || 1;
+  const hist = list === null ? `<div class="gray-t" style="padding:24px;text-align:center">${CL.err ? esc(CL.err) : 'Загружаем…'}</div>`
+    : list.length ? list.map(it => `<div class="cl-it"><span class="cl-ic ${it.delta > 0 ? 'in' : 'out'}">${clIcon(it)}</span><div class="cl-tx"><b>${esc(clDate(it.created_at))}</b><small>${esc(it.reason || (it.delta > 0 ? 'Начисление' : 'Списание'))}</small></div><span class="cl-d ${it.delta > 0 ? 'in' : 'out'}">${it.delta > 0 ? '+' : '−'}${cqFmt(Math.abs(it.delta))}</span></div>`).join('')
+      : '<div class="gray-t" style="padding:28px 10px;text-align:center">Пока нет операций. За каждый заказ мы начисляем WendyCoin.</div>';
+  const how = `<div class="cl-how"><div><b>${pct}%</b><span>от каждого заказа возвращаем в WendyCoin</span></div><div><b>1 = ${cqFmt(rate)} so'm</b><span>столько стоит 1 WendyCoin при оплате</span></div><div><b>QR</b><span>покажите код кассиру или киоску — оплатите коинами в ресторане</span></div><div><b>${I.bag(26)}</b><span>в приложении меняйте коины на соусы, напитки и другие товары</span></div></div>`;
+  return `<div class="cl-top">
+      <div class="cl-h"><span>WendyCoin</span><button onclick="Sh.close('coins')" aria-label="close">${I.down(26)}</button></div>
+      <div class="cl-big"><img src="/img/coin.png" alt=""><b>${cqFmt(coins)}</b></div>
+      <div class="cl-qr"><span>QR-код для оплаты в ресторане</span><button onclick="A.coinQR()">${I.qr(22, '#111')} Открыть</button></div>
+      ${coins ? `<button class="cl-main" onclick="Sh.close('coins');A.coinShop()">Обменять на товары</button>` : `<div class="cl-first">Получите первые WendyCoin</div><button class="cl-main" onclick="Sh.close('coins')">Сделать заказ</button>`}
+    </div>
+    <div class="body cl">
+      <div class="seg cl-seg" style="position:static;margin:4px 0 14px;padding:5px"><button class="${CL.tab === 'hist' ? 'on' : ''}" onclick="CL.tab='hist';Sh.refresh('coins')">История</button><button class="${CL.tab === 'how' ? 'on' : ''}" onclick="CL.tab='how';Sh.refresh('coins')">Как это работает</button></div>
+      ${CL.tab === 'hist' ? hist : how}
+    </div>`;
 }
-A.coinLog = () => {
-  if (!St.token) return toast('Войдите, чтобы видеть историю');
-  CL.items = null; CL.err = '';
-  Sh.open('coinlog', renderCoinLog, 'full');
-  api('/coins/history').then(r => { CL.items = r.items; if (St.user) St.user.coins = r.coins; }).catch(e => { CL.err = e.message; }).finally(() => Sh.refresh('coinlog'));
-};
-
-/* ---------- Apple Wallet card ---------- */
-const isApple = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-function walletBtn() {
-  if (!St.menu?.settings?.wallet || !isApple()) return '';
-  return `<button class="wallet-btn" onclick="A.addWallet()"><svg width="26" height="20" viewBox="0 0 26 20"><rect x="1" y="1" width="24" height="18" rx="4" fill="#fff"/><rect x="3" y="4" width="20" height="4" rx="1.5" fill="#34aadc"/><rect x="3" y="7" width="20" height="4" rx="1.5" fill="#ffcc00"/><rect x="3" y="10" width="20" height="4" rx="1.5" fill="#ff3b30"/><path d="M1 12h7c1 0 1.5 2.5 5 2.5S17 12 18 12h7v3a4 4 0 0 1-4 4H5a4 4 0 0 1-4-4z" fill="#fff"/></svg><span>Добавить в<br><b>Apple Wallet</b></span></button>`;
-}
-A.addWallet = async () => {
+A.coins = () => {
+  if (!St.token) return A.profile();
+  CL.items = null; CL.err = ''; CL.tab = 'hist';
   haptic('light');
-  try {
-    const r = await api('/wallet/link', { method: 'POST' });
-    // inside the iPhone app the pass opens in Safari, which shows the "Add to Wallet" sheet
-    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ open: r.url }));
-    else location.href = r.url;
-  } catch (e) { toast(e.message); }
+  Sh.open('coins', renderCoins, 'full');
+  api('/coins/history').then(r => { CL.items = r.items; if (St.user) St.user.coins = r.coins; renderCoinBar(); }).catch(e => { CL.err = e.message; }).finally(() => Sh.refresh('coins'));
 };
-A.walletReissue = async () => {
-  if (!confirm('Старый QR-код на карте перестанет работать, карта в Wallet обновится сама. Продолжить?')) return;
-  try { await api('/wallet/reissue', { method: 'POST' }); haptic('success'); toast('Карта перевыпущена'); } catch (e) { toast(e.message); }
-};
+A.coinLog = A.coins;
+
+/* ---------- the bar on the menu: balance + QR ---------- */
+function coinBarHTML() {
+  if (!St.token) return `<button class="coinbar" onclick="A.profile()"><span class="cb-l"><img src="/img/coin.png" alt=""><span class="cb-tx">Копите WendyCoin</span></span><span class="cb-qr">Войти</span></button>`;
+  return `<div class="coinbar"><button class="cb-l" onclick="A.coins()"><img src="/img/coin.png" alt=""><b>${cqFmt(St.user?.coins)}</b></button><button class="cb-qr" onclick="A.coinQR()">${I.qr(24)} QR-код</button></div>`;
+}
+function renderCoinBar() { const el = document.getElementById('coinbar'); if (el) el.innerHTML = coinBarHTML(); }

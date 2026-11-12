@@ -104,15 +104,23 @@
     'Достаточно': 'Yetarli',
   };
   Object.assign(D, {
+    'QR-код для оплаты в ресторане': 'Restoranda to\'lash uchun QR-kod', 'Открыть': 'Ochish', 'Обменять на товары': 'Mahsulotga almashtirish',
+    'Получите первые WendyCoin': 'Birinchi WendyCoin\'larni oling', 'Сделать заказ': 'Buyurtma berish', 'Как это работает': 'Qanday ishlaydi',
+    'от каждого заказа возвращаем в WendyCoin': 'har bir buyurtmadan WendyCoin qilib qaytaramiz', 'столько стоит 1 WendyCoin при оплате': 'to\'lovda 1 WendyCoin shuncha turadi',
+    'покажите код кассиру или киоску — оплатите коинами в ресторане': 'kodni kassir yoki kioskka ko\'rsating — restoranda coin bilan to\'lang',
+    'в приложении меняйте коины на соусы, напитки и другие товары': 'ilovada coinlarni souslar, ichimliklar va boshqa mahsulotlarga almashtiring',
+    'Копите WendyCoin': 'WendyCoin to\'plang', 'Войти': 'Kirish', 'QR-код': 'QR-kod',
+  });
+  Object.assign(D, {
     'Оплатить WendyCoin в ресторане': 'Restoranda WendyCoin bilan to\'lash', 'QR-код для кассы и киоска': 'Kassa va kiosk uchun QR-kod',
     'История WendyCoin': 'WendyCoin tarixi', 'Начисления и оплаты': 'Hisoblangan va sarflangan', 'Баланс': 'Balans', 'QR для оплаты': 'To\'lov uchun QR',
-    'История': 'Tarix', 'Перевыпустить карту Apple Wallet': 'Apple Wallet kartasini qayta chiqarish', 'Оплата WendyCoin': 'WendyCoin bilan to\'lov',
+    'История': 'Tarix', 'Оплата WendyCoin': 'WendyCoin bilan to\'lov',
     'Покажите код кассиру или поднесите к сканеру киоска': 'Kodni kassirga ko\'rsating yoki kiosk skaneriga tuting', 'На балансе': 'Balansda',
     'История операций': 'Amallar tarixi', 'Оплачено': 'To\'landi', 'Создаём код…': 'Kod yaratilmoqda…', 'Загружаем…': 'Yuklanmoqda…',
     'Пока нет операций. За каждый заказ мы начисляем WendyCoin.': 'Hozircha amallar yo\'q. Har bir buyurtma uchun WendyCoin hisoblaymiz.',
-    'Добавить в': 'Qo\'shish', 'Карта перевыпущена': 'Karta qayta chiqarildi', 'Войдите, чтобы платить WendyCoin': 'WendyCoin bilan to\'lash uchun kiring',
+    'Карта перевыпущена': 'Karta qayta chiqarildi', 'Войдите, чтобы платить WendyCoin': 'WendyCoin bilan to\'lash uchun kiring',
     'Войдите, чтобы видеть историю': 'Tarixni ko\'rish uchun kiring', 'Начисление': 'Hisoblandi', 'Списание': 'Sarflandi',
-    'Apple Wallet пока не подключён': 'Apple Wallet hali ulanmagan', 'Корректировка администратором': 'Administrator tuzatishi',
+    'Корректировка администратором': 'Administrator tuzatishi',
   });
   const MONTHS = { января: 'yanvar', февраля: 'fevral', марта: 'mart', апреля: 'aprel', мая: 'may', июня: 'iyun', июля: 'iyul', августа: 'avgust', сентября: 'sentabr', октября: 'oktabr', ноября: 'noyabr', декабря: 'dekabr' };
   const VERB = { принят: 'qabul qilindi', готов: 'tayyor', доставлен: 'yetkazildi', выдан: 'topshirildi', отменён: 'bekor qilindi', оформлен: 'rasmiylashtirildi' };

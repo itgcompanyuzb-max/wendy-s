@@ -449,8 +449,6 @@ svg { display: block; }
 .seg.glass.drag button.hover { transform: scale(1.06); }
 .cart-fab { background-image: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 55%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -2px 6px rgba(0,0,0,.15), 0 10px 28px rgba(226,32,61,.45); border: .5px solid rgba(255,255,255,.25); }
 /* ===== WendyCoin pay QR ===== */
-.qr-row { width: 100%; margin-top: 12px; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 24px; background: linear-gradient(135deg, rgba(226,32,61,.22), rgba(226,32,61,.06)); border: .5px solid rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12); text-align: left; }
-.qr-row span { flex: 1; min-width: 0; } .qr-row b { display: block; font-size: 17px; } .qr-row small { display: block; color: #9a9aa0; font-size: 14px; margin-top: 3px; }
 .cs-qr { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 11px 18px; border-radius: 22px; font-size: 16px; font-weight: 700; background: rgba(255,255,255,.1); border: .5px solid rgba(255,255,255,.18); box-shadow: inset 0 1px 0 rgba(255,255,255,.18); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
 .cq { text-align: center; padding: 6px 20px 26px; }
 .cq-t { font-size: 26px; margin: 4px 0 6px; } .cq-sub { color: #9a9aa0; font-size: 15px; margin: 0 auto 18px; max-width: 300px; line-height: 1.35; }
@@ -466,21 +464,27 @@ svg { display: block; }
 .cq-done { padding: 20px 0 6px; } .cq-done h2 { font-size: 28px; margin: 14px 0 8px; } .cq-done .btn { margin-top: 18px; }
 .cq-ok { display: block; margin: 0 auto; animation: okpop .5s cubic-bezier(.2,1.4,.4,1) both; } .cq-ok path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: okdraw .45s .35s ease-out forwards; }
 .cq-spent { display: inline-flex; align-items: center; gap: 8px; font-size: 34px; font-weight: 800; color: #f7b733; } .cq-spent img { width: 34px; height: 34px; }
-/* ===== WendyCoin history + Apple Wallet ===== */
-.qr-row.hist { background: rgba(255,255,255,.05); margin-top: 10px; }
+/* ===== WendyCoin screen + menu bar ===== */
 .cs-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.cq-more { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 16px; }
-.cq-hist { color: #c7c7cc; font-size: 15px; font-weight: 600; padding: 8px 14px; }
-.wallet-btn { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 20px 0 16px; border-radius: 12px; background: #000; color: #fff; border: 1px solid #a6a6a6; text-align: left; font-size: 11px; line-height: 1.15; }
-.wallet-btn b { font-size: 17px; font-weight: 600; }
-.cl { padding: 10px 16px 30px; }
-.cl-bal { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-radius: 26px; background: linear-gradient(135deg, #d61834, #f04050 60%, #f7b733); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 30px rgba(226,32,61,.3); }
-.cl-bal small { display: block; font-size: 14px; opacity: .85; } .cl-bal b { font-size: 38px; font-weight: 800; } .cl-bal img { width: 64px; height: 64px; }
-.cl-acts { display: flex; gap: 10px; align-items: center; margin: 14px 0 18px; flex-wrap: wrap; }
-.cl-acts > button:first-child { display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 18px; border-radius: 26px; background: rgba(255,255,255,.08); border: .5px solid rgba(255,255,255,.16); font-size: 16px; font-weight: 700; }
 .cl-it { display: flex; align-items: center; gap: 12px; padding: 14px 4px; border-bottom: .5px solid rgba(255,255,255,.08); }
 .cl-ic { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; font-weight: 700; }
 .cl-ic.in { background: rgba(52,199,89,.16); color: #34c759; } .cl-ic.out { background: rgba(255,255,255,.08); }
 .cl-tx { flex: 1; min-width: 0; } .cl-tx b { display: block; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .cl-tx small { color: #8e8e93; font-size: 13.5px; }
 .cl-d { font-size: 17px; font-weight: 800; white-space: nowrap; } .cl-d.in { color: #34c759; }
-.cl-reissue { display: block; margin: 22px auto 0; color: #8e8e93; font-size: 14px; text-decoration: underline; }
+.coinbar { display: flex; align-items: center; gap: 10px; width: calc(100% - 32px); margin: 4px 16px 14px; height: 64px; padding: 0 8px 0 10px; border-radius: 22px; background: linear-gradient(120deg, #b5122b, #e2203d 55%, #f0504f); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 10px 26px rgba(226,32,61,.28); }
+.coinbar .cb-l { flex: 1; display: flex; align-items: center; gap: 10px; height: 100%; min-width: 0; text-align: left; }
+.coinbar .cb-l img { width: 42px; height: 42px; } .coinbar .cb-l b { font-size: 26px; font-weight: 800; } .coinbar .cb-tx { font-size: 18px; font-weight: 700; }
+.coinbar .cb-qr { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 18px; border-radius: 16px; font-size: 18px; font-weight: 700; color: #fff; background: rgba(255,255,255,.16); border: .5px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+.cl-top { position: relative; padding: max(14px, env(safe-area-inset-top)) 18px 22px; background: radial-gradient(120% 90% at 50% 0%, #f0504f, #c4162f 55%, #8e0d22); text-align: center; border-radius: 0 0 30px 30px; }
+.cl-h { display: flex; align-items: center; justify-content: space-between; font-size: 30px; font-weight: 800; }
+.cl-h button { width: 44px; height: 44px; display: grid; place-items: center; }
+.cl-big { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0 18px; } .cl-big img { width: 56px; height: 56px; } .cl-big b { font-size: 52px; font-weight: 800; }
+.cl-qr { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 14px 14px 18px; border-radius: 22px; background: rgba(255,255,255,.14); border: .5px solid rgba(255,255,255,.22); text-align: left; font-size: 17px; font-weight: 600; }
+.cl-qr button { flex: none; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 18px; border-radius: 24px; background: #fff; color: #111; font-size: 17px; font-weight: 700; }
+.cl-first { margin: 18px 0 10px; font-size: 16px; font-weight: 600; }
+.cl-main { display: block; width: 100%; height: 58px; margin-top: 14px; border-radius: 29px; background: #ffc72c; color: #1a1a1a; font-size: 19px; font-weight: 800; }
+.cl-first + .cl-main { margin-top: 0; }
+.body.cl { padding: 16px 16px 30px; }
+.cl-seg.seg button { height: 44px; font-size: 16px; }
+.cl-how { display: grid; gap: 10px; } .cl-how > div { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: rgba(255,255,255,.06); }
+.cl-how b { flex: none; min-width: 82px; text-align: center; font-size: 20px; font-weight: 800; color: #ffc72c; } .cl-how span { color: #c7c7cc; font-size: 15px; line-height: 1.35; }
