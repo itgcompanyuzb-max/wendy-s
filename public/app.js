@@ -76,12 +76,20 @@ function lockMap(map) {
   fit(); map.on('resize', fit);
 }
 // select / light / medium / success / warning
+let lastHaptic = 0;
 const haptic = k => {
+  lastHaptic = Date.now();
   try {
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ haptic: k }));
     else if (navigator.vibrate) navigator.vibrate({ select: 6, light: 10, medium: 18, success: [14, 70, 14, 70, 28], warning: [30, 60, 30] }[k] || 8);
   } catch { /* no vibration here */ }
 };
+// inside the iPhone app every button answers with a light tick, like native buttons (unless it already gave its own)
+document.addEventListener('click', e => {
+  if (!window.ReactNativeWebView || !e.target.closest?.('button, a, [onclick], .pc, .list-it')) return;
+  const t = Date.now();
+  setTimeout(() => { if (lastHaptic < t) haptic('select'); }, 0);
+}, true);
 const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
 const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
 function totals() {
