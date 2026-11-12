@@ -430,8 +430,6 @@ svg { display: block; }
 .meth { width: auto; padding: 8px 6px 12px; font-size: 14px; border-radius: 20px; } .meth img, .meth svg { height: 78px; }
 .form-view .success .ok.anim { animation: okpop .5s cubic-bezier(.2,1.4,.4,1) both; } .success .ok.anim path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: okdraw .45s .35s ease-out forwards; }
 @keyframes okpop { from { transform: scale(.3); opacity: 0; } } @keyframes okdraw { to { stroke-dashoffset: 0; } }
-.orders-fab { background: #1c1c20; border: 1.5px solid rgba(255,255,255,.12); gap: 10px; } .orders-fab small { font-size: 13px; font-weight: 600; color: #8ff0b8; margin-left: 2px; }
-.orders-fab .pulse { width: 10px; height: 10px; border-radius: 50%; background: #34d17a; box-shadow: 0 0 0 0 rgba(52,209,122,.6); animation: pulse 1.6s infinite; } @keyframes pulse { 70% { box-shadow: 0 0 0 10px rgba(52,209,122,0); } 100% { box-shadow: 0 0 0 0 rgba(52,209,122,0); } }
 .sheet.story-sheet { background: #000; } .stv { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .st-bars { position: absolute; z-index: 3; left: 10px; right: 10px; top: max(10px, env(safe-area-inset-top)); display: flex; gap: 4px; } .st-bars i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.3); overflow: hidden; } .st-bars b { display: block; height: 100%; width: 0; background: #fff; } .st-bars b.done { width: 100%; } .st-bars b.run { animation: stbar linear forwards; } @keyframes stbar { to { width: 100%; } }
 .st-x { position: absolute; z-index: 4; right: 10px; top: calc(max(10px, env(safe-area-inset-top)) + 12px); width: 44px; height: 44px; display: grid; place-items: center; }
@@ -439,3 +437,4 @@ svg { display: block; }
 .st-txt { margin: 0 16px; border-radius: 22px; padding: 28px 22px; min-height: 260px; width: calc(100% - 32px); display: flex; align-items: flex-end; font-size: 30px; font-weight: 800; line-height: 1.15; }
 .st-prev, .st-next { position: absolute; z-index: 2; top: 80px; bottom: 120px; width: 35%; } .st-prev { left: 0; } .st-next { right: 0; }
 .st-btn { position: absolute; z-index: 3; left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); width: auto; text-decoration: none; }
+.st-tag.st-new { color: #ffc83d; background: rgba(255,200,61,.15); } .st-tag.st-cooking { color: #ffa24a; background: rgba(255,162,74,.15); } .st-tag.st-ready, .st-tag.st-delivering { color: #5ab0ff; background: rgba(90,176,255,.15); } .st-tag.st-done { color: #34d17a; background: rgba(52,209,122,.15); } .st-tag.st-cancelled { color: #ff6b81; background: rgba(226,32,61,.15); }
