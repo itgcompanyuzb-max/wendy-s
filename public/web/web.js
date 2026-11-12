@@ -131,7 +131,16 @@ const IC = {
 
 /* ---------- maps ---------- */
 const tiles = () => { const k = St.menu?.settings?.yandex_key; return k ? L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/tiles/?lang=${LANG === 'uz' ? 'uz_UZ' : 'ru_RU'}&x={x}&y={y}&z={z}&l=map&apikey=${k}`, { maxZoom: 19 }) : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }); };
-const newMap = (el, o = {}) => L.map(el, { attributionControl: false, zoomControl: false, ...(St.menu?.settings?.yandex_key ? { crs: L.CRS.EPSG3395 } : {}), ...o });
+const mapBounds = () => { try { const b = JSON.parse(St.menu?.settings?.map_bounds || 'null'); if (b) return b; } catch { /* default */ } return [[41.12, 68.95], [41.52, 69.62]]; };
+// every map stays inside the city the admin chose (Admin > Доставка)
+const newMap = (el, o = {}) => {
+  const m = L.map(el, { attributionControl: false, zoomControl: false, ...(St.menu?.settings?.yandex_key ? { crs: L.CRS.EPSG3395 } : {}), ...o });
+  const b = L.latLngBounds(mapBounds());
+  m.setMaxBounds(b.pad(0.05)); m.options.maxBoundsViscosity = 1;
+  const fit = () => { if (m.getSize().x) m.setMinZoom(Math.max(8, Math.floor(m.getBoundsZoom(b, true)))); };
+  setTimeout(fit, 80); m.on('resize', fit);
+  return m;
+};
 const logoIcon = () => L.divIcon({ className: '', html: '<div class="zmk"><img src="/img/brand.png" alt=""></div>', iconSize: [52, 60], iconAnchor: [26, 60] });
 function drawZones(map, opts = {}) {
   const layers = St.zones.map(z => L.polygon(z.polys, { color: z.color || '#e2203d', weight: opts.weight ?? 2.5, fillOpacity: opts.fill ?? .28 }).addTo(map));

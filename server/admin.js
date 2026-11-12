@@ -302,6 +302,16 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
       up.run(k, v.slice(0, 300));
     }
     if (req.body.about_text !== undefined) up.run('about_text', String(req.body.about_text).trim().slice(0, 600));
+    if (req.body.map_bounds !== undefined) {
+      let v = '';
+      if (req.body.map_bounds) {
+        const b = Array.isArray(req.body.map_bounds) ? req.body.map_bounds : null;
+        const ok = b && b.length === 2 && b.flat().length === 4 && b.flat().every(Number.isFinite) && b[0][0] < b[1][0] && b[0][1] < b[1][1];
+        if (!ok) return fail(res, 400, 'Неверная область карты');
+        v = JSON.stringify(b.map(p => p.map(n => Math.round(n * 1e5) / 1e5)));
+      }
+      up.run('map_bounds', v);
+    }
     if (req.body.product_image_shape !== undefined) up.run('product_image_shape', req.body.product_image_shape === 'circle' ? 'circle' : 'square');
     audit(req, 'settings_changed', 'settings'); res.json({ ok: true });
   });

@@ -292,6 +292,9 @@ async function deliveryZones(main, tabs) {
   const map = newMap('zmap').setView([41.3111, 69.2797], 11); tiles().addTo(map);
   const zl = L.layerGroup().addTo(map), bl = L.layerGroup().addTo(map), el = L.layerGroup().addTo(map);
   let ed = null, drawing = false, found = [];
+  let mapArea = await (async () => { try { return JSON.parse((await api('settings')).rows.find(r => r.key === 'map_bounds')?.value || 'null'); } catch { return null; } })();
+  let areaRect = null;
+  const showArea = () => { if (areaRect) map.removeLayer(areaRect); areaRect = L.rectangle(mapArea || [[41.12, 68.95], [41.52, 69.62]], { color: '#5ab0ff', weight: 2, dashArray: '8 8', fill: false, interactive: false }).addTo(map); };
   const branchName = b => b.name || b.address;
   const fit = polys => { const pts = polys.flatMap(p => p[0]); if (pts.length) map.fitBounds(pts, { padding: [40, 40] }); };
   const drawAll = () => {
@@ -318,7 +321,10 @@ async function deliveryZones(main, tabs) {
     $('#zpanel').innerHTML = `<div class="row" style="border:0;padding-top:0"><h3 style="margin:0">Зоны доставки</h3><button class="btn sm primary" data-z="new">+ Новая зона</button></div>
       ${zones.length ? '' : '<p class="muted">Зон пока нет — доставка работает по радиусу каждого филиала. После сохранения первой зоны заказы принимаются <b>только внутри зон</b>, и каждую зону обслуживают выбранные вами филиалы.</p>'}
       ${zones.map(z => `<div class="row" style="cursor:pointer" data-z="edit" data-id="${z.id}"><span style="display:flex;gap:10px;align-items:center"><i style="width:14px;height:14px;border-radius:4px;background:${esc(z.color)};display:inline-block"></i><span><b>${esc(z.name)}</b><div class="faint" style="font-size:12px">${z.branch_ids.length ? z.branch_ids.map(id => esc(branchName(S.branches.find(b => b.id === id) || { name: '#' + id }))).join(', ') : '<span style="color:var(--bad)">нет филиалов</span>'}</div></span></span><span class="pill ${z.active ? 'ok' : 'bad'}">${z.active ? 'вкл' : 'выкл'}</span></div>`).join('')}
-      ${zones.length && free.length ? `<p class="muted" style="font-size:13px;margin-bottom:0">Филиалы без зоны (не получают доставку): ${free.map(b => esc(branchName(b))).join(', ')}</p>` : ''}`;
+      ${zones.length && free.length ? `<p class="muted" style="font-size:13px;margin-bottom:0">Филиалы без зоны (не получают доставку): ${free.map(b => esc(branchName(b))).join(', ')}</p>` : ''}
+      <div style="border-top:1px solid var(--stroke-soft);margin-top:16px;padding-top:14px"><b>Область карты для клиентов</b>
+      <p class="muted" style="font-size:13px;margin:4px 0 10px">Клиенты видят на карте только эту область (например, только Ташкент). Покажите нужный город на карте слева и нажмите кнопку.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" data-z="bounds">Сохранить текущую область</button>${mapArea ? '<button class="btn sm" data-z="boundsoff">Сбросить (Ташкент)</button>' : ''}</div></div>`;
   };
   const panel = () => {
     if (!ed) return list();
@@ -350,6 +356,10 @@ async function deliveryZones(main, tabs) {
     if (a === 'new') edit(null);
     else if (a === 'edit') edit(zones.find(z => z.id === Number(t.dataset.id)));
     else if (a === 'cancel') { ed = null; drawing = false; panel(); drawAll(); }
+    else if (a === 'bounds' || a === 'boundsoff') {
+      const b = map.getBounds(); const v = a === 'bounds' ? [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]] : '';
+      try { await api('settings', 'PUT', { map_bounds: v }, true); mapArea = v || null; showArea(); panel(); toast(v ? 'Область карты сохранена' : 'Сброшено: Ташкент'); } catch (er) { toast(er.message); }
+    }
     else if (a === 'active') { ed.active = ed.active ? 0 : 1; t.classList.toggle('on', !!ed.active); }
     else if (a === 'draw') { drawing = !drawing; panel(); drawAll(); }
     else if (a === 'undo') { ed.polys[0][0].pop(); if (!ed.polys[0][0].length) ed.polys = []; panel(); drawAll(); }
@@ -375,7 +385,7 @@ async function deliveryZones(main, tabs) {
       try { await api('zones/' + ed.id, 'DELETE', null, true); zones = (await api('zones')).rows; ed = null; drawing = false; panel(); drawAll(); } catch (er) { toast(er.message); }
     }
   });
-  panel(); drawAll();
+  panel(); drawAll(); showArea();
   const all = zones.flatMap(z => z.polys); if (all.length) fit(all); else if (S.branches.length) map.fitBounds(S.branches.map(b => [b.lat, b.lng]), { padding: [60, 60], maxZoom: 12 });
 }
 async function deliveryRadius(main, tabs) {

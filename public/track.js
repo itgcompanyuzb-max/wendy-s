@@ -70,6 +70,7 @@ A.track = id => {
   Sh.open('track', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 8px"><button onclick="Sh.close('track')">${I.x()}</button><b style="font-size:18px">Заказ №${id}</b><span style="width:28px"></span></div>
     <div id="tmap"></div><div class="tpanel" id="tpanel">Загрузка…</div>`, 'full', () => { clearInterval(T.timer); if (T.geo != null) navigator.geolocation.clearWatch(T.geo); });
   T.map = L.map('tmap', { zoomControl: false, attributionControl: false, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView([41.3111, 69.2797], 13);
+  lockMap(T.map);
   tile().addTo(T.map);
   T.map.on('zoomend', () => { const im = T.m.c?._icon?.querySelector('img'); if (im) im.style.width = cSize(T.map.getZoom()) + 'px'; });
   setTimeout(() => T.map.invalidateSize(), 150);
