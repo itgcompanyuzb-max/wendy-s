@@ -6,6 +6,18 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
+import * as Haptics from 'expo-haptics';
+
+// the web app asks for vibration with postMessage({ haptic: 'select' | 'light' | 'medium' | 'success' | 'warning' })
+function onWebMessage(e) {
+  let m; try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
+  const k = m && m.haptic;
+  if (k === 'select') Haptics.selectionAsync();
+  else if (k === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  else if (k === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  else if (k === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  else if (k === 'warning') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+}
 
 const KEY = 'wendys_server_url';
 // the live site; the app opens it straight away (long-press the gear in the corner to use another server)
@@ -99,6 +111,7 @@ export default function App() {
         startInLoadingState
         renderLoading={() => <View style={[s.fill, s.center]}><ActivityIndicator color={RED} /></View>}
         onNavigationStateChange={(st) => { canGoBack.current = st.canGoBack; }}
+        onMessage={onWebMessage}
         onError={() => setFailed(true)}
         onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) setFailed(true); }}
         geolocationEnabled

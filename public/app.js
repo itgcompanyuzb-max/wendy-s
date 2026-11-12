@@ -67,6 +67,21 @@ const qty = id => St.cart.find(c => c.id === id && !c.coin)?.qty || 0;
 const coinsInCart = () => St.cart.reduce((n, c) => n + (c.coin ? (prod(c.id)?.coin_cost || 0) * c.qty : 0), 0);
 const cartCount = () => St.cart.reduce((s, c) => s + c.qty, 0);
 function saveCart() { LS.set('cart', St.cart); }
+// the city the admin chose (Admin > Доставка); default: Tashkent and around
+const mapBounds = () => { try { const b = JSON.parse(St.menu?.settings?.map_bounds || 'null'); if (b) return b; } catch { /* default */ } return [[41.12, 68.95], [41.52, 69.62]]; };
+function lockMap(map) {
+  const b = L.latLngBounds(mapBounds());
+  map.setMaxBounds(b.pad(0.05)); map.options.maxBoundsViscosity = 1;
+  const fit = () => { map.setMinZoom(Math.max(8, Math.floor(map.getBoundsZoom(b, true)))); };
+  fit(); map.on('resize', fit);
+}
+// select / light / medium / success / warning
+const haptic = k => {
+  try {
+    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ haptic: k }));
+    else if (navigator.vibrate) navigator.vibrate({ select: 6, light: 10, medium: 18, success: [14, 70, 14, 70, 28], warning: [30, 60, 30] }[k] || 8);
+  } catch { /* no vibration here */ }
+};
 const inRing = (lat, lng, ring) => { let ins = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [yi, xi] = ring[i], [yj, xj] = ring[j]; if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
 const inPolys = (lat, lng, polys) => polys.some(([outer, ...holes]) => inRing(lat, lng, outer) && !holes.some(h => inRing(lat, lng, h)));
 function totals() {
@@ -79,8 +94,8 @@ function totals() {
   return { spent: coinsInCart(), sub, full: full + fee, discount, fee, total, coins: Math.round(total * (St.menu.settings.coin_percent || 10) / 100) };
 }
 const A = {};
-A.add = id => { const c = St.cart.find(x => x.id === id && !x.coin); if (c) c.qty = Math.min(50, c.qty + 1); else St.cart.push({ id, qty: 1 }); cartChanged(); };
-A.dec = id => { const c = St.cart.find(x => x.id === id && !x.coin); if (!c) return; c.qty--; if (c.qty <= 0) St.cart = St.cart.filter(x => x !== c); cartChanged(); };
+A.add = id => { const c = St.cart.find(x => x.id === id && !x.coin); if (c) c.qty = Math.min(50, c.qty + 1); else St.cart.push({ id, qty: 1 }); haptic('light'); cartChanged(); };
+A.dec = id => { const c = St.cart.find(x => x.id === id && !x.coin); if (!c) return; haptic('light'); c.qty--; if (c.qty <= 0) St.cart = St.cart.filter(x => x !== c); cartChanged(); };
 A.del = id => { St.cart = St.cart.filter(x => x.id !== id || x.coin); cartChanged(); };
 A.addCoin = id => {
   const p = prod(id);
@@ -148,7 +163,7 @@ const Sh = {
       if (dy > 90 || (fast && dy > 40)) {
         sheet.style.transition = 'transform .2s ease-in'; sheet.style.transform = 'translateY(105%)';
         back.style.transition = 'opacity .2s'; back.style.opacity = '0';
-        setTimeout(() => this.close(name), 190);
+        haptic('light'); setTimeout(() => this.close(name), 190);
       } else {
         sheet.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'; sheet.style.transform = '';
         back.style.opacity = '';
@@ -171,6 +186,20 @@ const Sh = {
   closeAll() { Object.keys(this.stack).forEach(n => this.close(n)); },
 };
 
+/* ============ swipe from the left edge = back ============ */
+(() => {
+  let x0 = null, y0 = 0;
+  document.addEventListener('touchstart', e => { const t = e.touches[0]; x0 = t.clientX < 24 ? t.clientX : null; y0 = t.clientY; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = Math.abs(t.clientY - y0); x0 = null;
+    if (dx < 80 || dy > 70) return;
+    const open = Object.keys(Sh.stack);
+    if (open.length) { haptic('light'); Sh.close(open[open.length - 1]); }
+    else if (St.map) { haptic('light'); go('home'); }
+  }, { passive: true });
+})();
+
 /* ============ view routing ============ */
 function go(name, arg) {
   Sh.closeAll();
@@ -187,7 +216,6 @@ function loginView() {
     <div class="top-row"><button onclick="go('home')">${I.x()}</button><span></span><button class="link-or" onclick="A.support()">Поддержка</button></div>
     <div class="hero"></div>
     <h1>Войдите в профиль</h1>
-    <div class="sub">Чтобы копить коины и получать персональные скидки</div>
     <button class="btn" onclick="go('phone')">Указать телефон</button>
     <div class="legal"><a href="#" onclick="A.legal();return false">Правовые документы</a><br>Версия ${VERSION}</div>
   </div>`;
@@ -349,6 +377,7 @@ function mapView(mode = 'delivery') {
     <div class="map-sheet" id="msheet"></div>
   </div>`;
   const map = St.map = L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: .5, ...(St.menu.settings.yandex_key ? { crs: L.CRS.EPSG3395 } : {}) }).setView(TASH, 12);
+  lockMap(map);
   tile().addTo(map);
   // delivery zones drawn by the admin (real district borders); customers see where we deliver
   (St.zones ? Promise.resolve() : api('/zones').then(r => { St.zones = r.zones; }).catch(() => { St.zones = []; }))
@@ -584,7 +613,7 @@ function homeView() {
     const top = hb.getBoundingClientRect().top + 110; let cur = St.cat;
     document.querySelectorAll('[data-sec]').forEach(s => { if (s.getBoundingClientRect().top <= top) cur = Number(s.dataset.sec); });
     if (cur !== St.cat) {
-      St.cat = cur;
+      St.cat = cur; haptic('select'); // a soft tick for every category passed
       document.querySelectorAll('.catbar .ch').forEach(c => { const on = Number(c.dataset.cat) === cur; c.classList.toggle('on', on); if (on) centerChip(c); });
     }
   }, { passive: true });
@@ -602,15 +631,25 @@ function renderSections() {
   }
   $('#sections').innerHTML = html || '<div class="empty">Ничего не найдено</div>';
 }
+const ACTIVE = ['new', 'cooking', 'ready', 'delivering'];
 function renderFab() {
   const f = $('#fab'); if (!f) return;
   const n = cartCount();
-  f.innerHTML = n ? `<button class="cart-fab" onclick="A.cart()">${I.bag(30)}${money(totals().total)}</button>` : '';
+  const act = (St.orders || []).find(o => ACTIVE.includes(o.status));
+  f.innerHTML = n ? `<button class="cart-fab" onclick="A.cart()">${I.bag(30)}${money(totals().total)}</button>`
+    : act ? `<button class="cart-fab orders-fab" onclick="haptic('medium');A.profile()"><span class="pulse"></span>Мои заказы<small>${esc(ST_NAMES[act.status] || '')}</small></button>` : '';
+}
+// keep the "Мои заказы" button's status fresh while an order is active
+function refreshOrders() {
+  clearTimeout(refreshOrders.t);
+  if (!St.token) return;
+  api('/orders', { noLogout: true }).then(r => { St.orders = r.orders; renderFab(); }).catch(() => { });
+  refreshOrders.t = setTimeout(() => { if ((St.orders || []).some(o => ACTIVE.includes(o.status))) refreshOrders(); }, 20000);
 }
 A.toggleSearch = () => { St.searchOpen = !St.searchOpen; if (!St.searchOpen) St.q = ''; homeView(); };
 const centerChip = c => { const bar = c.parentElement; bar.scrollTo({ left: c.offsetLeft - (bar.clientWidth - c.offsetWidth) / 2, behavior: 'smooth' }); };
 A.gotoCat = id => {
-  St.q = ''; St.cat = id; St.lock = true;
+  St.q = ''; St.cat = id; St.lock = true; haptic('select');
   const s = document.querySelector(`[data-sec="${id}"]`); const hb = $('#hb');
   if (s) hb.scrollTo({ top: Math.max(0, s.offsetTop - 64), behavior: 'smooth' });
   document.querySelectorAll('.catbar .ch').forEach(c => { const on = Number(c.dataset.cat) === id; c.classList.toggle('on', on); if (on) centerChip(c); });
@@ -647,7 +686,7 @@ A.delAddr = async id => {
 A.openMap = (m, after) => { St.afterMap = after || null; go('map', m); };
 
 /* ============ cart sheet ============ */
-A.cart = () => Sh.open('cart', renderCart, 'tall');
+A.cart = () => { haptic('medium'); Sh.open('cart', renderCart, 'tall'); };
 function renderCart() {
   const t = totals(); const n = cartCount();
   if (!n) return `<div class="grab"></div><div class="empty">Корзина пуста</div>`;
@@ -792,7 +831,9 @@ A.placeOrder = async () => {
     St.cart = []; St.promo = null; LS.del('promo'); saveCart();
     api('/me').then(m => { St.user = m.user; }).catch(() => { });
     Sh.closeAll(); renderFab(); homeView();
-    Sh.open('done', () => `<div class="body"><div class="success"><div class="ok">${I.check(54)}</div><h2>Заказ №${r.order.id} оформлен</h2>
+    St.orders = [{ ...r.order, items: [] }, ...(St.orders || [])]; renderFab(); refreshOrders();
+    setTimeout(() => haptic('success'), 350);
+    Sh.open('done', () => `<div class="body"><div class="success"><div class="ok anim"><svg viewBox="0 0 52 52" width="64" height="64"><path d="M14 27l8 8 16-17" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h2>Заказ №${r.order.id} оформлен</h2>
       <p>Готовит: ${esc(r.branch_name)}<br>${del ? 'Мы сообщим, когда ресторан примет заказ и курьер выедет к вам.' : `Заказ будет готов ${r.order.pickup_time === 'asap' ? 'как можно скорее' : 'к ' + esc(r.order.pickup_time)}.`}<br>Сумма: ${money(r.order.total)}${r.order.coins_spent ? ` + ${r.order.coins_spent} WendyCoin` : ''}</p></div></div>
       <div class="foot"><button class="btn" onclick="Sh.close('done')">Отлично</button></div>`);
   } catch (e) { toast(e.message); }
@@ -877,15 +918,29 @@ A.avatarPicker = () => {
 };
 /* banner viewer: the whole picture; a button to the banner's link only when the admin set one */
 A.banner = id => {
-  const b = (St.menu.banners || []).find(x => x.id === id); if (!b) return;
-  const link = /^https?:\/\//i.test(b.link || '') ? b.link : '';
-  const title = loc(b, 'title');
-  Sh.open('banner', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 0"><button onclick="Sh.close('banner')">${I.x()}</button><span></span></div>
-    <div class="body" style="padding:10px 16px ${link ? 110 : 24}px">
-      ${b.image ? `<img src="${esc(b.image)}" alt="" style="display:block;width:100%;height:auto;border-radius:22px;background:${esc(b.color)}">` : `<div style="border-radius:22px;padding:28px 22px;min-height:220px;display:flex;align-items:flex-end;font-size:28px;font-weight:800;line-height:1.15;background:${esc(b.color)}">${esc(title)}</div>`}
-      ${b.image && title ? `<h2 style="margin:18px 4px 0;font-size:24px">${esc(title)}</h2>` : ''}
-    </div>
-    ${link ? `<div class="foot"><a class="btn" href="${esc(link)}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Подробнее</a></div>` : ''}`, 'full');
+  const list = (St.menu.banners || []).filter(x => x.active !== 0);
+  let i = Math.max(0, list.findIndex(x => x.id === id)), timer = null;
+  const DUR = 6000;
+  const show = () => {
+    clearTimeout(timer);
+    const b = list[i]; if (!b) return Sh.close('banner');
+    const link = /^https?:\/\//i.test(b.link || '') ? b.link : '';
+    const w = document.querySelector('[data-sh=banner] .stv');
+    w.innerHTML = `<div class="st-bars">${list.map((_, k) => `<i><b class="${k < i ? 'done' : k === i ? 'run' : ''}" style="animation-duration:${DUR}ms"></b></i>`).join('')}</div>
+      <button class="st-x" onclick="Sh.close('banner')">${I.xw(26)}</button>
+      <div class="st-img">${b.image ? `<img src="${esc(b.image)}" alt="">` : `<div class="st-txt" style="background:${esc(b.color)}">${esc(loc(b, 'title'))}</div>`}</div>
+      <div class="st-prev"></div><div class="st-next"></div>
+      ${link ? `<a class="btn st-btn" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Подробнее</a>` : ''}`;
+    w.querySelector('.st-prev').onclick = () => { if (i > 0) { i--; haptic('select'); show(); } };
+    w.querySelector('.st-next').onclick = () => { haptic('select'); i++; show(); };
+    timer = setTimeout(() => { i++; show(); }, DUR);
+  };
+  Sh.open('banner', () => '<div class="stv"></div>', 'full story-sheet', () => clearTimeout(timer));
+  const sheet = document.querySelector('[data-sh=banner] .sheet');
+  let y0 = null;
+  sheet.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener('touchend', e => { if (y0 !== null && e.changedTouches[0].clientY - y0 > 90) Sh.close('banner'); y0 = null; });
+  show();
 };
 A.setAvatar = async () => {
   try { const r = await api('/me', { method: 'PUT', body: { avatar: St.pickAva } }); St.user = r.user; Sh.close('avatar'); Sh.refresh('settings'); Sh.refresh('profile'); homeView(); } catch (e) { toast(e.message); }
@@ -958,7 +1013,10 @@ A.deleteAccountGo = async () => {
 A.langSheet = () => Sh.open('lang', () => `<div class="grab"></div><div class="body" style="padding:14px 16px 6px">
   <h2 style="margin:6px 4px 16px;font-size:24px">Язык приложения</h2>
   ${[['ru', 'Русский'], ['uz', 'O‘zbekcha']].map(([k, t]) => `<button class="list-it ${LANG === k ? 'on' : ''}" onclick="setLang('${k}')"><b>${t}</b>${LANG === k ? I.check(22) : ''}</button>`).join('')}</div><div style="height:16px"></div>`);
-A.logout = async () => { try { await api('/logout', { method: 'POST', body: {} }); } catch { /* ignore */ } logoutLocal(); St.addrId = null; St.orders = []; PH_DIGITS = ''; go('login'); };
+A.logout = () => Sh.open('logoutask', () => `<div class="grab"></div><div class="body" style="padding:18px 20px 6px;text-align:center">
+  <h2 style="margin:6px 0 8px;font-size:24px">Выйти из профиля?</h2><p class="gray-t" style="margin:0;font-size:16px">Корзина и адреса сохранятся в вашем аккаунте</p></div>
+  <div class="foot" style="display:flex;gap:10px"><button class="btn gray" onclick="Sh.close('logoutask')">Отмена</button><button class="btn" onclick="Sh.close('logoutask');A.logoutGo()">Выйти</button></div>`);
+A.logoutGo = async () => { try { await api('/logout', { method: 'POST', body: {} }); } catch { /* ignore */ } logoutLocal(); St.addrId = null; St.orders = []; PH_DIGITS = ''; go('login'); };
 
 /* ============ boot ============ */
 async function loadUserData() {
@@ -972,7 +1030,7 @@ async function loadUserData() {
     St.menu = await api('/menu');
     document.body.classList.toggle('img-circle', St.menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
     if (St.token) {
-      try { St.user = (await api('/me', { noLogout: true })).user; await loadUserData(); } catch { logoutLocal(); }
+      try { St.user = (await api('/me', { noLogout: true })).user; await loadUserData(); refreshOrders(); } catch { logoutLocal(); }
     }
     if (St.branchId && !curBranch()) St.branchId = null;
     cartChanged();
