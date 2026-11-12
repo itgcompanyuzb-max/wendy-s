@@ -80,7 +80,7 @@ async function checkCode(raw) {
   try {
     const r = await call('coins/check', 'POST', { code });
     cq = { code, ...r };
-    $('#cqbody').innerHTML = `<div class="glass" style="padding:16px;border-radius:18px;margin-top:14px"><div class="row" style="border:0;padding:0"><span><b>${esc(r.customer.name || 'Клиент')}</b><div class="faint">${esc(r.customer.phone)}</div></span><span style="text-align:right"><small class="faint">Баланс</small><div style="font-size:24px;font-weight:800">${NUM(r.balance)} <img src="/img/coin.png" alt="" style="width:22px;height:22px;vertical-align:-3px"></div></span></div></div>
+    $('#cqbody').innerHTML = `<div class="glass" style="padding:16px;border-radius:18px;margin-top:14px"><div class="row" style="border:0;padding:0"><span><b>${esc(r.customer.name || 'Клиент')}</b><div class="faint">${esc(r.customer.phone)}${r.source === 'wallet' ? ' · Apple Wallet' : ''}</div></span><span style="text-align:right"><small class="faint">Баланс</small><div style="font-size:24px;font-weight:800">${NUM(r.balance)} <img src="/img/coin.png" alt="" style="width:22px;height:22px;vertical-align:-3px"></div></span></div></div>
       <form id="cqr"><label class="field"><span>Сколько списать (WendyCoin)</span><input name="amount" id="cqam" type="number" min="1" max="${r.balance}" step="1" required inputmode="numeric"></label>
       <div class="faint" id="cqsum" style="margin:6px 0 0 14px">1 WendyCoin = ${NUM(r.coin_value)} so'm</div>
       <label class="field"><span>Комментарий (необязательно)</span><input name="note" maxlength="80" placeholder="например, чек 1042"></label>
@@ -108,7 +108,7 @@ async function camScan() {
     const loop = async () => {
       if (!camStream) return;
       const [c] = await det.detect(v).catch(() => []);
-      if (c && /^WC[0-9A-Z]{10}$/.test(c.rawValue)) { camStream.getTracks().forEach(t => t.stop()); camStream = null; v.style.display = 'none'; $('#cqcode').value = c.rawValue; checkCode(c.rawValue); return; }
+      if (c && /^(WC[0-9A-Z]{10}|WP[0-9A-Z]{16})$/.test(c.rawValue)) { camStream.getTracks().forEach(t => t.stop()); camStream = null; v.style.display = 'none'; $('#cqcode').value = c.rawValue; checkCode(c.rawValue); return; }
       requestAnimationFrame(loop);
     };
     loop();
@@ -119,7 +119,7 @@ let kb = '', kbT = 0;
 document.addEventListener('keydown', e => {
   if (!key || e.target.closest?.('input, textarea')) return;
   const now = Date.now(); if (now - kbT > 80) kb = ''; kbT = now;
-  if (e.key === 'Enter') { if (/^WC[0-9A-Z]{10}$/i.test(kb)) coinDialog(kb.toUpperCase()); kb = ''; return; }
+  if (e.key === 'Enter') { if (/^(WC[0-9A-Z]{10}|WP[0-9A-Z]{16})$/i.test(kb)) coinDialog(kb.toUpperCase()); kb = ''; return; }
   if (e.key.length === 1) kb += e.key;
 });
 

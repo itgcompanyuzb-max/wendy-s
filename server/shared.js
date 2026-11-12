@@ -7,6 +7,8 @@ function notify(userId, orderId, kind, title, body = '') {
 
 function coinLog(userId, delta, reason, adminId = null, orderId = null) {
   db.prepare('INSERT INTO coin_log (user_id,delta,reason,admin_id,order_id) VALUES (?,?,?,?,?)').run(userId, delta, reason, adminId, orderId);
+  // the balance on the Apple Wallet card follows (after the current transaction, so the card reads the new balance)
+  setImmediate(() => { try { require('./wallet').touch(userId); } catch (e) { console.error('[wallet]', e.message); } });
 }
 
 /* The only place where an order changes status. Sends the customer notification and moves coins. */

@@ -442,7 +442,7 @@ svg { display: block; }
 .seg, .map-x, .locate { background: rgba(30,30,34,.5) !important; -webkit-backdrop-filter: blur(22px) saturate(1.9); backdrop-filter: blur(22px) saturate(1.9); border: .5px solid rgba(255,255,255,.16); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -1px 0 rgba(0,0,0,.25), 0 10px 30px rgba(0,0,0,.35); }
 .seg[style*="static"] { background: rgba(255,255,255,.06) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
 .seg.glass { position: absolute; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
-.seg.glass[style*="static"] { position: relative !important; }
+.seg.glass[style*="static"] { position: relative !important; left: auto; right: auto; top: auto; width: auto; }
 .seg.glass button { position: relative; z-index: 1; background: none !important; transition: transform .25s cubic-bezier(.3,1.4,.5,1), opacity .2s; }
 .seg.glass .lens { position: absolute; z-index: 0; top: 5px; height: 0; left: 5px; width: 0; border-radius: 26px; background: var(--or); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 6px rgba(0,0,0,.18), 0 4px 14px rgba(226,32,61,.35); transition: left .38s cubic-bezier(.3,1.35,.5,1), width .38s cubic-bezier(.3,1.35,.5,1), transform .3s cubic-bezier(.3,1.5,.5,1), background .25s, box-shadow .25s; pointer-events: none; }
 .seg.glass.drag .lens { transform: scale(1.12, 1.28); background: rgba(255,255,255,.14); -webkit-backdrop-filter: blur(1.5px) saturate(2.2) brightness(1.15); backdrop-filter: blur(1.5px) saturate(2.2) brightness(1.15); box-shadow: inset 0 1.5px 0 rgba(255,255,255,.75), inset 0 -1.5px 1px rgba(255,255,255,.3), inset 0 0 12px rgba(255,255,255,.18), 0 10px 26px rgba(0,0,0,.4); }
@@ -466,3 +466,21 @@ svg { display: block; }
 .cq-done { padding: 20px 0 6px; } .cq-done h2 { font-size: 28px; margin: 14px 0 8px; } .cq-done .btn { margin-top: 18px; }
 .cq-ok { display: block; margin: 0 auto; animation: okpop .5s cubic-bezier(.2,1.4,.4,1) both; } .cq-ok path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: okdraw .45s .35s ease-out forwards; }
 .cq-spent { display: inline-flex; align-items: center; gap: 8px; font-size: 34px; font-weight: 800; color: #f7b733; } .cq-spent img { width: 34px; height: 34px; }
+/* ===== WendyCoin history + Apple Wallet ===== */
+.qr-row.hist { background: rgba(255,255,255,.05); margin-top: 10px; }
+.cs-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.cq-more { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 16px; }
+.cq-hist { color: #c7c7cc; font-size: 15px; font-weight: 600; padding: 8px 14px; }
+.wallet-btn { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 20px 0 16px; border-radius: 12px; background: #000; color: #fff; border: 1px solid #a6a6a6; text-align: left; font-size: 11px; line-height: 1.15; }
+.wallet-btn b { font-size: 17px; font-weight: 600; }
+.cl { padding: 10px 16px 30px; }
+.cl-bal { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-radius: 26px; background: linear-gradient(135deg, #d61834, #f04050 60%, #f7b733); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 30px rgba(226,32,61,.3); }
+.cl-bal small { display: block; font-size: 14px; opacity: .85; } .cl-bal b { font-size: 38px; font-weight: 800; } .cl-bal img { width: 64px; height: 64px; }
+.cl-acts { display: flex; gap: 10px; align-items: center; margin: 14px 0 18px; flex-wrap: wrap; }
+.cl-acts > button:first-child { display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 18px; border-radius: 26px; background: rgba(255,255,255,.08); border: .5px solid rgba(255,255,255,.16); font-size: 16px; font-weight: 700; }
+.cl-it { display: flex; align-items: center; gap: 12px; padding: 14px 4px; border-bottom: .5px solid rgba(255,255,255,.08); }
+.cl-ic { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; font-weight: 700; }
+.cl-ic.in { background: rgba(52,199,89,.16); color: #34c759; } .cl-ic.out { background: rgba(255,255,255,.08); }
+.cl-tx { flex: 1; min-width: 0; } .cl-tx b { display: block; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .cl-tx small { color: #8e8e93; font-size: 13.5px; }
+.cl-d { font-size: 17px; font-weight: 800; white-space: nowrap; } .cl-d.in { color: #34c759; }
+.cl-reissue { display: block; margin: 22px auto 0; color: #8e8e93; font-size: 14px; text-decoration: underline; }

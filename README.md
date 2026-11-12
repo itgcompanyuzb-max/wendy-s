@@ -55,6 +55,20 @@ The cash desk or kiosk scans it with the branch key (`X-POS-Key`):
 
 The built-in POS (`/pos/`) has a "Списать WendyCoin" button and accepts a USB/2D scanner (it types like a keyboard) or the tablet camera.
 
+## WendyCoin card in Apple Wallet
+
+Customers on iPhone get "Добавить в Apple Wallet" (QR screen and WendyCoin history). The card shows the balance and a QR
+the cash desk / kiosk scans like the app QR (`WP...` code, lasting; the customer can reissue it). The balance on the card updates by itself.
+
+It needs a paid Apple Developer account (the free Apple ID cannot do it):
+1. developer.apple.com → Certificates, IDs & Profiles → Identifiers → **Pass Type IDs** → `pass.uz.<company>.wendycoin`.
+2. Create a **Pass Type ID Certificate** for it, open it in Keychain on a Mac, export as `.p12` with a password.
+3. Render → Environment: `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID` (10 characters, top right in the developer account),
+   `APPLE_PASS_P12` = `base64 -i pass.p12` output, `APPLE_PASS_KEY_PASSWORD`, `PUBLIC_URL=https://<your domain>`.
+   (Or `APPLE_PASS_CERT` + `APPLE_PASS_KEY` as PEM. The Apple WWDR G4 certificate is downloaded automatically, or set `APPLE_WWDR_CERT`.)
+
+Until these are set the Wallet button is hidden; everything else works. Customers see all coin operations in Profile → "История WendyCoin".
+
 ## First start on a new machine / server
 1. `npm install`
 2. copy `.env.example` to `.env` and fill in TELEGRAM_GATEWAY_TOKEN and ADMIN_PHONE

@@ -103,9 +103,25 @@
     'Заказ готов, можно забирать': 'Buyurtma tayyor, olib ketishingiz mumkin', 'Если это ошибка, напишите нам в поддержку': 'Agar bu xato bo\'lsa, yordam xizmatiga yozing',
     'Достаточно': 'Yetarli',
   };
+  Object.assign(D, {
+    'Оплатить WendyCoin в ресторане': 'Restoranda WendyCoin bilan to\'lash', 'QR-код для кассы и киоска': 'Kassa va kiosk uchun QR-kod',
+    'История WendyCoin': 'WendyCoin tarixi', 'Начисления и оплаты': 'Hisoblangan va sarflangan', 'Баланс': 'Balans', 'QR для оплаты': 'To\'lov uchun QR',
+    'История': 'Tarix', 'Перевыпустить карту Apple Wallet': 'Apple Wallet kartasini qayta chiqarish', 'Оплата WendyCoin': 'WendyCoin bilan to\'lov',
+    'Покажите код кассиру или поднесите к сканеру киоска': 'Kodni kassirga ko\'rsating yoki kiosk skaneriga tuting', 'На балансе': 'Balansda',
+    'История операций': 'Amallar tarixi', 'Оплачено': 'To\'landi', 'Создаём код…': 'Kod yaratilmoqda…', 'Загружаем…': 'Yuklanmoqda…',
+    'Пока нет операций. За каждый заказ мы начисляем WendyCoin.': 'Hozircha amallar yo\'q. Har bir buyurtma uchun WendyCoin hisoblaymiz.',
+    'Добавить в': 'Qo\'shish', 'Карта перевыпущена': 'Karta qayta chiqarildi', 'Войдите, чтобы платить WendyCoin': 'WendyCoin bilan to\'lash uchun kiring',
+    'Войдите, чтобы видеть историю': 'Tarixni ko\'rish uchun kiring', 'Начисление': 'Hisoblandi', 'Списание': 'Sarflandi',
+    'Apple Wallet пока не подключён': 'Apple Wallet hali ulanmagan', 'Корректировка администратором': 'Administrator tuzatishi',
+  });
   const MONTHS = { января: 'yanvar', февраля: 'fevral', марта: 'mart', апреля: 'aprel', мая: 'may', июня: 'iyun', июля: 'iyul', августа: 'avgust', сентября: 'sentabr', октября: 'oktabr', ноября: 'noyabr', декабря: 'dekabr' };
   const VERB = { принят: 'qabul qilindi', готов: 'tayyor', доставлен: 'yetkazildi', выдан: 'topshirildi', отменён: 'bekor qilindi', оформлен: 'rasmiylashtirildi' };
   const P = [ // [regex, replacement function]
+    [/^Обновится через (\d+:\d+)$/, t => `${t} dan keyin yangilanadi`],
+    [/^Оплата в ресторане: (.+)$/, t => `Restoranda to'lov: ${t}`],
+    [/^Оплата в ресторане (.+)$/, t => `Restoranda to'lov: ${t}`],
+    [/^Возврат за отменённый заказ №(\d+)$/, n => `Bekor qilingan №${n} buyurtma uchun qaytarildi`],
+    [/^(\d+) ([а-я]+) в (\d+:\d+)$/, (d, m, t) => `${d}-${MONTHS[m] || m}, ${t}`],
     [/^Заказ №(\d+) (принят|готов|доставлен|выдан|отменён|оформлен)$/, (n, v) => `№${n} buyurtma ${VERB[v]}`],
     [/^Заказ №(\d+)$/, n => `№${n} buyurtma`],
     [/^начисляем (\d+)% от каждого заказа$/, n => `har bir buyurtmadan ${n}% hisoblaymiz`],
