@@ -16,12 +16,11 @@ function renderCoinQR() {
   }
   const left = cqLeft(), total = CQ.total || 120;
   return `${head}<div class="body cq">
-    <h2 class="cq-t">Оплата WendyCoin</h2>
+    <h2 class="cq-t">WendyCoin</h2>
     <p class="cq-sub">Покажите код кассиру или поднесите к сканеру киоска</p>
     <div class="cq-frame"><div class="cq-card">${CQ.code ? QR.svg(CQ.code, { logo: '/img/coin.png' }) : `<div class="cq-wait">${CQ.err ? esc(CQ.err) : ''}</div>`}</div></div>
     <div class="cq-code">${CQ.code ? CQ.code.replace(/^(..)(....)(....)(..)$/, '$1 $2 $3 $4') : '&nbsp;'}</div>
     <div class="cq-timer"><div class="cq-bar"><i style="width:${CQ.code ? (left / total) * 100 : 0}%"></i></div><span id="cqt">${CQ.code ? `Обновится через ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Создаём код…'}</span></div>
-    <div class="cq-bal"><span>На балансе</span><b>${cqFmt(St.user?.coins)} <img src="/img/coin.png" alt=""></b></div>
   </div>`;
 }
 
