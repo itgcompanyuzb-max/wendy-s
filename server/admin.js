@@ -312,6 +312,11 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
       }
       up.run('map_bounds', v);
     }
+    if (req.body.coin_qr_ttl !== undefined) {
+      const v = Math.trunc(Number(req.body.coin_qr_ttl));
+      if (!(v >= 30 && v <= 600)) return fail(res, 400, 'Срок QR-кода: от 30 до 600 секунд');
+      up.run('coin_qr_ttl', String(v));
+    }
     if (req.body.product_image_shape !== undefined) up.run('product_image_shape', req.body.product_image_shape === 'circle' ? 'circle' : 'square');
     audit(req, 'settings_changed', 'settings'); res.json({ ok: true });
   });

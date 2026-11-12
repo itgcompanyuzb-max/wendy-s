@@ -4,8 +4,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 let key = sessionStorage.getItem('poskey') || '', timer = null, seen = null;
 
-async function call(path, method = 'GET') {
-  const r = await fetch('/api/pos/' + path, { method, headers: { 'X-POS-Key': key } });
+async function call(path, method = 'GET', body) {
+  const r = await fetch('/api/pos/' + path, { method, headers: { 'X-POS-Key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || 'Ошибка');
   return j;
@@ -44,12 +44,83 @@ async function load() {
   } catch (e) { if (/ключ/i.test(e.message)) { sessionStorage.removeItem('poskey'); login(e.message); } }
 }
 function start() {
-  $('#root').innerHTML = `<div class="pos"><div class="top"><h1>Касса · <span id="bn"></span></h1><div class="tools"><button class="btn" data-act="out">Выйти</button></div></div><div class="board3" id="cols"></div></div>`;
+  $('#root').innerHTML = `<div class="pos"><div class="top"><h1>Касса · <span id="bn"></span></h1><div class="tools"><button class="btn primary" data-act="coins"><img src="/img/coin.png" alt="" style="width:22px;height:22px;vertical-align:-5px"> Списать WendyCoin</button><button class="btn" data-act="out">Выйти</button></div></div><div class="board3" id="cols"></div></div>`;
   load(); timer = setInterval(load, 4000);
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   if (b.dataset.act === 'out') { sessionStorage.removeItem('poskey'); key = ''; login(); return; }
+  if (b.dataset.act === 'coins') { coinDialog(); return; }
+  if (b.dataset.act === 'cq-close') { closeCoin(); return; }
+  if (b.dataset.act === 'cq-cam') { camScan(); return; }
   try { await call(`orders/${b.dataset.id}/${b.dataset.act}`, 'POST'); load(); } catch (er) { toast(er.message); }
 });
+/* ---------- WendyCoin: scan the customer's QR (USB/2D scanner types it like a keyboard, or the camera) ---------- */
+let cq = null, camStream = null;
+const NUM = n => new Intl.NumberFormat('ru-RU').format(n || 0);
+function closeCoin() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } document.querySelector('.overlay.cq')?.remove(); cq = null; }
+function coinDialog(code) {
+  closeCoin();
+  const o = document.createElement('div'); o.className = 'overlay cq';
+  o.innerHTML = `<div class="glass modal" style="max-width:460px"><h2>Списать WendyCoin</h2><p class="muted" style="margin:4px 0 0">Отсканируйте QR-код из приложения клиента сканером или камерой.</p>
+    <form id="cqf"><label class="field"><span>Код клиента</span><input name="code" id="cqcode" autocomplete="off" placeholder="WC XXXX XXXX XX" style="font-family:ui-monospace,monospace;letter-spacing:1px;text-transform:uppercase"></label></form>
+    <video id="cqv" playsinline muted style="display:none;width:100%;border-radius:18px;margin-top:12px;background:#000"></video>
+    <div id="cqbody"></div><div class="err" id="cqerr"></div>
+    <div class="foot"><button class="btn" data-act="cq-cam" id="cqcam">Камера</button><button class="btn" data-act="cq-close">Закрыть</button></div></div>`;
+  document.body.appendChild(o);
+  o.addEventListener('click', e => { if (e.target === o) closeCoin(); });
+  const inp = $('#cqcode'); inp.focus();
+  if (!('BarcodeDetector' in window)) $('#cqcam').style.display = 'none';
+  $('#cqf').addEventListener('submit', e => { e.preventDefault(); checkCode(inp.value); });
+  if (code) { inp.value = code; checkCode(code); }
+}
+async function checkCode(raw) {
+  const code = String(raw || '').toUpperCase().replace(/[^0-9A-Z]/g, ''); if (!code) return;
+  $('#cqerr').textContent = ''; $('#cqbody').innerHTML = '<p class="muted">Проверяем…</p>';
+  try {
+    const r = await call('coins/check', 'POST', { code });
+    cq = { code, ...r };
+    $('#cqbody').innerHTML = `<div class="glass" style="padding:16px;border-radius:18px;margin-top:14px"><div class="row" style="border:0;padding:0"><span><b>${esc(r.customer.name || 'Клиент')}</b><div class="faint">${esc(r.customer.phone)}</div></span><span style="text-align:right"><small class="faint">Баланс</small><div style="font-size:24px;font-weight:800">${NUM(r.balance)} <img src="/img/coin.png" alt="" style="width:22px;height:22px;vertical-align:-3px"></div></span></div></div>
+      <form id="cqr"><label class="field"><span>Сколько списать (WendyCoin)</span><input name="amount" id="cqam" type="number" min="1" max="${r.balance}" step="1" required inputmode="numeric"></label>
+      <div class="faint" id="cqsum" style="margin:6px 0 0 14px">1 WendyCoin = ${NUM(r.coin_value)} so'm</div>
+      <label class="field"><span>Комментарий (необязательно)</span><input name="note" maxlength="80" placeholder="например, чек 1042"></label>
+      <button class="btn primary" style="width:100%;margin-top:14px">Списать</button></form>`;
+    const am = $('#cqam'); am.focus();
+    am.addEventListener('input', () => { $('#cqsum').textContent = `= ${NUM((Number(am.value) || 0) * r.coin_value)} so'm`; });
+    $('#cqr').addEventListener('submit', redeem);
+  } catch (er) { $('#cqbody').innerHTML = ''; $('#cqerr').textContent = er.message; $('#cqcode').select(); }
+}
+async function redeem(e) {
+  e.preventDefault(); if (!cq) return;
+  const f = new FormData(e.target), amount = Number(f.get('amount'));
+  try {
+    const r = await call('coins/redeem', 'POST', { code: cq.code, amount, note: f.get('note') });
+    beep();
+    $('#cqbody').innerHTML = `<div style="text-align:center;padding:18px 0 4px"><div style="font-size:44px">✅</div><h2 style="margin:6px 0">Списано ${NUM(r.spent)} WendyCoin</h2><p class="muted">= ${NUM(r.sum)} so'm · остаток у клиента ${NUM(r.balance)}</p></div>`;
+    $('#cqcode').value = ''; cq = null; setTimeout(() => $('#cqcode')?.focus(), 50);
+  } catch (er) { $('#cqerr').textContent = er.message; }
+}
+async function camScan() {
+  try {
+    const det = new BarcodeDetector({ formats: ['qr_code'] }), v = $('#cqv');
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    v.srcObject = camStream; v.style.display = 'block'; await v.play();
+    const loop = async () => {
+      if (!camStream) return;
+      const [c] = await det.detect(v).catch(() => []);
+      if (c && /^WC[0-9A-Z]{10}$/.test(c.rawValue)) { camStream.getTracks().forEach(t => t.stop()); camStream = null; v.style.display = 'none'; $('#cqcode').value = c.rawValue; checkCode(c.rawValue); return; }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  } catch { toast('Камера недоступна'); }
+}
+// a scanner plugged into the cash desk "types" the code and Enter: catch it even when the dialog is closed
+let kb = '', kbT = 0;
+document.addEventListener('keydown', e => {
+  if (!key || e.target.closest?.('input, textarea')) return;
+  const now = Date.now(); if (now - kbT > 80) kb = ''; kbT = now;
+  if (e.key === 'Enter') { if (/^WC[0-9A-Z]{10}$/i.test(kb)) coinDialog(kb.toUpperCase()); kb = ''; return; }
+  if (e.key.length === 1) kb += e.key;
+});
+
 if (key) { call('orders').then(start).catch(() => login()); } else login();
