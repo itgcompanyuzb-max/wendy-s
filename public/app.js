@@ -27,9 +27,11 @@ async function api(path, opts = {}) {
   });
   const j = await r.json().catch(() => ({}));
   if (r.status === 401 && St.token && !opts.noLogout) { logoutLocal(); }
-  if (!r.ok) { const e = new Error(j.error || 'Ошибка сети'); e.data = j; throw e; }
+  if (!r.ok) { const e = new Error(j.error || 'Ошибка сети'); e.data = j; e.status = r.status; throw e; }
   return j;
 }
+// a request that gives up after ms (slow mobile network): then the saved copy is used
+const apiQuick = (path, ms, opts) => Promise.race([api(path, opts), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   $('#app').appendChild(t); setTimeout(() => t.remove(), 2800);
@@ -266,7 +268,7 @@ function go(name, arg) {
   const v = $('#view'); v.innerHTML = '';
   ({ login: loginView, phone: phoneView, code: codeView, name: nameView, map: mapView, home: homeView })[name](arg);
 }
-function logoutLocal() { St.token = null; St.user = null; St.addresses = []; St.cards = []; LS.del('token'); }
+function logoutLocal() { St.token = null; St.user = null; St.addresses = []; St.cards = []; LS.del('token'); LS.del('userCache'); LS.del('addrCache'); }
 
 /* ============ login ============ */
 function loginView() {
@@ -1082,15 +1084,21 @@ A.logoutGo = async () => { try { await api('/logout', { method: 'POST', body: {}
 async function loadUserData() {
   const [a, c] = await Promise.all([api('/addresses'), api('/cards')]);
   St.addresses = a.addresses; St.cards = c.cards;
+  LS.set('addrCache', St.addresses);
   if (!St.addresses.find(x => x.id === St.addrId)) St.addrId = St.addresses[0]?.id || null;
   LS.set('addrId', St.addrId);
 }
 (async function boot() {
   try {
-    St.menu = await api('/menu');
+    // the menu and the profile are saved on the phone: without the internet the app still opens with them
+    const menuCache = LS.get('menuCache', null);
+    try { St.menu = await apiQuick('/menu', 6000); LS.set('menuCache', St.menu); } catch (e) { if (!menuCache) throw e; St.menu = menuCache; }
     document.body.classList.toggle('img-circle', St.menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
     if (St.token) {
-      try { St.user = (await api('/me', { noLogout: true })).user; await loadUserData(); refreshOrders(); } catch { logoutLocal(); }
+      try { St.user = (await apiQuick('/me', 6000, { noLogout: true })).user; LS.set('userCache', St.user); await loadUserData(); refreshOrders(); } catch (e) {
+        if (e.status === 401) logoutLocal(); // signed out on the server
+        else { St.user = St.user || LS.get('userCache', null); St.addresses = St.addresses.length ? St.addresses : LS.get('addrCache', []); if (!St.user) logoutLocal(); } // no internet: keep the session
+      }
     }
     if (St.branchId && !curBranch()) St.branchId = null;
     cartChanged();

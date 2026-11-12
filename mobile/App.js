@@ -4,11 +4,37 @@ import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import BUNDLED, { VERSION as BUNDLED_VERSION } from './src/bundle';
 
 // keep the logo screen up until the menu is drawn: no spinner, no white page
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
 const URL = 'https://wendy-s-r2cm.onrender.com';
+
+/* The screens come from the web app that is built into this app (src/bundle.js): they open at once, without the internet.
+   The data (menu, orders, coins) comes from the server. When the server has a newer design, it is downloaded
+   in the background and used from the next start — no new install needed. */
+const K = { html: 'bundle_html', ver: 'bundle_version', base: 'bundle_base' };
+async function savedBundle() {
+  try {
+    const [[, html], [, ver], [, base]] = await AsyncStorage.multiGet([K.html, K.ver, K.base]);
+    // a copy downloaded for an older install is dropped: the new install brings its own
+    if (html && ver && base === BUNDLED_VERSION) return { html, ver };
+  } catch { /* nothing saved */ }
+  return { html: BUNDLED, ver: BUNDLED_VERSION };
+}
+async function checkUpdate(current) {
+  try {
+    const r = await fetch(URL + '/app-bundle.json', { headers: { 'Cache-Control': 'no-cache' } });
+    const { version } = await r.json();
+    if (!version || version === current) return;
+    const h = await fetch(URL + '/app-bundle.html', { headers: { 'Cache-Control': 'no-cache' } });
+    const html = await h.text();
+    if (!h.ok || !html.includes(`window.__BUNDLE__ = '${version}'`)) return; // only a complete copy
+    await AsyncStorage.multiSet([[K.html, html], [K.ver, version], [K.base, BUNDLED_VERSION]]);
+  } catch { /* offline: try next time */ }
+}
 const ORIGIN = URL.replace(/^(https?:\/\/[^/]+).*$/, '$1');
 const BG = '#000';
 const RED = '#e21d3c';
@@ -40,6 +66,8 @@ const NATIVE_FEEL = `
 `;
 
 export default function App() {
+  const [bundle, setBundle] = useState(null);
+  useEffect(() => { savedBundle().then((b) => { setBundle(b); checkUpdate(b.ver); }); }, []);
   const [failed, setFailed] = useState(false);
   const [key, setKey] = useState(0);
   const web = useRef(null);
@@ -90,13 +118,14 @@ export default function App() {
     );
   }
 
+  if (!bundle) return <View style={s.fill} />;
   return (
     <View style={s.fill}>
       <StatusBar style="light" translucent />
       <WebView
         key={key}
         ref={web}
-        source={{ uri: URL }}
+        source={{ html: bundle.html, baseUrl: URL + '/' }}
         style={s.fill}
         containerStyle={s.fill}
         originWhitelist={['*']}

@@ -55,6 +55,14 @@ The cash desk or kiosk scans it with the branch key (`X-POS-Key`):
 
 The built-in POS (`/pos/`) has a "Списать WendyCoin" button and accepts a USB/2D scanner (it types like a keyboard) or the tablet camera.
 
+## iPhone / Android app (mobile/)
+
+The app carries the mobile web app inside as one file (`server/bundle.js` builds it; `mobile/scripts/make-bundle.js`
+puts it into the app before every build). It opens at once and without the internet (menu and profile come from the
+last saved copy). Data (menu, orders, coins) comes from the server. When the server has a newer design
+(`/app-bundle.json`), the app downloads `/app-bundle.html` in the background and uses it from the next start,
+so design changes reach phones without a new install. Fonts and the map library are served locally from `public/vendor/`.
+
 ## First start on a new machine / server
 1. `npm install`
 2. copy `.env.example` to `.env` and fill in TELEGRAM_GATEWAY_TOKEN and ADMIN_PHONE

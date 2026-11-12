@@ -31,10 +31,13 @@ app.use((req, res, next) => {
   next();
 });
 app.get('/healthz', (req, res) => res.type('text').send('ok'));
+require('./bundle').mount(app); // the web app as one file for the phone apps
 app.use(express.json({ limit: '12mb' }));
 const paths = require('./paths');
-app.use('/uploads', express.static(paths.uploadsDir), express.static(paths.repoUploads));
-app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') })); // always revalidate: users get new JS right after an update
+// pictures keep on the phone for 30 days (the app shows them without the internet); uploads get a new name on every change
+const longCache = { setHeaders: res => res.setHeader('Cache-Control', 'public, max-age=2592000') };
+app.use('/uploads', express.static(paths.uploadsDir, longCache), express.static(paths.repoUploads, longCache));
+app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders: (res, file) => res.setHeader('Cache-Control', /[\\/]public[\\/](img|vendor)[\\/]/.test(file) ? 'public, max-age=2592000' : 'no-cache') })); // pages and scripts: always revalidate, users get new JS right after an update; pictures, fonts, map library: 30 days
 
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const fail = (res, status, message) => res.status(status).json({ error: message });

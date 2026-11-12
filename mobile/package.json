@@ -4,6 +4,8 @@
   "private": true,
   "main": "index.js",
   "scripts": {
+    "bundle": "node scripts/make-bundle.js",
+    "prestart": "node scripts/make-bundle.js",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios"
