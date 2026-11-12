@@ -1,51 +1,57 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator, BackHandler, Platform, Pressable, SafeAreaView,
-  StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
+import * as SplashScreen from 'expo-splash-screen';
+
+// keep the logo screen up until the menu is drawn: no spinner, no white page
+SplashScreen.preventAutoHideAsync().catch(() => { });
+
+const URL = 'https://wendy-s-r2cm.onrender.com';
+const ORIGIN = URL.replace(/^(https?:\/\/[^/]+).*$/, '$1');
+const BG = '#000';
+const RED = '#e21d3c';
 
 // the web app asks for vibration with postMessage({ haptic: 'select' | 'light' | 'medium' | 'success' | 'warning' })
-function onWebMessage(e) {
-  let m; try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
-  const k = m && m.haptic;
-  if (k === 'select') Haptics.selectionAsync();
-  else if (k === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  else if (k === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  else if (k === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  else if (k === 'warning') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+function vibrate(k) {
+  try {
+    if (k === 'select') Haptics.selectionAsync();
+    else if (k === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else if (k === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    else if (k === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    else if (k === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (k === 'warning') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    else if (k === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch { /* no haptic engine */ }
 }
 
-const KEY = 'wendys_server_url';
-// the live site; the app opens it straight away (long-press the gear in the corner to use another server)
-const DEFAULT_URL = 'https://wendy-s-r2cm.onrender.com';
-const RED = '#e21d3c';
-const BG = '#0c0c0e';
-
-function normalize(raw) {
-  let u = raw.trim();
-  if (!u) return '';
-  if (!/^https?:\/\//i.test(u)) u = 'http://' + u;
-  return u.replace(/\/+$/, '');
-}
+// runs before the page: no text selection, no long-press menus, no grey tap flash, no pinch zoom — feels like an app
+const NATIVE_FEEL = `
+  window.__WENDYS_APP__ = true;
+  document.documentElement.classList.add('native-app');
+  var st = document.createElement('style');
+  st.textContent = '*{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}'
+    + 'input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}'
+    + 'html,body{overscroll-behavior:none}';
+  (document.head || document.documentElement).appendChild(st);
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+  true;
+`;
 
 export default function App() {
-  const [url, setUrl] = useState(null);      // saved server URL
-  const [draft, setDraft] = useState('');
-  const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [key, setKey] = useState(0);
   const web = useRef(null);
   const canGoBack = useRef(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem(KEY).then((v) => {
-      setUrl(v || DEFAULT_URL); setDraft(v || DEFAULT_URL);
-      setReady(true);
-    });
+  const shown = useRef(false);
+  const showApp = useCallback(() => {
+    if (shown.current) return;
+    shown.current = true;
+    SplashScreen.hideAsync().catch(() => { });
   }, []);
+  useEffect(() => { const t = setTimeout(showApp, 10000); return () => clearTimeout(t); }, [showApp]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -56,90 +62,86 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
-  async function save() {
-    const u = normalize(draft);
-    if (!u) return;
-    await AsyncStorage.setItem(KEY, u);
-    setFailed(false);
-    setUrl(u);
-  }
+  const onMessage = useCallback((e) => {
+    let m; try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
+    if (m && m.haptic) vibrate(m.haptic);
+  }, []);
 
-  async function change() {
-    await AsyncStorage.removeItem(KEY);
-    setUrl(null);
-    setFailed(false);
-  }
+  // our own pages stay inside; phone numbers, Telegram, maps and other sites open in their own apps
+  const onNavigate = useCallback((req) => {
+    const u = req.url || '';
+    if (u.startsWith(ORIGIN) || u.startsWith('about:') || u.startsWith('blob:') || u.startsWith('data:')) return true;
+    if (req.isTopFrame === false) return true;
+    Linking.openURL(u).catch(() => { });
+    return false;
+  }, []);
 
-  if (!ready) {
-    return <View style={[s.fill, s.center]}><ActivityIndicator color={RED} /></View>;
-  }
-
-  if (!url || failed) {
+  if (failed) {
     return (
-      <SafeAreaView style={[s.fill, s.center, { padding: 24 }]}>
+      <View style={[s.fill, s.center, { padding: 28 }]}>
         <StatusBar style="light" />
-        <Text style={s.title}>Wendy's</Text>
-        <Text style={s.hint}>
-          {failed
-            ? 'Не удалось открыть Wendy\'s. Проверьте интернет и нажмите «Открыть».'
-            : 'Адрес сервера'}
-        </Text>
-        <TextInput
-          style={s.input}
-          value={draft}
-          onChangeText={setDraft}
-          placeholder={DEFAULT_URL}
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-        />
-        <Pressable style={s.btn} onPress={save}>
-          <Text style={s.btnText}>Открыть</Text>
+        <Image source={require('./assets/icon.png')} style={s.logo} />
+        <Text style={s.title}>Нет подключения</Text>
+        <Text style={s.hint}>Проверьте интернет и попробуйте ещё раз{'\n'}Internetni tekshiring va qayta urinib ko'ring</Text>
+        <Pressable style={({ pressed }) => [s.btn, pressed && { opacity: 0.8 }]} onPress={() => { vibrate('light'); setFailed(false); setKey((k) => k + 1); }}>
+          <Text style={s.btnText}>Повторить · Qayta urinish</Text>
         </Pressable>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[s.fill, { backgroundColor: BG }]}>
-      <StatusBar style="light" />
+    <View style={s.fill}>
+      <StatusBar style="light" translucent />
       <WebView
+        key={key}
         ref={web}
-        source={{ uri: url }}
-        style={{ backgroundColor: BG }}
-        startInLoadingState
-        renderLoading={() => <View style={[s.fill, s.center]}><ActivityIndicator color={RED} /></View>}
+        source={{ uri: URL }}
+        style={s.fill}
+        containerStyle={s.fill}
+        originWhitelist={['*']}
+        injectedJavaScriptBeforeContentLoaded={NATIVE_FEEL}
+        onMessage={onMessage}
+        onLoadEnd={showApp}
         onNavigationStateChange={(st) => { canGoBack.current = st.canGoBack; }}
-        onMessage={onWebMessage}
-        onError={() => setFailed(true)}
-        onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) setFailed(true); }}
+        onShouldStartLoadWithRequest={onNavigate}
+        onError={() => { showApp(); setFailed(true); }}
+        onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) { showApp(); setFailed(true); } }}
+        onContentProcessDidTerminate={() => web.current && web.current.reload()}
+        // edge to edge: the page itself keeps clear of the notch and the home bar
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        // nothing that gives away a browser
+        bounces={false}
+        overScrollMode="never"
+        allowsBackForwardNavigationGestures={false}
+        allowsLinkPreview={false}
+        pullToRefreshEnabled={false}
+        hideKeyboardAccessoryView
+        keyboardDisplayRequiresUserAction={false}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        setBuiltInZoomControls={false}
+        textZoom={100}
+        decelerationRate="normal"
+        setSupportMultipleWindows={false}
         geolocationEnabled
         javaScriptEnabled
         domStorageEnabled
+        cacheEnabled
         allowsInlineMediaPlayback
-        allowsBackForwardNavigationGestures
-        setSupportMultipleWindows={false}
-        pullToRefreshEnabled
+        mediaPlaybackRequiresUserAction={false}
       />
-      <Pressable style={s.gear} onLongPress={change}>
-        <Text style={{ color: '#888', fontSize: 11 }}>⚙</Text>
-      </Pressable>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   fill: { flex: 1, backgroundColor: BG },
   center: { alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontSize: 34, fontWeight: '800', marginBottom: 8 },
-  hint: { color: '#aaa', fontSize: 16, marginBottom: 16, textAlign: 'center' },
-  input: {
-    width: '100%', backgroundColor: '#1c1c20', color: '#fff', borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, marginBottom: 14,
-  },
-  btn: { width: '100%', backgroundColor: RED, borderRadius: 28, paddingVertical: 16, alignItems: 'center' },
+  logo: { width: 96, height: 96, borderRadius: 22, marginBottom: 22 },
+  title: { color: '#fff', fontSize: 26, fontWeight: '800', marginBottom: 8 },
+  hint: { color: '#9a9aa0', fontSize: 15, lineHeight: 21, marginBottom: 26, textAlign: 'center' },
+  btn: { alignSelf: 'stretch', backgroundColor: RED, borderRadius: 28, paddingVertical: 17, alignItems: 'center' },
   btnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  small: { color: '#777', fontSize: 12, marginTop: 18, textAlign: 'center' },
-  gear: { position: 'absolute', right: 6, bottom: 6, opacity: 0.4, padding: 6 },
 });

@@ -81,7 +81,7 @@ function renderCoins() {
       <div class="cl-h"><span>WendyCoin</span><button onclick="Sh.close('coins')" aria-label="close">${I.down(26)}</button></div>
       <div class="cl-big"><img src="/img/coin.png" alt=""><b>${cqFmt(coins)}</b></div>
       <div class="cl-qr"><span>QR-код для оплаты в ресторане</span><button onclick="A.coinQR()">${I.qr(22, '#111')} Открыть</button></div>
-      ${coins ? `<button class="cl-main" onclick="Sh.close('coins');A.coinShop()">Обменять на товары</button>` : `<div class="cl-first">Получите первые WendyCoin</div><button class="cl-main" onclick="Sh.close('coins')">Сделать заказ</button>`}
+      ${coins ? `<button class="cl-main" onclick="Sh.close('coins');A.coinShop()">Обменять на товары</button>` : ''}
     </div>
     <div class="body cl">
       <div class="seg cl-seg" style="position:static;margin:4px 0 14px;padding:5px"><button class="${CL.tab === 'hist' ? 'on' : ''}" onclick="CL.tab='hist';Sh.refresh('coins')">История</button><button class="${CL.tab === 'how' ? 'on' : ''}" onclick="CL.tab='how';Sh.refresh('coins')">Как это работает</button></div>

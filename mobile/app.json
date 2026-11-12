@@ -5,18 +5,36 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0c0c0e",
+    "backgroundColor": "#000000",
     "icon": "./assets/icon.png",
-    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#0c0c0e" },
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "uz.itgcompany.wendys",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Чтобы показать ваш адрес на карте и курьера рядом с вами",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
-    "android": { "package": "uz.itgcompany.wendys", "backgroundColor": "#0c0c0e" }
+    "android": {
+      "package": "uz.itgcompany.wendys",
+      "backgroundColor": "#000000"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ]
+    ]
   }
 }
