@@ -637,7 +637,7 @@ function renderFab() {
   const n = cartCount();
   const act = (St.orders || []).find(o => ACTIVE.includes(o.status));
   f.innerHTML = n ? `<button class="cart-fab" onclick="A.cart()">${I.bag(30)}${money(totals().total)}</button>`
-    : act ? `<button class="cart-fab orders-fab" onclick="haptic('medium');A.profile()"><span class="pulse"></span>Мои заказы<small>${esc(ST_NAMES[act.status] || '')}</small></button>` : '';
+    : act ? `<button class="cart-fab" onclick="haptic('medium');A.profile()">${I.receipt(28)}Мои заказы</button>` : '';
 }
 // keep the "Мои заказы" button's status fresh while an order is active
 function refreshOrders() {
@@ -861,7 +861,7 @@ function renderProfile() {
     </div>
     ${promos.length ? `<div class="h2">Акции</div>${promos.map(p => `<div class="tk"><div class="tk-l"><div><div class="tk-eb">${esc(loc(p, 'info') || 'НА ЛЮБОЙ ТИП ЗАКАЗА')}</div><div class="tk-h">${esc(loc(p, 'title'))}</div>${p.valid_until ? `<div class="tk-d">до ${new Date(p.valid_until + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</div>` : ''}</div>${St.promo?.code === p.code ? `<button class="tk-btn" onclick="A.removePromo();Sh.refresh('profile')">Отменить</button>` : `<button class="tk-btn" onclick="A.usePromo('${esc(p.code)}')">Применить</button>`}</div><div class="tk-r"><div class="tk-info">${I.info(11, '#bcbcc2')}</div><div class="tk-art"><img class="tk-gold" src="/img/coin.png" alt=""><div class="tk-pc">%</div><span class="tk-star s1">✦</span><span class="tk-star s2">✦</span></div></div></div>`).join('')}` : ''}
     ${St.orders.length ? `<div class="h2">Мои заказы</div>${St.orders.map(o => `<div class="ord"><div class="t"><span>Заказ №${o.id}</span><span>${money(o.total)}</span></div>
-      <div class="s"><span class="st-tag">${ST_NAMES[o.status] || o.status}</span> · ${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'} · ${esc(String(o.created_at).slice(0, 16))}<br>${o.items.map(i => esc(prod(i.product_id) ? loc(prod(i.product_id), 'name') : i.name) + ' × ' + i.qty).join(', ')}</div>${orderActions(o)}</div>`).join('')}` : ''}
+      <div class="s"><span class="st-tag st-${esc(o.status)}">${ST_NAMES[o.status] || o.status}</span> · ${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'} · ${esc(String(o.created_at).slice(0, 16))}<br>${o.items.map(i => esc(prod(i.product_id) ? loc(prod(i.product_id), 'name') : i.name) + ' × ' + i.qty).join(', ')}</div>${orderActions(o)}</div>`).join('')}` : ''}
     <div style="height:20px"></div>
   </div>
   <a class="powered pf" href="https://t.me/anvarbek707" target="_blank" rel="noopener">Powered by <i></i> <b>ITG</b></a>`;
