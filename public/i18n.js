@@ -104,6 +104,11 @@
     'Достаточно': 'Yetarli',
   };
   Object.assign(D, {
+    'Возвращаем на баланс в WendyCoin': 'WendyCoin bo\'lib balansingizga qaytadi', 'По этому курсу коины списываются при оплате': 'To\'lovda coinlar shu kurs bo\'yicha yechiladi',
+    'Оплата в ресторане': 'Restoranda to\'lov', 'Покажите QR-код кассиру или поднесите к сканеру киоска': 'QR-kodni kassirga ko\'rsating yoki kiosk skaneriga tuting',
+    'Обмен на товары': 'Mahsulotga almashtirish', 'Соусы, напитки и другие позиции — прямо в приложении': 'Souslar, ichimliklar va boshqa mahsulotlar — ilovaning o\'zida',
+  });
+  Object.assign(D, {
     'QR-код для оплаты в ресторане': 'Restoranda to\'lash uchun QR-kod', 'Открыть': 'Ochish', 'Обменять на товары': 'Mahsulotga almashtirish',
     'Получите первые WendyCoin': 'Birinchi WendyCoin\'larni oling', 'Сделать заказ': 'Buyurtma berish', 'Как это работает': 'Qanday ishlaydi',
     'от каждого заказа возвращаем в WendyCoin': 'har bir buyurtmadan WendyCoin qilib qaytaramiz', 'столько стоит 1 WendyCoin при оплате': 'to\'lovda 1 WendyCoin shuncha turadi',
@@ -125,6 +130,7 @@
   const MONTHS = { января: 'yanvar', февраля: 'fevral', марта: 'mart', апреля: 'aprel', мая: 'may', июня: 'iyun', июля: 'iyul', августа: 'avgust', сентября: 'sentabr', октября: 'oktabr', ноября: 'noyabr', декабря: 'dekabr' };
   const VERB = { принят: 'qabul qilindi', готов: 'tayyor', доставлен: 'yetkazildi', выдан: 'topshirildi', отменён: 'bekor qilindi', оформлен: 'rasmiylashtirildi' };
   const P = [ // [regex, replacement function]
+    [/^(\d+)% с каждого заказа$/, n => `Har bir buyurtmadan ${n}%`],
     [/^Обновится через (\d+:\d+)$/, t => `${t} dan keyin yangilanadi`],
     [/^Оплата в ресторане: (.+)$/, t => `Restoranda to'lov: ${t}`],
     [/^Оплата в ресторане (.+)$/, t => `Restoranda to'lov: ${t}`],

@@ -69,7 +69,14 @@ function renderCoins() {
   const hist = list === null ? `<div class="gray-t" style="padding:24px;text-align:center">${CL.err ? esc(CL.err) : 'Загружаем…'}</div>`
     : list.length ? list.map(it => `<div class="cl-it"><span class="cl-ic ${it.delta > 0 ? 'in' : 'out'}">${clIcon(it)}</span><div class="cl-tx"><b>${esc(clDate(it.created_at))}</b><small>${esc(it.reason || (it.delta > 0 ? 'Начисление' : 'Списание'))}</small></div><span class="cl-d ${it.delta > 0 ? 'in' : 'out'}">${it.delta > 0 ? '+' : '−'}${cqFmt(Math.abs(it.delta))}</span></div>`).join('')
       : '<div class="gray-t" style="padding:28px 10px;text-align:center">Пока нет операций. За каждый заказ мы начисляем WendyCoin.</div>';
-  const how = `<div class="cl-how"><div><b>${pct}%</b><span>от каждого заказа возвращаем в WendyCoin</span></div><div><b>1 = ${cqFmt(rate)} so'm</b><span>столько стоит 1 WendyCoin при оплате</span></div><div><b>QR</b><span>покажите код кассиру или киоску — оплатите коинами в ресторане</span></div><div><b>${I.bag(26)}</b><span>в приложении меняйте коины на соусы, напитки и другие товары</span></div></div>`;
+  const ic = d => `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const steps = [
+    ['earn', ic('<path d="M19 5L5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'), `${pct}% с каждого заказа`, 'Возвращаем на баланс в WendyCoin'],
+    ['rate', '<img src="/img/coin.png" alt="">', `1 WendyCoin = ${cqFmt(rate)} so'm`, 'По этому курсу коины списываются при оплате'],
+    ['qr', I.qr(26), 'Оплата в ресторане', 'Покажите QR-код кассиру или поднесите к сканеру киоска'],
+    ['shop', ic('<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M12 8c-1.5-3-5-4-5-1.5S10 8 12 8zM12 8c1.5-3 5-4 5-1.5S14 8 12 8z"/>'), 'Обмен на товары', 'Соусы, напитки и другие позиции — прямо в приложении'],
+  ];
+  const how = `<div class="cl-how">${steps.map(([k, icon, t, d]) => `<div class="cl-step"><span class="cl-sic ${k}">${icon}</span><div><b>${t}</b><small>${d}</small></div></div>`).join('')}</div>`;
   return `<div class="cl-top">
       <div class="cl-h"><span>WendyCoin</span><button onclick="Sh.close('coins')" aria-label="close">${I.down(26)}</button></div>
       <div class="cl-big"><img src="/img/coin.png" alt=""><b>${cqFmt(coins)}</b></div>

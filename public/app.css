@@ -486,5 +486,10 @@ svg { display: block; }
 .cl-first + .cl-main { margin-top: 0; }
 .body.cl { padding: 16px 16px 30px; }
 .cl-seg.seg button { height: 44px; font-size: 16px; }
-.cl-how { display: grid; gap: 10px; } .cl-how > div { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: rgba(255,255,255,.06); }
-.cl-how b { flex: none; min-width: 82px; text-align: center; font-size: 20px; font-weight: 800; color: #ffc72c; } .cl-how span { color: #c7c7cc; font-size: 15px; line-height: 1.35; }
+.cl-how { display: flex; flex-direction: column; gap: 10px; }
+.cl-step { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 22px; background: #1b1b1e; border: .5px solid rgba(255,255,255,.06); }
+.cl-sic { flex: none; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+.cl-sic.earn { background: linear-gradient(135deg, #34c759, #1f9d45); } .cl-sic.rate { background: linear-gradient(135deg, #ffd65a, #e9a41b); } .cl-sic.qr { background: linear-gradient(135deg, #ff5a6e, #d61834); } .cl-sic.shop { background: linear-gradient(135deg, #5e8bff, #3a5bd9); }
+.cl-sic img { width: 40px; height: 40px; }
+.cl-step b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.2px; line-height: 1.25; }
+.cl-step small { display: block; margin-top: 3px; color: #9a9aa0; font-size: 14.5px; font-weight: 500; line-height: 1.35; }
