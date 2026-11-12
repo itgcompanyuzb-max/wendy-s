@@ -137,6 +137,12 @@ module.exports = function mountOps(app, { db, fail, auth }) {
     res.json({ ok: true, status: r.status });
   });
 
+  /* ---------- WendyCoin history for the app ---------- */
+  app.get('/api/coins/history', auth, (req, res) => res.json({
+    coins: req.user.coins,
+    items: db.prepare('SELECT id,delta,reason,created_at FROM coin_log WHERE user_id=? ORDER BY id DESC LIMIT 200').all(req.user.id),
+  }));
+
   /* ---------- WendyCoin pay code: the customer shows a QR, the cashier or the kiosk scans it ---------- */
   // one live code per customer, short lifetime (admin setting), single use, only its hash is stored
   const ABC = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -161,7 +167,13 @@ module.exports = function mountOps(app, { db, fail, auth }) {
     res.json({ state: r.expires_at > Date.now() ? 'active' : 'expired', coins });
   });
   const liveCode = (code, res) => {
-    const r = db.prepare('SELECT * FROM coin_qr WHERE code_hash=?').get(sha(cleanCode(code)));
+    const c = cleanCode(code);
+    if (/^WP[0-9A-Z]{16}$/.test(c)) { // the card in Apple Wallet: a lasting code, can be reissued from the app
+      const uid = require('./wallet').userByCode(c);
+      if (!uid) { fail(res, 404, 'Карта не найдена или перевыпущена'); return null; }
+      return { user_id: uid, wallet: true, expires_at: null };
+    }
+    const r = db.prepare('SELECT * FROM coin_qr WHERE code_hash=?').get(sha(c));
     if (!r) { fail(res, 404, 'QR-код не найден'); return null; }
     if (r.used_at) { fail(res, 409, 'QR-код уже использован'); return null; }
     if (r.expires_at <= Date.now()) { fail(res, 410, 'Срок QR-кода истёк — попросите клиента обновить его'); return null; }
@@ -171,7 +183,7 @@ module.exports = function mountOps(app, { db, fail, auth }) {
     const r = liveCode(req.body.code, res); if (!r) return;
     const u = db.prepare('SELECT name,phone,coins FROM users WHERE id=?').get(r.user_id);
     if (!u) return fail(res, 404, 'Клиент не найден');
-    res.json({ customer: { name: u.name || '', phone: maskPhone(u.phone) }, balance: u.coins, coin_value: coinValue(), expires_in: Math.round((r.expires_at - Date.now()) / 1000) });
+    res.json({ customer: { name: u.name || '', phone: maskPhone(u.phone) }, balance: u.coins, coin_value: coinValue(), source: r.wallet ? 'wallet' : 'app', expires_in: r.wallet ? null : Math.round((r.expires_at - Date.now()) / 1000) });
   });
   app.post('/api/pos/coins/redeem', pos, (req, res) => {
     const amount = Number(req.body.amount);
@@ -182,9 +194,9 @@ module.exports = function mountOps(app, { db, fail, auth }) {
       const u = db.prepare('SELECT id,coins FROM users WHERE id=?').get(r.user_id);
       if (!u || u.coins < amount) { db.exec('ROLLBACK'); return fail(res, 400, `Недостаточно WendyCoin: на балансе ${u ? u.coins : 0}`); }
       db.prepare('UPDATE users SET coins=coins-? WHERE id=?').run(amount, u.id);
-      db.prepare('UPDATE coin_qr SET used_at=?, spent=?, branch_id=? WHERE code_hash=?').run(Date.now(), amount, req.posBranch.id, r.code_hash);
+      if (!r.wallet) db.prepare('UPDATE coin_qr SET used_at=?, spent=?, branch_id=? WHERE code_hash=?').run(Date.now(), amount, req.posBranch.id, r.code_hash);
       const note = String(req.body.note || '').trim().slice(0, 80);
-      coinLog(u.id, -amount, `Оплата в ресторане: ${req.posBranch.name}${note ? ' · ' + note : ''}`);
+      coinLog(u.id, -amount, `Оплата в ресторане: ${req.posBranch.name}${r.wallet ? ' (Apple Wallet)' : ''}${note ? ' · ' + note : ''}`);
       notify(u.id, null, 'coins', `−${amount} WendyCoin`, `Оплата в ресторане ${req.posBranch.name}`);
       db.exec('COMMIT');
       res.json({ ok: true, spent: amount, balance: u.coins - amount, sum: amount * coinValue() });
