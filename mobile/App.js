@@ -1,158 +1,143 @@
-// Wendy's app: native menu, product, cart and WendyCoin screens.
-// Login, checkout, address/map, profile, banners and the coin shop still come from the website (src/WebShell),
-// which stays loaded behind the native screens and slides in when needed.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BackHandler, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WebView } from 'react-native-webview';
+import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
-import Home from './src/Home';
-import WebShell from './src/WebShell';
-import { CartSheet, CoinsSheet, ProductSheet, QRSheet } from './src/Sheets';
-import { RED, api, haptic, setLang, t } from './src/lib';
 
+// keep the logo screen up until the menu is drawn: no spinner, no white page
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
-export default function App() {
-  return <SafeAreaProvider><Main /></SafeAreaProvider>;
+const URL = 'https://wendy-s-r2cm.onrender.com';
+const ORIGIN = URL.replace(/^(https?:\/\/[^/]+).*$/, '$1');
+const BG = '#000';
+const RED = '#e21d3c';
+
+// the web app asks for vibration with postMessage({ haptic: 'select' | 'light' | 'medium' | 'success' | 'warning' })
+function vibrate(k) {
+  try {
+    if (k === 'select') Haptics.selectionAsync();
+    else if (k === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else if (k === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    else if (k === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    else if (k === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (k === 'warning') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    else if (k === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch { /* no haptic engine */ }
 }
 
-function Main() {
-  const [menu, setMenu] = useState(null);
+// runs before the page: no text selection, no long-press menus, no grey tap flash, no pinch zoom — feels like an app
+const NATIVE_FEEL = `
+  window.__WENDYS_APP__ = true;
+  document.documentElement.classList.add('native-app');
+  var st = document.createElement('style');
+  st.textContent = '*{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}'
+    + 'input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}'
+    + 'html,body{overscroll-behavior:none}';
+  (document.head || document.documentElement).appendChild(st);
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+  true;
+`;
+
+export default function App() {
   const [failed, setFailed] = useState(false);
-  const [web, setWeb] = useState({ mode: 'delivery', title: '', token: null, lang: 'ru', avatar: 9, activeOrder: null, idle: false, known: false });
-  const [cart, setCart] = useState([]);
-  const [coins, setCoins] = useState(0);
-  const [showWeb, setShowWeb] = useState(false);
-  const [product, setProduct] = useState(null);
-  const [sheet, setSheet] = useState(null); // 'cart' | 'coins' | 'qr'
-  const shell = useRef(null);
-  const showRef = useRef(false);
-  const opened = useRef({ at: 0, busy: false });
-  const cartRef = useRef([]);
-  const fromWeb = useRef(false);
-  useEffect(() => { showRef.current = showWeb; }, [showWeb]);
+  const [key, setKey] = useState(0);
+  const web = useRef(null);
+  const canGoBack = useRef(false);
 
-  /* menu: last copy at once, then fresh from the server */
-  const loadMenu = useCallback(async () => {
-    try {
-      const m = await api('/menu');
-      setMenu(m); setFailed(false);
-      AsyncStorage.setItem('menu', JSON.stringify(m)).catch(() => { });
-    } catch { if (!menu) setFailed(true); }
-  }, [menu]);
-  useEffect(() => {
-    AsyncStorage.multiGet(['menu', 'cart']).then(([[, m], [, c]]) => {
-      try { if (m) setMenu(JSON.parse(m)); } catch { /* broken cache */ }
-      try { if (c) { const v = JSON.parse(c); cartRef.current = v; setCart(v); } } catch { /* broken cache */ }
-    }).finally(loadMenu);
+  const shown = useRef(false);
+  const showApp = useCallback(() => {
+    if (shown.current) return;
+    shown.current = true;
+    SplashScreen.hideAsync().catch(() => { });
   }, []);
-
-  /* the logo screen stays until the menu and the login state are known */
-  const hidden = useRef(false);
-  const hideSplash = useCallback(() => { if (!hidden.current) { hidden.current = true; SplashScreen.hideAsync().catch(() => { }); } }, []);
-  useEffect(() => { if ((menu && web.known) || failed) hideSplash(); }, [menu, web.known, failed]);
-  useEffect(() => { const tm = setTimeout(hideSplash, 9000); return () => clearTimeout(tm); }, []);
-
-  /* the cart: saved on the phone, and passed to the website part */
-  const changeCart = useCallback((next) => {
-    cartRef.current = next; setCart(next);
-    AsyncStorage.setItem('cart', JSON.stringify(next)).catch(() => { });
-    if (!fromWeb.current) shell.current?.setCart(next);
-  }, []);
-  const add = useCallback((id, coin) => {
-    haptic('light');
-    const c = cartRef.current, i = c.findIndex((x) => x.id === id && !!x.coin === !!coin);
-    changeCart(i >= 0 ? c.map((x, k) => (k === i ? { ...x, qty: Math.min(50, x.qty + 1) } : x)) : [...c, coin ? { id, qty: 1, coin: true } : { id, qty: 1 }]);
-  }, []);
-  const dec = useCallback((id, coin) => {
-    haptic('light');
-    const c = cartRef.current, i = c.findIndex((x) => x.id === id && !!x.coin === !!coin);
-    if (i < 0) return;
-    changeCart(c[i].qty <= 1 ? c.filter((_, k) => k !== i) : c.map((x, k) => (k === i ? { ...x, qty: x.qty - 1 } : x)));
-  }, []);
-
-  /* state from the website part: login, language, address, cart after checkout */
-  const onState = useCallback((st) => {
-    setLang(st.lang);
-    setWeb({ ...st, known: true });
-    if (st.token) setCoins(st.coins || 0);
-    if (!st.idle) opened.current.busy = true;
-    if (!st.token) { if (!showRef.current) { opened.current = { at: Date.now(), busy: true }; setShowWeb(true); } return; }
-    if (showRef.current) {
-      fromWeb.current = true; changeCart(st.cart || []); fromWeb.current = false;
-      if (st.idle && opened.current.busy && Date.now() - opened.current.at > 700) setShowWeb(false);
-    }
-  }, []);
-
-  const openWeb = useCallback((cmd, arg) => {
-    setSheet(null); setProduct(null);
-    opened.current = { at: Date.now(), busy: false };
-    shell.current?.run(cmd, cartRef.current, arg);
-    setShowWeb(true);
-  }, []);
-
-  /* balance after login and after paying in a restaurant */
-  useEffect(() => {
-    if (!web.token) return;
-    api('/me', { token: web.token }).then((r) => setCoins(r.user.coins || 0)).catch(() => { });
-  }, [web.token]);
+  useEffect(() => { const t = setTimeout(showApp, 10000); return () => clearTimeout(t); }, [showApp]);
 
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (showRef.current) { shell.current?.closeTop(); return true; }
+      if (canGoBack.current && web.current) { web.current.goBack(); return true; }
       return false;
     });
     return () => sub.remove();
   }, []);
 
-  const needLogin = () => { if (!web.token) { openWeb('login'); return true; } return false; };
+  const onMessage = useCallback((e) => {
+    let m; try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
+    if (m && m.haptic) vibrate(m.haptic);
+  }, []);
 
-  if (failed && !menu) {
+  // our own pages stay inside; phone numbers, Telegram, maps and other sites open in their own apps
+  const onNavigate = useCallback((req) => {
+    const u = req.url || '';
+    if (u.startsWith(ORIGIN) || u.startsWith('about:') || u.startsWith('blob:') || u.startsWith('data:')) return true;
+    if (req.isTopFrame === false) return true;
+    Linking.openURL(u).catch(() => { });
+    return false;
+  }, []);
+
+  if (failed) {
     return (
       <View style={[s.fill, s.center, { padding: 28 }]}>
         <StatusBar style="light" />
         <Image source={require('./assets/icon.png')} style={s.logo} />
-        <Text style={s.title}>{t('Нет подключения')}</Text>
-        <Text style={s.hint}>{t('Проверьте интернет и попробуйте ещё раз')}</Text>
-        <Pressable style={({ pressed }) => [s.btn, pressed && { opacity: 0.8 }]} onPress={() => { haptic('light'); setFailed(false); loadMenu(); shell.current?.reload(); }}>
-          <Text style={s.btnText}>{t('Повторить')}</Text>
+        <Text style={s.title}>Нет подключения</Text>
+        <Text style={s.hint}>Проверьте интернет и попробуйте ещё раз{'\n'}Internetni tekshiring va qayta urinib ko'ring</Text>
+        <Pressable style={({ pressed }) => [s.btn, pressed && { opacity: 0.8 }]} onPress={() => { vibrate('light'); setFailed(false); setKey((k) => k + 1); }}>
+          <Text style={s.btnText}>Повторить · Qayta urinish</Text>
         </Pressable>
       </View>
     );
   }
 
-  const off = new Set(menu && web.mode === 'pickup' && web.branchId ? menu.stock_off?.[web.branchId] || [] : []);
   return (
     <View style={s.fill}>
-      <StatusBar style="light" />
-      {menu ? (
-        <Home
-          menu={menu} web={web} cart={cart} coins={coins}
-          onAdd={(id) => add(id)} onDec={(id) => dec(id)}
-          onProduct={(p) => { haptic('light'); setProduct(p); }}
-          onCart={() => { haptic('medium'); setSheet('cart'); }}
-          onCoins={() => { haptic('light'); if (!needLogin()) setSheet('coins'); }}
-          onQR={() => { haptic('light'); if (!needLogin()) setSheet('qr'); }}
-          onWeb={openWeb}
-        />
-      ) : <View style={s.fill} />}
-      {menu ? (
-        <>
-          <ProductSheet p={product} menu={menu} cart={cart} off={off} onAdd={add} onDec={dec} onClose={() => setProduct(null)} />
-          <CartSheet visible={sheet === 'cart'} menu={menu} cart={cart} onAdd={add} onDec={dec} onClear={() => { changeCart([]); setSheet(null); }} onCheckout={() => { if (!needLogin()) openWeb('checkout'); }} onClose={() => setSheet(null)} />
-          <CoinsSheet visible={sheet === 'coins'} token={web.token} coins={coins} menu={menu} setCoins={setCoins} onQR={() => setSheet('qr')} onShop={() => openWeb('coinShop')} onClose={() => setSheet(null)} />
-          <QRSheet visible={sheet === 'qr'} token={web.token} onPaid={setCoins} onClose={() => setSheet(null)} />
-        </>
-      ) : null}
-      <WebShell ref={shell} visible={showWeb} onState={onState} onFail={() => { if (!menu) setFailed(true); }} />
+      <StatusBar style="light" translucent />
+      <WebView
+        key={key}
+        ref={web}
+        source={{ uri: URL }}
+        style={s.fill}
+        containerStyle={s.fill}
+        originWhitelist={['*']}
+        injectedJavaScriptBeforeContentLoaded={NATIVE_FEEL}
+        onMessage={onMessage}
+        onLoadEnd={showApp}
+        onNavigationStateChange={(st) => { canGoBack.current = st.canGoBack; }}
+        onShouldStartLoadWithRequest={onNavigate}
+        onError={() => { showApp(); setFailed(true); }}
+        onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) { showApp(); setFailed(true); } }}
+        onContentProcessDidTerminate={() => web.current && web.current.reload()}
+        // edge to edge: the page itself keeps clear of the notch and the home bar
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        // nothing that gives away a browser
+        bounces={false}
+        overScrollMode="never"
+        allowsBackForwardNavigationGestures={false}
+        allowsLinkPreview={false}
+        pullToRefreshEnabled={false}
+        hideKeyboardAccessoryView
+        keyboardDisplayRequiresUserAction={false}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        setBuiltInZoomControls={false}
+        textZoom={100}
+        decelerationRate="normal"
+        setSupportMultipleWindows={false}
+        geolocationEnabled
+        javaScriptEnabled
+        domStorageEnabled
+        cacheEnabled
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#000' },
+  fill: { flex: 1, backgroundColor: BG },
   center: { alignItems: 'center', justifyContent: 'center' },
   logo: { width: 96, height: 96, borderRadius: 22, marginBottom: 22 },
   title: { color: '#fff', fontSize: 26, fontWeight: '800', marginBottom: 8 },
