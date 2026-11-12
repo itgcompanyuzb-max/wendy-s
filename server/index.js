@@ -271,7 +271,6 @@ app.get('/api/menu', (req, res) => {
       yandex_key: process.env.YANDEX_MAPS_KEY || '',
       ...Object.fromEntries(SITE_KEYS.map(k => [k, setting(k, '')])),
       code_channels: codeChannels(),
-      wallet: require('./wallet').enabled(),
     },
     stats: siteStats(),
   });
@@ -589,7 +588,6 @@ app.post('/api/chat', auth, (req, res) => {
   if (m) res.json({ message: m });
 });
 require('./ops')(app, { db, fail, auth });
-require('./wallet').mount(app, { auth, fail });
 require('./admin')(app, {
   db, fail, addChat, isOpenNow,
   sendCode: (phone, code) => deliverCode(phone, code, '', 'admin-auth'),

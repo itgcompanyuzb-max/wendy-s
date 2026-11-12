@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View, Linking } from 'react-native';
+import {
+  ActivityIndicator, BackHandler, Platform, Pressable, SafeAreaView,
+  StyleSheet, Text, TextInput, View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
@@ -8,8 +11,6 @@ import * as Haptics from 'expo-haptics';
 // the web app asks for vibration with postMessage({ haptic: 'select' | 'light' | 'medium' | 'success' | 'warning' })
 function onWebMessage(e) {
   let m; try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
-  // the Apple Wallet card opens in Safari, which shows the "Add to Wallet" sheet
-  if (m && typeof m.open === 'string' && /^https:\/\/[^/]+\/wallet\/add\/[0-9a-f]+$/.test(m.open)) { Linking.openURL(m.open); return; }
   const k = m && m.haptic;
   if (k === 'select') Haptics.selectionAsync();
   else if (k === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

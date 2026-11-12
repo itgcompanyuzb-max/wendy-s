@@ -648,8 +648,9 @@ function homeView() {
       <button class="avatar" onclick="A.profile()">${avatarInner()}</button>
     </div>
     <div class="home-body" id="hb">
+      <div id="coinbar">${typeof coinBarHTML === 'function' ? coinBarHTML() : ''}</div>
       <div class="stories">${m.banners.map(b => `<div class="story" onclick="A.banner(${b.id})" style="cursor:pointer;background-color:${esc(b.color)};${b.image ? `background-image:url('${esc(b.image)}')` : ''}"><span>${esc(loc(b, 'title'))}</span></div>`).join('')}</div>
-      <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button><button class="sbtn coinbtn" onclick="A.coinShop()" aria-label="WendyCoin"><img src="/img/coin.png" alt=""></button>
+      <div class="catbar" id="catbar"><button class="sbtn" onclick="A.toggleSearch()">${I.search()}</button>
         ${m.categories.map(c => `<button class="ch ${c.id === St.cat ? 'on' : ''}" data-cat="${c.id}" onclick="A.gotoCat(${c.id})">${esc(loc(c, 'name'))}</button>`).join('')}</div>
       ${St.searchOpen ? `<div class="searchrow"><input id="sq" placeholder="Поиск по меню" value="${esc(St.q)}"></div>` : ''}
       <div id="sections"></div>
@@ -905,13 +906,11 @@ function renderProfile() {
   <div class="body" style="padding-top:14px">
     <div style="font-size:30px;font-weight:700;margin:6px 4px 16px">${esc(u.name || 'Гость')}<div class="gray-t" style="font-size:16px;font-weight:600;margin-top:2px">${esc(u.phone || '')}</div></div>
     <div class="tiles">
-      <button class="tile dash" onclick="Sh.close('profile');A.coinShop()"><div>${I.coin(54)}</div><div><div class="orange" style="font-size:24px">${new Intl.NumberFormat('ru-RU').format(u.coins || 0).replace(/\s/g, NB)} WendyCoin</div><span class="tag" style="margin-top:10px">Копите коины</span></div></button>
+      <button class="tile dash" onclick="Sh.close('profile');A.coins()"><div>${I.coin(54)}</div><div><div class="orange" style="font-size:24px">${new Intl.NumberFormat('ru-RU').format(u.coins || 0).replace(/\s/g, NB)} WendyCoin</div><span class="tag" style="margin-top:10px">Копите коины</span></div></button>
       <button class="tile" onclick="Sh.close('profile')"><span>${St.orders.length ? 'Закажите ещё' : 'Сделайте первый заказ'}</span><span class="tag">Смотреть меню</span></button>
       <button class="tile" onclick="A.cards()"><span>${I.card(40)}<br>Способы оплаты</span><span class="tag">Карты</span></button>
       <button class="tile" onclick="Sh.close('profile');A.addrSheet()"><span>${I.pinI(38)}<br>Мои адреса</span><span class="tag">Адреса</span></button>
     </div>
-    <button class="qr-row" onclick="A.coinQR()">${I.qr(30)}<span><b>Оплатить WendyCoin в ресторане</b><small>QR-код для кассы и киоска</small></span>${I.right()}</button>
-    <button class="qr-row hist" onclick="A.coinLog()"><img src="/img/coin.png" alt="" style="width:30px;height:30px"><span><b>История WendyCoin</b><small>Начисления и оплаты</small></span>${I.right()}</button>
     ${promos.length ? `<div class="h2">Акции</div>${promos.map(p => `<div class="tk"><div class="tk-l"><div><div class="tk-eb">${esc(loc(p, 'info') || 'НА ЛЮБОЙ ТИП ЗАКАЗА')}</div><div class="tk-h">${esc(loc(p, 'title'))}</div>${p.valid_until ? `<div class="tk-d">до ${new Date(p.valid_until + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</div>` : ''}</div>${St.promo?.code === p.code ? `<button class="tk-btn" onclick="A.removePromo();Sh.refresh('profile')">Отменить</button>` : `<button class="tk-btn" onclick="A.usePromo('${esc(p.code)}')">Применить</button>`}</div><div class="tk-r"><div class="tk-info">${I.info(11, '#bcbcc2')}</div><div class="tk-art"><img class="tk-gold" src="/img/coin.png" alt=""><div class="tk-pc">%</div><span class="tk-star s1">✦</span><span class="tk-star s2">✦</span></div></div></div>`).join('')}` : ''}
     ${St.orders.length ? `<div class="h2">Мои заказы</div>${St.orders.map(o => `<div class="ord"><div class="t"><span>Заказ №${o.id}</span><span>${money(o.total)}</span></div>
       <div class="s"><span class="st-tag st-${esc(o.status)}">${ST_NAMES[o.status] || o.status}</span> · ${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'} · ${esc(String(o.created_at).slice(0, 16))}<br>${o.items.map(i => esc(prod(i.product_id) ? loc(prod(i.product_id), 'name') : i.name) + ' × ' + i.qty).join(', ')}</div>${orderActions(o)}</div>`).join('')}` : ''}

@@ -10,7 +10,6 @@
     "node": ">=22.13"
   },
   "dependencies": {
-    "express": "^5.3.0",
-    "node-forge": "^1.4.3"
+    "express": "^5.3.0"
   }
 }

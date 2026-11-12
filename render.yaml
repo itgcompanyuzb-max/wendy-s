@@ -26,13 +26,3 @@ services:
         sync: false
       - key: YANDEX_MAPS_KEY
         sync: false
-      - key: APPLE_PASS_TYPE_ID
-        sync: false
-      - key: APPLE_TEAM_ID
-        sync: false
-      - key: APPLE_PASS_P12
-        sync: false
-      - key: APPLE_PASS_KEY_PASSWORD
-        sync: false
-      - key: PUBLIC_URL
-        sync: false
