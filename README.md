@@ -44,6 +44,17 @@ customer orders -> nearest OPEN branch that serves the address and has every ite
 - Website for computers: /web/ (desktop browsers opening / are sent there automatically; /?m=1 keeps the mobile version). Header/footer links (App Store, Google Play,
   Instagram, Telegram, Facebook, e-mail, "about" text) are set in admin "Безопасность" > settings.
 
+## WendyCoin pay QR (cash desk and self-order kiosk)
+
+The customer opens Profile → "Оплатить WendyCoin в ресторане" and shows a QR code (rounded design, coin logo in the middle).
+The code is single use and lives `coin_qr_ttl` seconds (admin → WendyCoin, default 120), then renews itself.
+The cash desk or kiosk scans it with the branch key (`X-POS-Key`):
+
+- `POST /api/pos/coins/check {code}` → customer, balance, coin value
+- `POST /api/pos/coins/redeem {code, amount, note}` → coins are taken, the app shows "Оплачено" and a notification
+
+The built-in POS (`/pos/`) has a "Списать WendyCoin" button and accepts a USB/2D scanner (it types like a keyboard) or the tablet camera.
+
 ## First start on a new machine / server
 1. `npm install`
 2. copy `.env.example` to `.env` and fill in TELEGRAM_GATEWAY_TOKEN and ADMIN_PHONE

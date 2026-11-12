@@ -188,6 +188,11 @@ CREATE TABLE IF NOT EXISTS coin_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, delta INTEGER NOT NULL, reason TEXT, admin_id INTEGER, order_id INTEGER,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS coin_qr (
+  code_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+  used_at INTEGER, spent INTEGER, branch_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coin_qr_user ON coin_qr(user_id);
 `);
 
 // A fresh install starts from server/menu.seed.json (the real menu, branches, banners) when that file exists.

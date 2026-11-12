@@ -448,3 +448,21 @@ svg { display: block; }
 .seg.glass.drag .lens { transform: scale(1.12, 1.28); background: rgba(255,255,255,.14); -webkit-backdrop-filter: blur(1.5px) saturate(2.2) brightness(1.15); backdrop-filter: blur(1.5px) saturate(2.2) brightness(1.15); box-shadow: inset 0 1.5px 0 rgba(255,255,255,.75), inset 0 -1.5px 1px rgba(255,255,255,.3), inset 0 0 12px rgba(255,255,255,.18), 0 10px 26px rgba(0,0,0,.4); }
 .seg.glass.drag button.hover { transform: scale(1.06); }
 .cart-fab { background-image: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 55%); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -2px 6px rgba(0,0,0,.15), 0 10px 28px rgba(226,32,61,.45); border: .5px solid rgba(255,255,255,.25); }
+/* ===== WendyCoin pay QR ===== */
+.qr-row { width: 100%; margin-top: 12px; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 24px; background: linear-gradient(135deg, rgba(226,32,61,.22), rgba(226,32,61,.06)); border: .5px solid rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.12); text-align: left; }
+.qr-row span { flex: 1; min-width: 0; } .qr-row b { display: block; font-size: 17px; } .qr-row small { display: block; color: #9a9aa0; font-size: 14px; margin-top: 3px; }
+.cs-qr { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 11px 18px; border-radius: 22px; font-size: 16px; font-weight: 700; background: rgba(255,255,255,.1); border: .5px solid rgba(255,255,255,.18); box-shadow: inset 0 1px 0 rgba(255,255,255,.18); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.cq { text-align: center; padding: 6px 20px 26px; }
+.cq-t { font-size: 26px; margin: 4px 0 6px; } .cq-sub { color: #9a9aa0; font-size: 15px; margin: 0 auto 18px; max-width: 300px; line-height: 1.35; }
+.cq-frame { width: min(300px, 78vw); margin: 0 auto; padding: 4px; border-radius: 34px; background: linear-gradient(135deg, #ff4d63, #e2203d 45%, #f7b733); box-shadow: 0 16px 40px rgba(226,32,61,.35); }
+.cq-card { background: #fff; border-radius: 30px; padding: 10px; aspect-ratio: 1; display: grid; place-items: center; }
+.cq-card svg { width: 100%; height: 100%; display: block; }
+.cq-wait { color: #666; font-size: 15px; padding: 20px; }
+.cq-code { margin-top: 14px; font: 600 17px/1 ui-monospace, Menlo, monospace; letter-spacing: 1.5px; color: #c7c7cc; }
+.cq-timer { margin: 16px auto 0; max-width: 300px; } .cq-timer span { display: block; margin-top: 8px; color: #9a9aa0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cq-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; } .cq-bar i { display: block; height: 100%; background: linear-gradient(90deg, #f7b733, #e2203d); border-radius: 3px; transition: width 1s linear; }
+.cq-bal { display: flex; justify-content: space-between; align-items: center; margin: 20px auto 0; max-width: 300px; padding: 14px 18px; border-radius: 20px; background: rgba(255,255,255,.06); font-size: 16px; }
+.cq-bal b { display: flex; align-items: center; gap: 6px; font-size: 18px; } .cq-bal img, .cq-spent img { width: 24px; height: 24px; }
+.cq-done { padding: 20px 0 6px; } .cq-done h2 { font-size: 28px; margin: 14px 0 8px; } .cq-done .btn { margin-top: 18px; }
+.cq-ok { display: block; margin: 0 auto; animation: okpop .5s cubic-bezier(.2,1.4,.4,1) both; } .cq-ok path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: okdraw .45s .35s ease-out forwards; }
+.cq-spent { display: inline-flex; align-items: center; gap: 8px; font-size: 34px; font-weight: 800; color: #f7b733; } .cq-spent img { width: 34px; height: 34px; }

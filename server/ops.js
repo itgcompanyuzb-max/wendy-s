@@ -1,6 +1,6 @@
 /* Customer-facing order tracking, notifications, reviews + the POS integration API. */
 const crypto = require('crypto');
-const { setStatus } = require('./shared');
+const { setStatus, coinLog, notify } = require('./shared');
 
 module.exports = function mountOps(app, { db, fail, auth }) {
   const sha = s => crypto.createHash('sha256').update(s).digest('hex');
@@ -135,5 +135,59 @@ module.exports = function mountOps(app, { db, fail, auth }) {
     if (req.params.action === 'complete' && o.type === 'delivery') return fail(res, 409, 'Доставку завершает курьер');
     const r = setStatus(o.id, step[1]);
     res.json({ ok: true, status: r.status });
+  });
+
+  /* ---------- WendyCoin pay code: the customer shows a QR, the cashier or the kiosk scans it ---------- */
+  // one live code per customer, short lifetime (admin setting), single use, only its hash is stored
+  const ABC = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const ttl = () => Math.min(600, Math.max(30, Number(db.prepare("SELECT value FROM settings WHERE key='coin_qr_ttl'").get()?.value) || 120));
+  const coinValue = () => Number(db.prepare("SELECT value FROM settings WHERE key='coin_value'").get()?.value) || 1;
+  const cleanCode = c => String(c || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  const maskPhone = p => String(p || '').replace(/^(\+998|\+7)\d+(\d{2})$/, '$1 *** ** $2');
+  app.post('/api/coins/qr', auth, (req, res) => {
+    const code = 'WC' + [...crypto.randomBytes(10)].map(b => ABC[b & 31]).join('');
+    const exp = Date.now() + ttl() * 1000;
+    db.prepare('DELETE FROM coin_qr WHERE user_id=? AND used_at IS NULL').run(req.user.id);
+    db.prepare('DELETE FROM coin_qr WHERE expires_at<?').run(Date.now() - 86400e3);
+    db.prepare('INSERT INTO coin_qr (code_hash,user_id,expires_at) VALUES (?,?,?)').run(sha(code), req.user.id, exp);
+    res.json({ code, expires_in: Math.round((exp - Date.now()) / 1000), coins: req.user.coins });
+  });
+  // the app polls this while the QR is on screen, to show "paid" as soon as the cashier is done
+  app.get('/api/coins/qr/:code', auth, (req, res) => {
+    const r = db.prepare('SELECT * FROM coin_qr WHERE code_hash=? AND user_id=?').get(sha(cleanCode(req.params.code)), req.user.id);
+    const coins = db.prepare('SELECT coins FROM users WHERE id=?').get(req.user.id).coins;
+    if (!r) return res.json({ state: 'expired', coins });
+    if (r.used_at) return res.json({ state: 'used', spent: r.spent, coins, branch: db.prepare('SELECT name FROM branches WHERE id=?').get(r.branch_id)?.name || '' });
+    res.json({ state: r.expires_at > Date.now() ? 'active' : 'expired', coins });
+  });
+  const liveCode = (code, res) => {
+    const r = db.prepare('SELECT * FROM coin_qr WHERE code_hash=?').get(sha(cleanCode(code)));
+    if (!r) { fail(res, 404, 'QR-код не найден'); return null; }
+    if (r.used_at) { fail(res, 409, 'QR-код уже использован'); return null; }
+    if (r.expires_at <= Date.now()) { fail(res, 410, 'Срок QR-кода истёк — попросите клиента обновить его'); return null; }
+    return r;
+  };
+  app.post('/api/pos/coins/check', pos, (req, res) => {
+    const r = liveCode(req.body.code, res); if (!r) return;
+    const u = db.prepare('SELECT name,phone,coins FROM users WHERE id=?').get(r.user_id);
+    if (!u) return fail(res, 404, 'Клиент не найден');
+    res.json({ customer: { name: u.name || '', phone: maskPhone(u.phone) }, balance: u.coins, coin_value: coinValue(), expires_in: Math.round((r.expires_at - Date.now()) / 1000) });
+  });
+  app.post('/api/pos/coins/redeem', pos, (req, res) => {
+    const amount = Number(req.body.amount);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 1e7) return fail(res, 400, 'Укажите целое количество WendyCoin');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const r = liveCode(req.body.code, res); if (!r) { db.exec('ROLLBACK'); return; }
+      const u = db.prepare('SELECT id,coins FROM users WHERE id=?').get(r.user_id);
+      if (!u || u.coins < amount) { db.exec('ROLLBACK'); return fail(res, 400, `Недостаточно WendyCoin: на балансе ${u ? u.coins : 0}`); }
+      db.prepare('UPDATE users SET coins=coins-? WHERE id=?').run(amount, u.id);
+      db.prepare('UPDATE coin_qr SET used_at=?, spent=?, branch_id=? WHERE code_hash=?').run(Date.now(), amount, req.posBranch.id, r.code_hash);
+      const note = String(req.body.note || '').trim().slice(0, 80);
+      coinLog(u.id, -amount, `Оплата в ресторане: ${req.posBranch.name}${note ? ' · ' + note : ''}`);
+      notify(u.id, null, 'coins', `−${amount} WendyCoin`, `Оплата в ресторане ${req.posBranch.name}`);
+      db.exec('COMMIT');
+      res.json({ ok: true, spent: amount, balance: u.coins - amount, sum: amount * coinValue() });
+    } catch (e) { try { db.exec('ROLLBACK'); } catch { /* already closed */ } console.error('[coin qr]', e.message); fail(res, 500, 'Ошибка списания'); }
   });
 };
