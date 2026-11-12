@@ -9,3 +9,4 @@ uploads/*
 dist/
 demo-dist/
 demo-web/
+mobile/src/bundle.js
