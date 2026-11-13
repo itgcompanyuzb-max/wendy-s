@@ -82,6 +82,7 @@ function auth(req, res, next) {
   if (!s) return fail(res, 401, 'Требуется вход');
   req.user = db.prepare('SELECT * FROM users WHERE id=?').get(s.user_id);
   if (!req.user) return fail(res, 401, 'Требуется вход');
+  if (req.user.blocked) { db.prepare('DELETE FROM sessions WHERE user_id=?').run(req.user.id); return fail(res, 401, 'Аккаунт заблокирован. Напишите в поддержку'); }
   next();
 }
 const newToken = () => crypto.randomBytes(24).toString('hex');
@@ -152,6 +153,7 @@ async function issueCode(phone, res, prefer) {
 
 app.post('/api/auth/request', wrap(async (req, res) => {
   const phone = String(req.body.phone || '').replace(/[\s()-]/g, '');
+  if (db.prepare('SELECT blocked FROM users WHERE phone=?').get(phone)?.blocked) return fail(res, 403, 'Аккаунт заблокирован. Напишите в поддержку');
   await issueCode(phone, res, req.body.channel === 'whatsapp' ? 'whatsapp' : req.body.channel === 'telegram' ? 'telegram' : '');
 }));
 
@@ -168,6 +170,7 @@ app.post('/api/auth/verify', wrap(async (req, res) => {
   }
   db.prepare('UPDATE codes SET used=1 WHERE id=?').run(row.id);
   let user = db.prepare('SELECT * FROM users WHERE phone=?').get(phone);
+  if (user && user.blocked) return fail(res, 403, 'Аккаунт заблокирован. Напишите в поддержку');
   const isNew = !user;
   if (!user) {
     const id = Number(db.prepare('INSERT INTO users (phone) VALUES (?)').run(phone).lastInsertRowid);
@@ -591,6 +594,17 @@ app.post('/api/chat', auth, (req, res) => {
   if (m) res.json({ message: m });
 });
 require('./ops')(app, { db, fail, auth });
+// the cart is kept on the server too, for the "your cart is waiting" reminder
+app.put('/api/cart', auth, (req, res) => {
+  const items = (Array.isArray(req.body.items) ? req.body.items : []).slice(0, 60)
+    .map(i => ({ id: Math.trunc(Number(i.id)), qty: Math.min(50, Math.max(0, Math.trunc(Number(i.qty)))), ...(i.coin ? { coin: true } : {}) }))
+    .filter(i => i.id > 0 && i.qty > 0);
+  const json = JSON.stringify(items), old = db.prepare('SELECT items_json FROM carts WHERE user_id=?').get(req.user.id);
+  if (old && old.items_json === json) return res.json({ ok: true });
+  db.prepare('INSERT INTO carts (user_id,items_json,updated_at,reminded_at) VALUES (?,?,?,NULL) ON CONFLICT(user_id) DO UPDATE SET items_json=excluded.items_json, updated_at=excluded.updated_at, reminded_at=NULL').run(req.user.id, json, Date.now());
+  res.json({ ok: true });
+});
+require('./jobs').start();
 require('./admin')(app, {
   db, fail, addChat, isOpenNow,
   sendCode: (phone, code) => deliverCode(phone, code, '', 'admin-auth'),

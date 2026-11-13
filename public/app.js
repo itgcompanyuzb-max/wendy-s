@@ -34,7 +34,20 @@ async function api(path, opts = {}) {
 const apiQuick = (path, ms, opts) => Promise.race([api(path, opts), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
-  $('#app').appendChild(t); setTimeout(() => t.remove(), 2800);
+  $('#app').appendChild(t); swipeAway(t); setTimeout(() => t.remove(), 2800);
+}
+// a toast or notification follows the finger upwards and goes away, like on the iPhone
+function swipeAway(el, onTap) {
+  let y0 = null, dy = 0;
+  el.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; dy = 0; el.classList.add('drag'); }, { passive: true });
+  el.addEventListener('touchmove', e => { if (y0 === null) return; dy = e.touches[0].clientY - y0; el.style.transform = `translateY(${dy < 0 ? dy : dy / 4}px)`; }, { passive: true });
+  const end = e => {
+    if (y0 === null) return; y0 = null; el.classList.remove('drag');
+    if (dy < -30) { haptic('light'); el.classList.add('gone'); setTimeout(() => el.remove(), 260); }
+    else { el.style.transform = ''; if (Math.abs(dy) < 6 && onTap) { if (e.cancelable) e.preventDefault(); onTap(); } } // no late click on the screen below
+  };
+  el.addEventListener('touchend', end, { passive: false }); el.addEventListener('touchcancel', end);
+  if (onTap) el.addEventListener('click', e => { if (!('ontouchstart' in window)) onTap(); });
 }
 
 /* Tashkent time */
@@ -120,6 +133,9 @@ A.clearCart = () => { St.cart = []; St.promo = null; LS.del('promo'); cartChange
 function cartChanged() {
   St.cart = St.cart.filter(c => prod(c.id));
   saveCart();
+  // the server keeps a copy for the "your cart is waiting" reminder
+  clearTimeout(cartChanged.s);
+  if (St.token) cartChanged.s = setTimeout(() => api('/cart', { method: 'PUT', body: { items: St.cart }, noLogout: true }).catch(() => { }), 1500);
   document.querySelectorAll('[data-pill]').forEach(el => { el.innerHTML = pillInner(prod(Number(el.dataset.pill))); });
   renderFab();
   if (St.promo && totals().sub === 0) { St.promo = null; LS.del('promo'); }
@@ -1088,11 +1104,22 @@ async function loadUserData() {
   if (!St.addresses.find(x => x.id === St.addrId)) St.addrId = St.addresses[0]?.id || null;
   LS.set('addrId', St.addrId);
 }
+// a newer menu from the server (prices, photos, hidden products): applied right away when the menu is on screen
+async function freshMenu() {
+  try {
+    const m = await api('/menu');
+    LS.set('menuCache', m);
+    if (JSON.stringify(m) === JSON.stringify(St.menu)) return;
+    St.menu = m; cartChanged();
+    if (document.getElementById('hb') && !Object.keys(Sh.stack).length) { const y = $('#hb').scrollTop; homeView(); $('#hb').scrollTop = y; }
+  } catch { setTimeout(freshMenu, 15000); } // the server is waking up: try again
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && St.menu) freshMenu(); });
 (async function boot() {
   try {
     // the menu and the profile are saved on the phone: without the internet the app still opens with them
     const menuCache = LS.get('menuCache', null);
-    try { St.menu = await apiQuick('/menu', 6000); LS.set('menuCache', St.menu); } catch (e) { if (!menuCache) throw e; St.menu = menuCache; }
+    try { St.menu = await apiQuick('/menu', 6000); LS.set('menuCache', St.menu); } catch (e) { if (!menuCache) throw e; St.menu = menuCache; setTimeout(freshMenu, 1500); }
     document.body.classList.toggle('img-circle', St.menu.settings.product_image_shape === 'circle'); // admin: round or square product photos
     if (St.token) {
       try { St.user = (await apiQuick('/me', 6000, { noLogout: true })).user; LS.set('userCache', St.user); await loadUserData(); refreshOrders(); } catch (e) {

@@ -29,7 +29,7 @@ svg { display: block; }
 .link-or { color: var(--or); font-weight: 600; font-size: 17px; }
 
 /* login */
-.login { padding: 16px 20px max(20px, env(safe-area-inset-bottom)); }
+.login { padding: max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); }
 .top-row { display: flex; justify-content: space-between; align-items: center; height: 44px; }
 .hero { flex: 1; min-height: 0; margin: 0 -20px; background: url('/img/hero.jpg') center/contain no-repeat; mix-blend-mode: lighten; }
 .login h1 { text-align: center; font-size: 25px; margin: 0 0 10px; font-weight: 700; }
@@ -38,7 +38,7 @@ svg { display: block; }
 .legal a { text-decoration: underline; }
 
 /* phone */
-.form-view { padding: 16px 20px max(16px, env(safe-area-inset-bottom)); }
+.form-view { padding: max(16px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom)); }
 .form-view h2 { text-align: center; font-size: 25px; font-weight: 700; line-height: 1.25; margin: 38px 20px 34px; }
 .phone-box { display: flex; align-items: center; background: var(--card); border-radius: 20px; height: 66px; padding: 0 18px; gap: 8px; }
 .phone-box .cc { position: relative; display: flex; align-items: center; gap: 4px; font-size: 25px; font-weight: 700; flex: none; cursor: pointer; }
@@ -471,7 +471,9 @@ svg { display: block; }
 .cl-ic.in { background: rgba(52,199,89,.16); color: #34c759; } .cl-ic.out { background: rgba(255,255,255,.08); }
 .cl-tx { flex: 1; min-width: 0; } .cl-tx b { display: block; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .cl-tx small { color: #8e8e93; font-size: 13.5px; }
 .cl-d { font-size: 17px; font-weight: 800; white-space: nowrap; } .cl-d.in { color: #34c759; }
-.coinbar { display: flex; align-items: center; gap: 10px; width: calc(100% - 32px); margin: 4px 16px 14px; height: 64px; padding: 0 8px 0 10px; border-radius: 22px; background: linear-gradient(120deg, #b5122b, #e2203d 55%, #f0504f); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 10px 26px rgba(226,32,61,.28); }
+.coinbar { position: relative; overflow: hidden; display: flex; align-items: center; gap: 10px; width: calc(100% - 32px); margin: 4px 16px 14px; height: 64px; padding: 0 8px 0 10px; border-radius: 22px; background: radial-gradient(120% 160% at 108% 120%, rgba(255,120,130,.55), transparent 55%), radial-gradient(90% 140% at 62% -60%, rgba(255,255,255,.22), transparent 60%), linear-gradient(100deg, #9e0b20 0%, #c8102e 38%, #e8213f 70%, #f2475b 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.18), 0 10px 26px rgba(226,32,61,.3); }
+.coinbar::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(60% 120% at 46% 175%, rgba(255,255,255,.14), transparent 62%), radial-gradient(70% 150% at 78% -40%, rgba(120,0,20,.35), transparent 60%); }
+.coinbar > * { position: relative; }
 .coinbar .cb-l { flex: 1; display: flex; align-items: center; gap: 10px; height: 100%; min-width: 0; text-align: left; }
 .coinbar .cb-l img { width: 42px; height: 42px; } .coinbar .cb-l b { font-size: 26px; font-weight: 800; } .coinbar .cb-tx { font-size: 18px; font-weight: 700; }
 .coinbar .cb-qr { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 18px; border-radius: 16px; font-size: 18px; font-weight: 700; color: #fff; background: rgba(255,255,255,.16); border: .5px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
@@ -493,3 +495,7 @@ svg { display: block; }
 .cl-sic img { width: 40px; height: 40px; }
 .cl-step b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.2px; line-height: 1.25; }
 .cl-step small { display: block; margin-top: 3px; color: #9a9aa0; font-size: 14.5px; font-weight: 500; line-height: 1.35; }
+/* notifications and toasts: push them up with the finger to hide */
+.toast, .nbanner { touch-action: none; transition: transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+.toast.drag, .nbanner.drag { transition: none; }
+.toast.gone, .nbanner.gone { transform: translateY(-140%) !important; opacity: 0; }

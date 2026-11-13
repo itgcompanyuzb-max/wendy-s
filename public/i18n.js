@@ -104,6 +104,10 @@
     'Достаточно': 'Yetarli',
   };
   Object.assign(D, {
+    '🎂 С днём рождения!': '🎂 Tug\'ilgan kuningiz bilan!', '🛒 Мы всё ещё ждём вас в корзине': '🛒 Savatda sizni hali ham kutyapmiz',
+    'Аккаунт заблокирован. Напишите в поддержку': 'Akkaunt bloklangan. Yordam xizmatiga yozing', 'Подарок на день рождения': 'Tug\'ilgan kun sovg\'asi',
+  });
+  Object.assign(D, {
     'Возвращаем на баланс в WendyCoin': 'WendyCoin bo\'lib balansingizga qaytadi', 'По этому курсу коины списываются при оплате': 'To\'lovda coinlar shu kurs bo\'yicha yechiladi',
     'Оплата в ресторане': 'Restoranda to\'lov', 'Покажите QR-код кассиру или поднесите к сканеру киоска': 'QR-kodni kassirga ko\'rsating yoki kiosk skaneriga tuting',
     'Обмен на товары': 'Mahsulotga almashtirish', 'Соусы, напитки и другие позиции — прямо в приложении': 'Souslar, ichimliklar va boshqa mahsulotlar — ilovaning o\'zida',
@@ -130,6 +134,8 @@
   const MONTHS = { января: 'yanvar', февраля: 'fevral', марта: 'mart', апреля: 'aprel', мая: 'may', июня: 'iyun', июля: 'iyul', августа: 'avgust', сентября: 'sentabr', октября: 'oktabr', ноября: 'noyabr', декабря: 'dekabr' };
   const VERB = { принят: 'qabul qilindi', готов: 'tayyor', доставлен: 'yetkazildi', выдан: 'topshirildi', отменён: 'bekor qilindi', оформлен: 'rasmiylashtirildi' };
   const P = [ // [regex, replacement function]
+    [/^Дарим вам (\d+) WendyCoin 🎁$/, n => `Sizga ${n} WendyCoin sovg'a qilamiz 🎁`],
+    [/^(\d+) (?:товар ждёт|товара ждут|товаров ждут) вас — оформите заказ, пока всё горячее 🍔$/, n => `${n} ta mahsulot sizni kutyapti — hammasi issiqligida buyurtma bering 🍔`],
     [/^(\d+)% с каждого заказа$/, n => `Har bir buyurtmadan ${n}%`],
     [/^Обновится через (\d+:\d+)$/, t => `${t} dan keyin yangilanadi`],
     [/^Оплата в ресторане: (.+)$/, t => `Restoranda to'lov: ${t}`],

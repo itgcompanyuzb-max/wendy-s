@@ -8,6 +8,7 @@ const OK_ROLES = { admin: ['super'], manager: ['manager', 'staff'] }[APP];
 const S = { token: sessionStorage.getItem('atoken') || '', me: null, branch: null, tab: null, sub: 'products', branchId: '', branches: [], cats: [], lastOrderIds: null, timer: null, idle: null };
 
 const ICON = {
+  notify: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   analytics: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
   dashboard: '<path d="M4 13h6V4H4zM14 20h6V11h-6zM14 4h6v4h-6zM4 20h6v-4H4z"/>',
   orders: '<path d="M6 3h12l1 18-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
@@ -32,7 +33,7 @@ const ICON = {
 const icon = (k, w = 22) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ''}</svg>`;
 const ROLE_NAMES = { super: 'Администратор', manager: 'Менеджер филиала', staff: 'Сотрудник', courier: 'Курьер' };
 const NAV = {
-  super: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
+  super: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['notify', 'Уведомления'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
   manager: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
   staff: [['orders', 'Заказы'], ['security', 'Безопасность']],
 };
@@ -241,7 +242,32 @@ VIEWS.banners = async main => {
       <div class="acts"><button class="btn sm" data-act="edit" data-t="banners" data-id="${b.id}">Изменить</button><button class="btn sm danger" data-act="del" data-t="banners" data-id="${b.id}">Удалить</button></div></div></div>`).join('')}</div>` : '<div class="glass card empty">Баннеров пока нет. Нажмите «Загрузить баннер».</div>');
 };
 VIEWS.promos = async main => { const rows = (await api('promos')).rows; main.innerHTML = head('Промокоды', '<button class="btn primary" data-act="add" data-t="promos">+ Промокод</button>') + table('promos', rows, ['code', 'percent', 'fixed', 'min_total', 'title', 'active']); };
-VIEWS.customers = async main => { const rows = (await api('customers')).rows; main.innerHTML = head(`Клиенты (${rows.length})`) + `<div class="glass scrollx"><table class="tbl"><thead><tr><th>ID</th><th>Телефон</th><th>Имя</th><th>Коины</th><th>Регистрация</th></tr></thead><tbody>${rows.map(u => `<tr><td>${u.id}</td><td>${esc(u.phone)}</td><td>${esc(u.name)}</td><td>${u.coins}</td><td>${esc(u.created_at)}</td></tr>`).join('')}</tbody></table></div>`; };
+VIEWS.customers = async main => {
+  const rows = (await api('customers')).rows;
+  main.innerHTML = head(`Клиенты (${rows.length})`) + `<div class="glass card" style="margin-bottom:14px;padding:12px 16px"><input id="cq" placeholder="Поиск по телефону или имени" style="width:100%;background:transparent;border:0;outline:0;font-size:15px"></div>
+  <div class="glass scrollx"><table class="tbl"><thead><tr><th>ID</th><th>Телефон</th><th>Имя</th><th>Коины</th><th>День рождения</th><th>Статус</th><th>Регистрация</th><th></th></tr></thead><tbody id="cbody">${rows.map(u => `<tr data-s="${esc((u.phone + ' ' + (u.name || '')).toLowerCase())}"><td>${u.id}</td><td>${esc(u.phone)}</td><td>${esc(u.name)}</td><td><b>${money(u.coins)}</b></td><td class="faint">${esc(u.birthday || '—')}</td><td>${u.blocked ? '<span class="pill bad">заблокирован</span>' : '<span class="pill ok">активен</span>'}</td><td class="faint">${esc(u.created_at)}</td>
+    <td class="acts"><button class="btn sm" data-act="coinadj" data-id="${u.id}" data-name="${esc(u.name || u.phone)}">Коины</button><button class="btn sm ${u.blocked ? '' : 'danger'}" data-act="custblock" data-id="${u.id}" data-on="${u.blocked ? 1 : 0}" data-name="${esc(u.name || u.phone)}">${u.blocked ? 'Разблокировать' : 'Заблокировать'}</button></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty">Клиентов нет</div></td></tr>'}</tbody></table></div>`;
+  $('#cq').addEventListener('input', e => { const q = e.target.value.trim().toLowerCase(); document.querySelectorAll('#cbody tr[data-s]').forEach(tr => { tr.hidden = !!q && !tr.dataset.s.includes(q); }); });
+};
+const ACTION_NAMES = { '': 'Ничего (только сообщение)', menu: 'Меню', coins: 'WendyCoin', promos: 'Акции', cart: 'Корзина', profile: 'Профиль и заказы' };
+VIEWS.notify = async main => {
+  const d = await api('notify'), cs = Object.fromEntries((await api('settings')).rows.map(r => [r.key, r.value]));
+  const sel = (name, v) => `<select name="${name}"><option value="1" ${v === '1' ? 'selected' : ''}>Включено</option><option value="0" ${v !== '1' ? 'selected' : ''}>Выключено</option></select>`;
+  main.innerHTML = head('Уведомления') + `<div class="grid cols2">
+    <div class="glass card"><h3>Отправить сообщение клиентам</h3><p class="muted" style="margin-top:0">Получат все ${d.customers} активных клиентов. Сообщение появится в приложении сверху; по нажатию откроется выбранный экран.</p>
+      <form data-form="broadcast"><label class="field"><span>Заголовок</span><input name="title" maxlength="80" required placeholder="🍔 Новый бургер уже в меню!"></label>
+      <label class="field"><span>Текст</span><textarea name="body" maxlength="300" rows="3" placeholder="Попробуйте сегодня со скидкой 20%"></textarea></label>
+      <label class="field"><span>При нажатии открыть</span><select name="action">${Object.entries(ACTION_NAMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+      <div style="margin-top:14px"><button class="btn primary" type="submit">Отправить</button></div></form></div>
+    <div class="glass card"><h3>Автоматические сообщения</h3><form data-form="autoset">
+      <h4 style="margin:6px 0 4px">🎂 День рождения</h4><p class="muted" style="margin:0 0 4px">В день рождения клиент получит коины и поздравление (дата из профиля клиента).</p>
+      <div class="g2"><label class="field"><span>Подарок</span>${sel('birthday_coins_on', cs.birthday_coins_on)}</label><label class="field"><span>Сколько WendyCoin дарить</span><input type="number" min="0" step="1" name="birthday_coins" value="${esc(cs.birthday_coins || 0)}"></label></div>
+      <h4 style="margin:18px 0 4px">🛒 Забытая корзина</h4><p class="muted" style="margin:0 0 4px">Если клиент положил товары в корзину и не оформил заказ — напомним: «Мы всё ещё ждём вас в корзине».</p>
+      <div class="g2"><label class="field"><span>Напоминание</span>${sel('cart_remind_on', cs.cart_remind_on ?? '1')}</label><label class="field"><span>Через сколько минут</span><input type="number" min="15" max="1440" step="1" name="cart_remind_min" value="${esc(cs.cart_remind_min || 60)}"></label></div>
+      <p class="faint" style="font-size:12px">Автоматические сообщения отправляются с 10:00 до 22:00, чтобы не беспокоить ночью.</p>
+      <div style="margin-top:8px"><button class="btn primary" type="submit">Сохранить</button></div></form></div></div>
+    <div class="glass card" style="margin-top:16px"><h3>История рассылок</h3><div class="scrollx"><table class="tbl"><thead><tr><th>Время (UTC)</th><th>Сообщение</th><th>Открывает</th><th>Получили</th></tr></thead><tbody>${d.rows.map(r => `<tr><td class="faint">${esc(r.created_at)}</td><td><b>${esc(r.title)}</b><div class="muted">${esc(r.body)}</div></td><td>${esc(ACTION_NAMES[r.action] || '—')}</td><td>${r.sent}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty">Рассылок ещё не было</div></td></tr>'}</tbody></table></div></div>`;
+};
 
 VIEWS.chats = async main => {
   const { rows } = await api('chats');
@@ -588,6 +614,11 @@ const ACT = {
   },
   catkeyoff: async () => { if (!(await ask('Отозвать ключ?', 'Касса больше не сможет обновлять меню.', 'Отозвать'))) return; try { await api('catalog-key', 'DELETE', null, true); loadTab(); } catch (e) { toast(e.message); } },
   posrevoke: async el => { if (!(await ask('Отозвать ключ?', 'Касса филиала потеряет доступ к заказам.', 'Отозвать'))) return; try { await api(`branches/${el.dataset.id}/pos-key`, 'DELETE', null, true); loadTab(); } catch (e) { toast(e.message); } },
+  custblock: async el => {
+    const on = el.dataset.on === '1';
+    if (!(await ask(on ? 'Разблокировать клиента?' : 'Заблокировать клиента?', on ? `${el.dataset.name} снова сможет входить и заказывать.` : `${el.dataset.name} будет выведен из приложения и не сможет войти и заказывать.`, on ? 'Разблокировать' : 'Заблокировать', !on))) return;
+    try { await api(`customers/${el.dataset.id}/block`, 'POST', { blocked: !on }, true); toast(on ? 'Клиент разблокирован' : 'Клиент заблокирован'); loadTab(); } catch (e) { toast(e.message); }
+  },
   coinadj: el => {
     const o = overlay(`<form class="glass modal" id="cf2"><h2>Баланс WendyCoin</h2><p class="muted">${esc(el.dataset.name)}</p><label class="field"><span>Изменение (например 100 или -50)</span><input name="delta" type="number" step="1" required></label><label class="field"><span>Причина</span><input name="reason" maxlength="120" placeholder="Подарок / компенсация"></label><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Применить</button></div></form>`);
     o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) o.remove(); });
@@ -612,6 +643,8 @@ document.addEventListener('submit', async e => {
   const f = e.target.dataset?.form; if (!f) return; e.preventDefault();
   const body = Object.fromEntries(new FormData(e.target));
   try {
+    if (f === 'broadcast') { if (!(await ask('Отправить всем клиентам?', body.title, 'Отправить', false))) return; const r = await api('notify', 'POST', body, true); toast(`Отправлено: ${r.sent}`); loadTab(); return; }
+    if (f === 'autoset') { await api('settings', 'PUT', body, true); toast('Сохранено'); return; }
     if (f === 'coinset' || f === 'deliverydef') { if (!(await ask('Сохранить настройки?', 'Изменения сразу применятся в приложении.', 'Сохранить', false))) return; await api('settings', 'PUT', body, true); toast('Сохранено'); return; }
     if (f === 'settings') { if (!(await ask('Сохранить настройки?', 'Изменения сразу применятся в приложении.', 'Сохранить', false))) return; await api('settings', 'PUT', body, true); toast('Сохранено'); }
   } catch (er) { const x = $('#pwerr'); if (x) x.textContent = er.message; else toast(er.message); }
