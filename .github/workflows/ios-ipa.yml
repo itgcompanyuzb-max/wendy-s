@@ -41,6 +41,11 @@ jobs:
           CI: '1'
         run: npx expo prebuild -p ios --clean
 
+      - name: Drop the push entitlement (the app uses local notifications; a free Apple ID cannot sign push)
+        run: |
+          for f in ios/*/*.entitlements; do /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$f" 2>/dev/null || true; done
+          cat ios/*/*.entitlements || true
+
       - name: Build the app without code signing
         working-directory: mobile/ios
         run: |
