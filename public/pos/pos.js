@@ -22,11 +22,12 @@ function login(msg) {
     try { await call('orders'); sessionStorage.setItem('poskey', key); start(); } catch (er) { $('#err').textContent = er.message; }
   });
 }
+const PAY = { card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' };
 const TYPE = { delivery: 'Доставка', pickup: 'Самовывоз' };
 function card(o) {
   const act = o.status === 'new' ? ['accept', 'Принять', 'primary'] : o.status === 'cooking' ? ['ready', 'Готово', 'primary'] : (o.type === 'pickup' ? ['complete', 'Выдан', 'primary'] : null);
   return `<div class="oc"><div class="h"><b style="font-size:20px">№${o.number}</b><span class="faint">${esc(String(o.created_at).slice(11, 16))}</span></div>
-    <div><span class="pill ${o.type === 'delivery' ? 'info' : 'warn'}">${TYPE[o.type]}</span> <span class="pill">${esc(o.payment)}</span>${o.pickup_time && o.pickup_time !== 'asap' ? ` <span class="pill">к ${esc(o.pickup_time)}</span>` : ''}</div>
+    <div><span class="pill ${o.type === 'delivery' ? 'info' : 'warn'}">${TYPE[o.type]}</span> <span class="pill">${esc(PAY[o.payment] || o.payment)}</span>${o.pickup_time && o.pickup_time !== 'asap' ? ` <span class="pill">к ${esc(o.pickup_time)}</span>` : ''}</div>
     <table class="lines">${o.items.map(i => `<tr><td>${esc(i.name)}${i.paid_with_coins ? ' <span class="pill warn">WendyCoin</span>' : ''}</td><td>× ${i.qty}</td><td>${i.paid_with_coins ? '—' : money(i.sum)}</td></tr>`).join('')}</table>
     <div class="row" style="border:0;padding:6px 0"><b>Итого</b><b>${money(o.total)} so'm</b></div>
     <div class="muted" style="font-size:13px">${esc(o.customer?.name || '')} ${esc(o.customer?.phone || '')}${o.comment ? '<br>' + esc(o.comment) : ''}</div>

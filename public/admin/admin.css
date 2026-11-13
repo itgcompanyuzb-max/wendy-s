@@ -187,7 +187,7 @@ input[type=tel]:focus { border-color: var(--brand-2); box-shadow: 0 0 0 4px rgba
 .nav { font-size: 16.5px; height: 50px; gap: 14px; } .nav svg { flex: none; }
 .brand { font-size: 22px; } .brand .logo { width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,.3)); }
 .who { font-size: 14px; } .who b { font-size: 15px; }
-.board { grid-template-columns: repeat(5, minmax(240px, 1fr)); }
+.board { grid-template-columns: repeat(5, minmax(190px, 1fr)); }
 .leaflet-container { background: #1a2332; border-radius: 18px; font-family: var(--font); }
 .leaflet-control-attribution { display: none !important; }
 a.btn { text-decoration: none; color: inherit; }
@@ -200,3 +200,28 @@ a.btn { text-decoration: none; color: inherit; }
 input[type=date] { width: 100%; height: 46px; padding: 0 18px; border-radius: 16px; border: 1.2px solid var(--stroke); background: rgba(255,255,255,.06); font-size: 15px; outline: none; }
 a.nav { text-decoration: none; }
 .zv { background: #fff; border: 3px solid #e2203d; border-radius: 50%; box-sizing: border-box; cursor: grab; }
+/* phones and tablets: the menu is one row at the top that scrolls sideways, the page starts right under it */
+@media (max-width: 900px) {
+  .side { position: sticky; top: 0; z-index: 50; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; height: auto; margin: -12px -12px 0; padding: 10px 12px; border-radius: 0 0 22px 22px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .side::-webkit-scrollbar { display: none; }
+  .brand { flex: none; padding: 0 4px 0 0; } .brand span { display: none; } .brand .logo { width: 36px; height: 36px; }
+  .nav { flex: none; height: 40px; padding: 0 14px; gap: 8px; font-size: 14.5px; white-space: nowrap; border-radius: 20px; }
+  .nav svg { width: 18px; height: 18px; }
+  .side .sp, .who { display: none; }
+  .app { gap: 12px; align-content: start; } .side { align-self: start; }
+  .board { grid-template-columns: repeat(5, minmax(240px, 1fr)); }
+}
+/* phones: tables become cards (column name on the left, value on the right, buttons at the bottom) */
+@media (max-width: 700px) {
+  .tbl thead { display: none; }
+  .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; }
+  .tbl tr { padding: 12px 16px; border-top: 1px solid var(--stroke-soft); }
+  .tbl tbody tr:first-child { border-top: 0; }
+  .tbl td { border: 0; padding: 5px 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; text-align: right; min-height: 30px; overflow-wrap: anywhere; }
+  .tbl td::before { content: attr(data-label); flex: none; max-width: 42%; text-align: left; color: var(--tx2); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .tbl td[data-label=""]::before, .tbl td[colspan]::before, .tbl td.acts::before { content: none; }
+  .tbl td[colspan] { display: block; text-align: center; }
+  .tbl td.acts { justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 10px; white-space: normal; }
+  .tbl tr:hover td { background: none; }
+  .scrollx { overflow-x: visible; }
+}

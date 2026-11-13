@@ -37,6 +37,9 @@ const NAV = {
   manager: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
   staff: [['orders', 'Заказы'], ['security', 'Безопасность']],
 };
+const PAY = { card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' };
+const ACTIONS = { login: 'Вход', logout: 'Выход', login_failed: 'Неверный код', login_unknown_phone: 'Вход: неизвестный номер', login_code_sent: 'Код отправлен', create: 'Добавление', update: 'Изменение', delete: 'Удаление', upload: 'Загрузка файла', stock: 'Наличие', settings_changed: 'Настройки', broadcast: 'Рассылка', customer_blocked: 'Клиент заблокирован', customer_unblocked: 'Клиент разблокирован', customer_history_viewed: 'Просмотр истории клиента', coins_adjust: 'Изменение коинов', chat_reply: 'Ответ в чате', staff_created: 'Новый сотрудник', staff_updated: 'Сотрудник изменён', staff_deleted: 'Сотрудник удалён', zone_created: 'Новая зона', zone_updated: 'Зона изменена', zone_deleted: 'Зона удалена', pos_key_generated: 'Выдан ключ POS', pos_key_revoked: 'Отозван ключ POS', catalog_key_generated: 'Выдан ключ меню', catalog_key_revoked: 'Отозван ключ меню', order_status_forced: 'Статус заказа изменён', courier_accept: 'Курьер взял заказ', courier_delivered: 'Курьер доставил' };
+const ENTITIES = { products: 'Товар', categories: 'Категория', banners: 'Баннер', promos: 'Промокод', branches: 'Филиал', user: 'Клиент', order: 'Заказ', orders: 'Заказ', staff: 'Сотрудник', admin: 'Сотрудник', zone: 'Зона', branch: 'Филиал', file: 'Файл', settings: 'Настройки', notify: 'Все клиенты', catalog: 'Меню' };
 const STATUS = { new: 'Новый', cooking: 'Готовится', ready: 'Готов', delivering: 'В пути', done: 'Выдан', cancelled: 'Отменён' };
 
 /* ---------- maps: Yandex tiles when a key is configured, otherwise OpenStreetMap ---------- */
@@ -87,6 +90,7 @@ function render(msg) {
     ${S.me.role === 'super' ? '' : `<div class="who"><b>${esc(S.me.name || '')}</b><span class="muted">${ROLE_NAMES[S.me.role]}${S.branch ? ' · ' + esc(S.branch.name) : ''}</span></div>`}
     <button class="nav" data-act="theme">${icon('theme')}<span>Тема</span></button>
     <button class="nav" data-act="logout">${icon('logout')}<span>Выйти</span></button></aside><main id="main"></main></div>`;
+  const on = root.querySelector('.nav.on'); if (on && innerWidth <= 900) on.scrollIntoView({ inline: 'center', block: 'nearest' });
   loadTab();
 }
 async function ensureBranches() { if (!S.branches.length) S.branches = (await api('branches')).rows; return S.branches; }
@@ -95,6 +99,14 @@ function branchSelect(all = true) {
   return `<select data-change="branch">${all ? '<option value="">Все филиалы</option>' : ''}${S.branches.map(b => `<option value="${b.id}" ${String(b.id) === String(S.branchId) ? 'selected' : ''}>${esc(b.name || b.address)}</option>`).join('')}</select>`;
 }
 const head = (title, tools = '') => `<div class="top"><h1>${title}</h1><div class="tools">${tools}</div></div>`;
+// phones: each table row is shown as a card, so every cell needs its column name
+function labelTables() {
+  document.querySelectorAll('table.tbl').forEach(t => {
+    const h = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    t.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((td, i) => { if (td.dataset.label === undefined) td.dataset.label = h[i] || ''; }));
+  });
+}
+new MutationObserver(labelTables).observe(document.documentElement, { childList: true, subtree: true });
 async function loadTab() {
   clearInterval(S.timer);
   const main = $('#main'); main.innerHTML = '<div class="grid"><div class="skeleton"></div><div class="skeleton"></div></div>';
@@ -188,7 +200,7 @@ VIEWS.orders = async main => {
     S.lastOrderIds = ids;
     const card = o => `<div class="oc ${fresh.has(o.id) ? 'fresh' : ''}">
       <div class="h"><b>№${o.id}</b><span class="faint" style="font-size:12px">${esc(String(o.created_at).slice(11, 16))}</span></div>
-      <div style="font-size:13px"><span class="pill ${o.type === 'delivery' ? 'info' : 'warn'}">${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'}</span> <span class="pill">${esc(o.payment)}</span></div>
+      <div style="font-size:13px"><span class="pill ${o.type === 'delivery' ? 'info' : 'warn'}">${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'}</span> <span class="pill">${esc(PAY[o.payment] || o.payment)}</span></div>
       <ul>${o.items.map(i => `<li>${esc(i.name)} × ${i.qty}</li>`).join('')}</ul>
       <div class="muted" style="font-size:13px">${esc(o.user_name || '')} ${esc(o.phone || '')}<br>${o.type === 'delivery' && o.address ? esc(o.address.address) + (o.address.apartment ? ', кв. ' + esc(o.address.apartment) : '') : esc(o.branch_name || '') + ' · ' + (o.pickup_time === 'asap' ? 'побыстрее' : 'к ' + esc(o.pickup_time))}</div>
       ${o.courier_name ? `<div style="margin-top:6px" class="pill ok">${icon('couriers', 14)} ${esc(o.courier_name)}</div>` : ''}
@@ -280,7 +292,7 @@ VIEWS.staff = async main => {
   main.innerHTML = head('Команда и роли', '<button class="btn primary" data-act="addstaff">+ Сотрудник</button>') + `<div class="glass scrollx"><table class="tbl"><thead><tr><th>Пользователь</th><th>Роль</th><th>Филиал</th><th>2FA</th><th>Вход</th><th></th></tr></thead><tbody>${rows.map(a => `<tr><td><b>${esc(a.name || '—')}</b><div class="faint">${esc(a.phone)}</div></td><td>${ROLE_NAMES[a.role]}</td><td>${esc(a.branch_name || '—')}</td><td>${a.totp_enabled ? '<span class="pill ok">вкл</span>' : '<span class="pill">нет</span>'}</td><td class="faint">${esc(a.last_login || '—')}</td>
     <td class="acts">${a.id === S.me.id ? '<span class="pill info">это вы</span>' : `<button class="btn sm" data-act="stafftoggle" data-id="${a.id}" data-on="${a.active}">${a.active ? 'Отключить' : 'Включить'}</button> <button class="btn sm danger" data-act="staffdel" data-id="${a.id}">Удалить</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 };
-VIEWS.audit = async main => { const { rows } = await api('audit'); main.innerHTML = head('Журнал действий', '<button class="btn" data-act="reload">Обновить</button>') + `<div class="glass scrollx"><table class="tbl"><thead><tr><th>Время (UTC)</th><th>Кто</th><th>Действие</th><th>Объект</th><th>Детали</th><th>IP</th></tr></thead><tbody>${rows.map(r => `<tr><td class="faint">${esc(r.created_at)}</td><td>${esc(r.email)}</td><td><span class="pill ${/failed/.test(r.action) ? 'bad' : ''}">${esc(r.action)}</span></td><td>${esc(r.entity)} ${esc(r.entity_id)}</td><td class="muted">${esc(r.detail)}</td><td class="faint">${esc(r.ip)}</td></tr>`).join('')}</tbody></table></div>`; S.reload = () => VIEWS.audit(main); };
+VIEWS.audit = async main => { const { rows } = await api('audit'); main.innerHTML = head('Журнал действий', '<button class="btn" data-act="reload">Обновить</button>') + `<div class="glass scrollx"><table class="tbl"><thead><tr><th>Время (UTC)</th><th>Кто</th><th>Действие</th><th>Объект</th><th>Детали</th><th>IP</th></tr></thead><tbody>${rows.map(r => `<tr><td class="faint">${esc(r.created_at)}</td><td>${esc(r.email)}</td><td><span class="pill ${/failed|^customer_blocked$|deleted|^delete$|revoked/.test(r.action) ? 'bad' : /unblocked|created|generated/.test(r.action) ? 'ok' : ''}" title="${esc(r.action)}">${esc(ACTIONS[r.action] || r.action)}</span></td><td>${esc(ENTITIES[r.entity] || r.entity || '')}${r.entity_id && r.entity_id !== 'null' ? ' №' + esc(r.entity_id) : ''}</td><td class="muted">${esc(r.detail)}</td><td class="faint">${esc(r.ip)}</td></tr>`).join('')}</tbody></table></div>`; S.reload = () => VIEWS.audit(main); };
 
 VIEWS.security = async main => {
   let settings = '';
@@ -460,7 +472,7 @@ VIEWS.reviews = async main => {
 VIEWS.coins = async main => {
   const d = await api('coins');
   const cs = Object.fromEntries((await api('settings')).rows.map(r => [r.key, r.value]));
-  main.innerHTML = head('WendyCoin') + `<div class="glass card" style="margin-bottom:16px"><h3>Настройки WendyCoin</h3><form data-form="coinset"><div class="g2"><label class="field"><span>Начисление за заказ, % от суммы</span><input type="number" min="0" max="100" name="coin_percent" value="${esc(cs.coin_percent)}"></label><label class="field"><span>Стоимость 1 WendyCoin при оплате, so'm</span><input type="number" min="1" name="coin_value" value="${esc(cs.coin_value || 1)}"></label><label class="field"><span>QR для оплаты в ресторане действует, секунд</span><input type="number" min="30" max="600" name="coin_qr_ttl" value="${esc(cs.coin_qr_ttl || 120)}"></label></div><p class="muted" style="margin:10px 0 0">Клиент показывает QR из приложения (Профиль → «Оплатить WendyCoin в ресторане»), касса или киоск сканирует его и списывает коины. Подключение — в разделе «POS-интеграция».</p><div style="margin-top:14px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`
+  main.innerHTML = head('WendyCoin') + `<div class="glass card" style="margin-bottom:16px"><h3>Настройки WendyCoin</h3><form data-form="coinset"><div class="g2"><label class="field"><span>Начисление за заказ, % от суммы</span><input type="number" min="0" max="100" name="coin_percent" value="${esc(cs.coin_percent)}"></label><label class="field"><span>Стоимость 1 WendyCoin при оплате, so'm</span><input type="number" min="1" name="coin_value" value="${esc(cs.coin_value || 1)}"></label><label class="field"><span>QR для оплаты в ресторане действует, секунд</span><input type="number" min="30" max="600" name="coin_qr_ttl" value="${esc(cs.coin_qr_ttl || 120)}"></label></div><p class="muted" style="margin:10px 0 0">Клиент показывает QR из приложения (кнопка «QR-код» на главной, рядом с балансом WendyCoin), касса или киоск сканирует его и списывает коины. Подключение — в разделе «POS-интеграция».</p><div style="margin-top:14px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`
     + `<div class="grid kpis"><div class="glass kpi"><small>Коинов у клиентов</small><b>${money(d.total)}</b><span class="pill info">в обороте</span></div>
     <div class="glass kpi"><small>Товаров для обмена</small><b>${d.products.filter(p => p.coin_price > 0).length}</b><span class="pill">из ${d.products.length}</span></div></div>
     <div class="grid cols2"><div class="glass card"><h3>Баланс клиентов</h3><div class="scrollx"><table class="tbl"><thead><tr><th>Клиент</th><th>WendyCoin</th><th></th></tr></thead><tbody>${d.customers.map(u => `<tr><td>${esc(u.name || 'Без имени')}<div class="faint">${esc(u.phone)}</div></td><td><b>${money(u.coins)}</b></td><td class="acts"><button class="btn sm" data-act="coinadj" data-id="${u.id}" data-name="${esc(u.name || u.phone)}">Изменить</button></td></tr>`).join('') || '<tr><td colspan="3"><div class="empty">Клиентов нет</div></td></tr>'}</tbody></table></div></div>
