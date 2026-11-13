@@ -92,7 +92,7 @@ function draw() {
     <div class="kv"><span>Адрес</span><b style="text-align:right">${esc(a.address || '')}</b></div>
     ${[['Подъезд', a.entrance], ['Этаж', a.floor], ['Квартира', a.apartment], ['Домофон', a.intercom]].filter(x => x[1]).map(x => `<div class="kv"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}
     ${a.comment ? `<div class="kv"><span>Комментарий</span><b style="text-align:right">${esc(a.comment)}</b></div>` : ''}
-    <div class="kv"><span>Оплата</span><b>${esc(mine.payment)} · ${money(mine.total)} so'm</b></div>
+    <div class="kv"><span>Оплата</span><b>${esc({ card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' }[mine.payment] || mine.payment)} · ${money(mine.total)} so'm</b></div>
     <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a></div>
     <div id="donebox"></div></div>`);
   S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map); S.map.on('zoomend', () => { const el = S.mk.me && S.mk.me._icon && S.mk.me._icon.querySelector('.narrow'); if (el) el.style.width = el.style.height = aSize(S.map.getZoom()) + 'px'; });
