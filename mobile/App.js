@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, BackHandler, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BUNDLED, { VERSION as BUNDLED_VERSION } from './src/bundle';
+import { askPermission, cancelCart, checkNews, onTap, scheduleCart, startBackground } from './src/notify';
 
 // keep the logo screen up until the menu is drawn: no spinner, no white page
 SplashScreen.preventAutoHideAsync().catch(() => { });
@@ -90,9 +91,41 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  /* notifications: the page tells who is signed in, the language and the cart; the phone shows its own notifications */
+  const info = useRef(null);
+  const loaded = useRef(false);
+  const pendingTap = useRef(null);
+  const openNotif = useCallback((n) => {
+    if (!n) return;
+    if (!loaded.current || !web.current) { pendingTap.current = n; return; }
+    web.current.injectJavaScript(`window.openNotif && openNotif(${JSON.stringify(n)}); true;`);
+  }, []);
+  useEffect(() => onTap(openNotif), []);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') { cancelCart(); checkNews(); }
+      else if (st === 'background') scheduleCart(info.current);
+    });
+    const tick = setInterval(() => { if (AppState.currentState === 'active') checkNews(); }, 15000);
+    return () => { sub.remove(); clearInterval(tick); };
+  }, []);
+  const onAppInfo = useCallback(async (a) => {
+    const before = info.current;
+    info.current = a;
+    try {
+      if (a.token) await AsyncStorage.multiSet([['nf_token', a.token], ['nf_lang', a.lang || 'ru']]);
+      else await AsyncStorage.multiRemove(['nf_token', 'nf_last']);
+    } catch { /* storage full */ }
+    if (a.token && (!before || before.token !== a.token)) {
+      if (!before || !before.token) await AsyncStorage.removeItem('nf_last').catch(() => { }); // a new sign-in: start from now
+      if (await askPermission()) { startBackground(); checkNews(); }
+    }
+  }, []);
+
   const onMessage = useCallback((e) => {
     let m; try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
     if (m && m.haptic) vibrate(m.haptic);
+    if (m && m.app) onAppInfo(m.app);
   }, []);
 
   // our own pages stay inside; phone numbers, Telegram, maps and other sites open in their own apps
@@ -131,7 +164,7 @@ export default function App() {
         originWhitelist={['*']}
         injectedJavaScriptBeforeContentLoaded={NATIVE_FEEL}
         onMessage={onMessage}
-        onLoadEnd={showApp}
+        onLoadEnd={() => { showApp(); loaded.current = true; if (pendingTap.current) { const n = pendingTap.current; pendingTap.current = null; setTimeout(() => openNotif(n), 1500); } }}
         onNavigationStateChange={(st) => { canGoBack.current = st.canGoBack; }}
         onShouldStartLoadWithRequest={onNavigate}
         onError={() => { showApp(); setFailed(true); }}

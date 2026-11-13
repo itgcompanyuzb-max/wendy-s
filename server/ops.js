@@ -8,7 +8,10 @@ module.exports = function mountOps(app, { db, fail, auth }) {
   /* ---------- notifications (polled by the app) ---------- */
   app.get('/api/notifications', auth, (req, res) => {
     const after = Number(req.query.after) || 0;
-    res.json({ items: db.prepare('SELECT id,order_id,kind,title,body,action,created_at FROM notifications WHERE user_id=? AND id>? ORDER BY id LIMIT 50').all(req.user.id, after) });
+    let items = db.prepare('SELECT id,order_id,kind,title,body,action,created_at FROM notifications WHERE user_id=? AND id>? ORDER BY id LIMIT 50').all(req.user.id, after);
+    // the phone app shows these as the phone's own notifications, in the customer's language
+    if (req.query.lang === 'uz') { const { uz } = require('./nf-uz'); items = items.map(n => ({ ...n, title: uz(n.title), body: uz(n.body) })); }
+    res.json({ items });
   });
 
   /* ---------- live tracking ---------- */

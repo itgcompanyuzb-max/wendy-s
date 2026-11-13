@@ -18,21 +18,36 @@ function orderActions(o) {
 
 /* ---------- notifications (polled) ---------- */
 const Nf = { after: null, token: null };
+// inside the phone app the phone shows its own notification (lock screen, banner); a tap there calls openNotif
+const inApp = () => !!(window.__WENDYS_APP__ && window.ReactNativeWebView);
+window.openNotif = n => {
+  if (!n) return;
+  const act = n.kind === 'cart' ? 'cart' : n.kind === 'birthday' || n.kind === 'coins' ? 'coins' : n.action;
+  if (n.kind === 'delivering') A.track(n.order_id);
+  else if (n.kind === 'delivered') A.rate(n.order_id);
+  else if (act === 'cart') { Sh.closeAll(); if (cartCount()) A.cart(); }
+  else if (act === 'coins') { Sh.closeAll(); A.coins(); }
+  else if (act === 'profile' || act === 'promos') { Sh.closeAll(); A.profile(); }
+  else if (act === 'menu') { Sh.closeAll(); if (!document.getElementById('hb')) go('home'); }
+  else if (n.order_id) A.profile();
+};
+// tell the phone app who is signed in, the language and the cart (for its own notifications and the cart reminder)
+if (inApp()) {
+  let lastInfo = '';
+  setInterval(() => {
+    if (typeof St === 'undefined' || !St.menu) return;
+    const s = St.menu.settings || {};
+    const info = { token: St.token || null, lang: window.LANG || 'ru', cart: St.token ? cartCount() : 0, remindOn: s.cart_remind_on !== false, remindMin: s.cart_remind_min || 60 };
+    const j = JSON.stringify(info);
+    if (j !== lastInfo) { lastInfo = j; window.ReactNativeWebView.postMessage(JSON.stringify({ app: info })); }
+  }, 1000);
+}
 function showNotif(n) {
+  if (inApp()) { if (n.kind === 'delivered') setTimeout(() => A.rate(n.order_id), 700); return; }
   const el = document.createElement('div');
   el.className = 'nbanner';
   el.innerHTML = `<b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ''}`;
-  const open = () => {
-    el.remove(); haptic('light');
-    const act = n.kind === 'cart' ? 'cart' : n.kind === 'birthday' || n.kind === 'coins' ? 'coins' : n.action;
-    if (n.kind === 'delivering') A.track(n.order_id);
-    else if (n.kind === 'delivered') A.rate(n.order_id);
-    else if (act === 'cart') { Sh.closeAll(); if (cartCount()) A.cart(); }
-    else if (act === 'coins') { Sh.closeAll(); A.coins(); }
-    else if (act === 'profile' || act === 'promos') { Sh.closeAll(); A.profile(); }
-    else if (act === 'menu') { Sh.closeAll(); if (!document.getElementById('hb')) go('home'); }
-    else if (n.order_id) A.profile();
-  };
+  const open = () => { el.remove(); haptic('light'); window.openNotif(n); };
   swipeAway(el, open);
   $('#app').appendChild(el);
   haptic(n.kind === 'birthday' ? 'success' : 'medium');

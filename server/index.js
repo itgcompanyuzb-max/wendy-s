@@ -277,6 +277,7 @@ app.get('/api/menu', (req, res) => {
       yandex_key: process.env.YANDEX_MAPS_KEY || '',
       ...Object.fromEntries(SITE_KEYS.map(k => [k, setting(k, '')])),
       code_channels: codeChannels(),
+      cart_remind_on: setting('cart_remind_on', '1') === '1', cart_remind_min: Number(setting('cart_remind_min', 60)) || 60,
     },
     stats: siteStats(),
   });
