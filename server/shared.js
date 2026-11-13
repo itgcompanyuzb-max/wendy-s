@@ -1,8 +1,8 @@
 /* Shared helpers: notifications, order status machine, coin ledger. */
 const db = require('./db');
 
-function notify(userId, orderId, kind, title, body = '') {
-  db.prepare('INSERT INTO notifications (user_id,order_id,kind,title,body) VALUES (?,?,?,?,?)').run(userId, orderId, kind, title, body);
+function notify(userId, orderId, kind, title, body = '', action = '') {
+  db.prepare('INSERT INTO notifications (user_id,order_id,kind,title,body,action) VALUES (?,?,?,?,?,?)').run(userId, orderId, kind, title, body, action);
 }
 
 function coinLog(userId, delta, reason, adminId = null, orderId = null) {

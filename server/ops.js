@@ -8,7 +8,7 @@ module.exports = function mountOps(app, { db, fail, auth }) {
   /* ---------- notifications (polled by the app) ---------- */
   app.get('/api/notifications', auth, (req, res) => {
     const after = Number(req.query.after) || 0;
-    res.json({ items: db.prepare('SELECT id,order_id,kind,title,body,created_at FROM notifications WHERE user_id=? AND id>? ORDER BY id LIMIT 50').all(req.user.id, after) });
+    res.json({ items: db.prepare('SELECT id,order_id,kind,title,body,action,created_at FROM notifications WHERE user_id=? AND id>? ORDER BY id LIMIT 50').all(req.user.id, after) });
   });
 
   /* ---------- live tracking ---------- */

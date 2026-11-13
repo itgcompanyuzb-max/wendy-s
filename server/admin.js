@@ -290,7 +290,34 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   }
   const isTable = (req, res, next) => (TABLES[req.params.table] ? next() : next('router'));
 
-  router.get('/customers', need('super'), (req, res) => res.json({ rows: db.prepare('SELECT id,phone,name,coins,created_at FROM users ORDER BY id DESC LIMIT 500').all() }));
+  router.get('/customers', need('super'), (req, res) => res.json({ rows: db.prepare('SELECT id,phone,name,coins,birthday,COALESCE(blocked,0) AS blocked,created_at FROM users ORDER BY id DESC LIMIT 1000').all() }));
+  // block / unblock a customer: a blocked customer is signed out and cannot sign in or order
+  router.post('/customers/:id/block', need('super'), confirmed, (req, res) => {
+    const u = db.prepare('SELECT id,phone FROM users WHERE id=?').get(req.params.id);
+    if (!u) return fail(res, 404, 'Клиент не найден');
+    const on = req.body.blocked ? 1 : 0;
+    db.prepare('UPDATE users SET blocked=? WHERE id=?').run(on, u.id);
+    if (on) db.prepare('DELETE FROM sessions WHERE user_id=?').run(u.id);
+    audit(req, on ? 'customer_blocked' : 'customer_unblocked', 'user', u.id, u.phone); res.json({ ok: true });
+  });
+  // a message to every customer: shown in the app as a notification; a tap opens the chosen screen
+  const ACTIONS = ['', 'menu', 'coins', 'promos', 'cart', 'profile'];
+  router.get('/notify', need('super'), (req, res) => res.json({
+    rows: db.prepare('SELECT * FROM broadcasts ORDER BY id DESC LIMIT 50').all(),
+    customers: db.prepare('SELECT COUNT(*) c FROM users WHERE COALESCE(blocked,0)=0').get().c,
+  }));
+  router.post('/notify', need('super'), confirmed, (req, res) => {
+    const title = String(req.body.title || '').trim().slice(0, 80), body = String(req.body.body || '').trim().slice(0, 300);
+    const action = ACTIONS.includes(req.body.action) ? req.body.action : '';
+    if (!title) return fail(res, 400, 'Введите заголовок');
+    const last = db.prepare('SELECT created_at FROM broadcasts ORDER BY id DESC LIMIT 1').get();
+    if (last && Date.now() - Date.parse(last.created_at.replace(' ', 'T') + 'Z') < 60000) return fail(res, 429, 'Подождите минуту перед следующей рассылкой');
+    const ids = db.prepare('SELECT id FROM users WHERE COALESCE(blocked,0)=0').all().map(r => r.id);
+    db.exec('BEGIN');
+    try { for (const id of ids) notify(id, null, 'promo', title, body, action); db.prepare('INSERT INTO broadcasts (title,body,action,sent,admin_id) VALUES (?,?,?,?,?)').run(title, body, action, ids.length, req.admin.id); db.exec('COMMIT'); }
+    catch (e) { db.exec('ROLLBACK'); return fail(res, 500, 'Не удалось отправить'); }
+    audit(req, 'broadcast', 'notify', null, title); res.json({ ok: true, sent: ids.length });
+  });
   router.get('/settings', need('super'), (req, res) => res.json({ rows: db.prepare("SELECT * FROM settings WHERE key NOT LIKE '%_hash'").all() }));
   router.put('/settings', need('super'), confirmed, (req, res) => {
     const up = db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
@@ -311,6 +338,17 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
         v = JSON.stringify(b.map(p => p.map(n => Math.round(n * 1e5) / 1e5)));
       }
       up.run('map_bounds', v);
+    }
+    for (const k of ['birthday_coins_on', 'cart_remind_on']) if (req.body[k] !== undefined) up.run(k, req.body[k] === '1' || req.body[k] === 1 || req.body[k] === true ? '1' : '0');
+    if (req.body.birthday_coins !== undefined) {
+      const v = Math.trunc(Number(req.body.birthday_coins));
+      if (!(v >= 0 && v <= 1e7)) return fail(res, 400, 'Количество коинов: от 0');
+      up.run('birthday_coins', String(v));
+    }
+    if (req.body.cart_remind_min !== undefined) {
+      const v = Math.trunc(Number(req.body.cart_remind_min));
+      if (!(v >= 15 && v <= 1440)) return fail(res, 400, 'Напоминание о корзине: от 15 до 1440 минут');
+      up.run('cart_remind_min', String(v));
     }
     if (req.body.coin_qr_ttl !== undefined) {
       const v = Math.trunc(Number(req.body.coin_qr_ttl));

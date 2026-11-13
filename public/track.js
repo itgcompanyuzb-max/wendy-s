@@ -21,15 +21,21 @@ const Nf = { after: null, token: null };
 function showNotif(n) {
   const el = document.createElement('div');
   el.className = 'nbanner';
-  el.innerHTML = `<b>${esc(n.title)}</b><span>${esc(n.body)}</span>`;
-  el.onclick = () => {
-    el.remove();
+  el.innerHTML = `<b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ''}`;
+  const open = () => {
+    el.remove(); haptic('light');
+    const act = n.kind === 'cart' ? 'cart' : n.kind === 'birthday' || n.kind === 'coins' ? 'coins' : n.action;
     if (n.kind === 'delivering') A.track(n.order_id);
     else if (n.kind === 'delivered') A.rate(n.order_id);
+    else if (act === 'cart') { Sh.closeAll(); if (cartCount()) A.cart(); }
+    else if (act === 'coins') { Sh.closeAll(); A.coins(); }
+    else if (act === 'profile' || act === 'promos') { Sh.closeAll(); A.profile(); }
+    else if (act === 'menu') { Sh.closeAll(); if (!document.getElementById('hb')) go('home'); }
     else if (n.order_id) A.profile();
   };
+  swipeAway(el, open);
   $('#app').appendChild(el);
-  try { navigator.vibrate?.(180); } catch { /* ignore */ }
+  haptic(n.kind === 'birthday' ? 'success' : 'medium');
   setTimeout(() => el.remove(), 9000);
   if (n.kind === 'delivered') setTimeout(() => A.rate(n.order_id), 700);
 }
@@ -41,8 +47,12 @@ async function pollNotifs() {
     const first = Nf.after === null;
     if (!r.items.length) { if (first) Nf.after = 0; return; }
     Nf.after = r.items[r.items.length - 1].id;
-    // on the first poll after opening the app, only show things that happened in the last 3 minutes
-    r.items.filter(n => !first || Date.now() - Date.parse(String(n.created_at).replace(' ', 'T') + 'Z') < 180000).forEach(showNotif);
+    // on the first poll after opening the app: order news from the last 3 minutes, and messages (sales, gifts, the cart)
+    // from the last 3 days that were not shown yet
+    const seen = LS.get('nfSeen', 0), age = n => Date.now() - Date.parse(String(n.created_at).replace(' ', 'T') + 'Z');
+    const news = n => ['promo', 'cart', 'birthday'].includes(n.kind);
+    r.items.filter(n => !first || age(n) < 180000 || (news(n) && n.id > seen && age(n) < 3 * 86400e3)).slice(-3).forEach((n, i) => setTimeout(() => showNotif(n), i * 1200));
+    LS.set('nfSeen', Math.max(seen, Nf.after));
     api('/me').then(m => { St.user = m.user; if (Sh.stack.profile) Sh.refresh('profile'); }).catch(() => { });
     if (Sh.stack.profile) api('/orders').then(o => { St.orders = o.orders; Sh.refresh('profile'); }).catch(() => { });
   } catch { /* offline: try again later */ }

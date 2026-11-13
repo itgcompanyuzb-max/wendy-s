@@ -149,6 +149,10 @@ db.exec('DROP INDEX IF EXISTS idx_admin_phone_ctx');
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_phone_role ON admin_users(phone, role, COALESCE(branch_id, 0)) WHERE phone IS NOT NULL');
 try { db.exec('ALTER TABLE users ADD COLUMN avatar INTEGER DEFAULT 0'); } catch { /* column exists */ }
 for (const c of ['birthday', 'email']) { try { db.exec(`ALTER TABLE users ADD COLUMN ${c} TEXT DEFAULT ''`); } catch { /* column exists */ } }
+// blocked customers; the year the birthday gift was given; an action (screen to open) on notifications
+for (const sql of ['ALTER TABLE users ADD COLUMN blocked INTEGER DEFAULT 0', 'ALTER TABLE users ADD COLUMN birthday_bonus_year INTEGER DEFAULT 0', "ALTER TABLE notifications ADD COLUMN action TEXT DEFAULT ''"]) { try { db.exec(sql); } catch { /* column exists */ } }
+db.exec(`CREATE TABLE IF NOT EXISTS carts (user_id INTEGER PRIMARY KEY, items_json TEXT NOT NULL DEFAULT '[]', updated_at INTEGER NOT NULL, reminded_at INTEGER);
+CREATE TABLE IF NOT EXISTS broadcasts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, body TEXT, action TEXT, sent INTEGER, admin_id INTEGER, created_at TEXT DEFAULT CURRENT_TIMESTAMP);`);
 
 for (const sql of [
   'ALTER TABLE branches ADD COLUMN delivery_radius REAL DEFAULT 7',
