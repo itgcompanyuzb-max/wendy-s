@@ -496,7 +496,7 @@ app.post('/api/orders', auth, (req, res) => {
   let branch = null, address = null, fee = 0;
   if (type === 'pickup') {
     branch = db.prepare('SELECT * FROM branches WHERE id=? AND active=1').get(Number(b.branch_id));
-    if (!branch) return fail(res, 400, 'Выберите пиццерию');
+    if (!branch) return fail(res, 400, 'Выберите филиал');
     if (lacks(branch.id)) return fail(res, 400, `В этом филиале нет в наличии: ${lacks(branch.id)}`);
     const t = String(b.pickup_time || 'asap');
     const m = tashkentMinutes();
