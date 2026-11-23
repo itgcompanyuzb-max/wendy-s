@@ -30,8 +30,8 @@ svg { display: block; }
 
 /* login */
 .login { padding: max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); }
-.top-row { display: flex; justify-content: space-between; align-items: center; height: 44px; }
-.hero { flex: 1; min-height: 0; margin: 0 -20px; background: url('/img/hero.jpg') center/contain no-repeat; mix-blend-mode: lighten; }
+.top-row { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; height: 44px; }
+.hero { flex: 1; min-height: 0; margin: -60px -20px 8px; background: url('/img/hero2.jpg') center 30%/cover no-repeat; mix-blend-mode: lighten; }
 .login h1 { text-align: center; font-size: 25px; margin: 0 0 10px; font-weight: 700; }
 .login .sub { text-align: center; color: var(--gray); font-size: 17px; line-height: 1.35; margin: 0 20px 24px; }
 .legal { text-align: center; color: var(--gray); font-size: 14px; margin-top: 26px; line-height: 1.8; }
