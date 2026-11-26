@@ -391,7 +391,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   /* staff / roles */
   router.get('/staff', need('super', 'manager'), (req, res) => {
     const where = req.admin.role === 'super' ? '' : 'WHERE a.branch_id=?';
-    const rows = db.prepare(`SELECT a.id,a.phone,a.name,a.role,a.branch_id,a.active,a.totp_enabled,a.last_login,b.name branch_name
+    const rows = db.prepare(`SELECT a.id,a.phone,a.name,a.role,a.branch_id,a.active,a.totp_enabled,a.last_login,b.name branch_name,
+      (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n
       FROM admin_users a LEFT JOIN branches b ON b.id=a.branch_id ${where} ORDER BY a.id`).all(...(where ? [req.admin.branch_id] : []));
     res.json({ rows });
   });
@@ -481,6 +482,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.get('/couriers', need('super', 'manager'), (req, res) => {
     const b = req.admin.role === 'super' ? null : req.admin.branch_id;
     const rows = db.prepare(`SELECT a.id,a.name,a.phone,a.active,a.branch_id,br.name branch_name,
+      (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n,
       (SELECT COUNT(*) FROM orders o WHERE o.courier_id=a.id AND o.status='done' AND o.delivered_at>=?) month_n,
       (SELECT COUNT(*) FROM orders o WHERE o.courier_id=a.id AND o.status='done') total_n,
       (SELECT ROUND(AVG(stars),2) FROM reviews r WHERE r.courier_id=a.id) rating,

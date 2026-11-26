@@ -28,14 +28,15 @@ const Passkey = (() => {
     } });
   }
 
-  async function enroll(api) {
-    const { options: o } = await api('auth/passkey/register-options', 'POST', {});
+  // paths: the signed-in person's own face by default; the employee page passes the invite paths + token
+  async function enroll(api, { optionsPath = 'auth/passkey/register-options', finishPath = 'auth/passkey/register', extra = {} } = {}) {
+    const { options: o } = await api(optionsPath, 'POST', extra);
     const cred = await navigator.credentials.create({ publicKey: {
       ...o, challenge: unb64u(o.challenge), user: { ...o.user, id: unb64u(o.user.id) },
       excludeCredentials: (o.excludeCredentials || []).map(c => ({ ...c, id: unb64u(c.id) })),
     } });
     const r = cred.response;
-    return api('auth/passkey/register', 'POST', { device: deviceName(), response: {
+    return api(finishPath, 'POST', { ...extra, device: deviceName(), response: {
       id: cred.id, rawId: b64u(cred.rawId), type: cred.type, clientExtensionResults: cred.getClientExtensionResults(),
       authenticatorAttachment: cred.authenticatorAttachment || undefined,
       response: { clientDataJSON: b64u(r.clientDataJSON), attestationObject: b64u(r.attestationObject), transports: r.getTransports ? r.getTransports() : [] },

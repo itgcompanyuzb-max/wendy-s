@@ -18,6 +18,7 @@ const ICON = {
   promos: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
   customers: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-3.5 3.2-5.5 6.5-5.5s6 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.8 3 2.6 3.3 5"/>',
   chats: '<path d="M4 5h16v11H10l-5 4v-4H4z"/>',
+  faceid: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 16a3.5 3.5 0 0 0 5 0"/>',
   staff: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-4 3.5-6 7-6s6.5 2 7 6"/>',
   delivery: '<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
   couriers: '<circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-2-8h3M8 9h3"/>',
@@ -28,13 +29,14 @@ const ICON = {
   security: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   stock: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 12l3 3 5-6"/>',
   theme: '<path d="M20 14A8 8 0 1 1 10 4a6.5 6.5 0 0 0 10 10z"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
   logout: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
 };
 const icon = (k, w = 22) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ''}</svg>`;
 const ROLE_NAMES = { super: 'Администратор', manager: 'Менеджер филиала', staff: 'Сотрудник', courier: 'Курьер' };
 const NAV = {
-  super: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['notify', 'Уведомления'], ['chats', 'Чат'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
-  manager: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['stock', 'Наличие'], ['staff', 'Команда'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
+  super: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['branches', 'Филиалы'], ['delivery', 'Доставка'], ['menu', 'Товары'], ['banners', 'Баннеры'], ['promos', 'Промокоды'], ['customers', 'Клиенты'], ['notify', 'Уведомления'], ['chats', 'Чат'], ['staff', 'Команда'], ['faceid', 'Face ID'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['coins', 'WendyCoin'], ['pos', 'POS'], ['audit', 'Журнал'], ['security', 'Безопасность']],
+  manager: [['orders', 'Заказы'], ['analytics', 'Аналитика'], ['stock', 'Наличие'], ['staff', 'Команда'], ['faceid', 'Face ID'], ['couriers', 'Курьеры'], ['reviews', 'Отзывы'], ['security', 'Безопасность']],
   staff: [['orders', 'Заказы'], ['security', 'Безопасность']],
 };
 const PAY = { card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' };
@@ -88,6 +90,7 @@ function render(msg) {
     ${nav.map(([k, t]) => (k === 'analytics' ? `<a class="nav" href="/analytics/">${icon(k)}<span>${t}</span></a>` : `<button class="nav ${k === S.tab ? 'on' : ''}" data-act="nav" data-tab="${k}">${icon(k)}<span>${t}</span>${k === 'orders' ? '<span class="dot" id="obadge" hidden></span>' : ''}</button>`)).join('')}
     <div class="sp"></div>
     ${S.me.role === 'super' ? '' : `<div class="who"><b>${esc(S.me.name || '')}</b><span class="muted">${ROLE_NAMES[S.me.role]}${S.branch ? ' · ' + esc(S.branch.name) : ''}</span></div>`}
+    ${Passkey.isPhone() ? '' : `<button class="nav" data-act="faceself">${icon('qr')}<span>QR Face ID</span></button>`}
     <button class="nav" data-act="theme">${icon('theme')}<span>Тема</span></button>
     <button class="nav" data-act="logout">${icon('logout')}<span>Выйти</span></button></aside><main id="main"></main></div>`;
   const on = root.querySelector('.nav.on'); if (on && innerWidth <= 900) on.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -165,7 +168,7 @@ function loginDone(token) { stopQR(); S.token = token; sessionStorage.setItem('a
 async function loginExtras() {
   const alt = $('#alt');
   if (!alt || !Passkey.supported()) return;
-  const phone = Passkey.isPhone(), face = phone || await Passkey.hasFace();
+  const phone = Passkey.isPhone(), face = phone; // computers sign in by scanning the QR with the phone
   alt.innerHTML = (face ? `<div class="or"><span>или</span></div><button class="btn" type="button" id="face" style="width:100%">${FACE_ICO} Войти по лицу</button>` : '')
     + (phone ? '' : `<div class="qr-login"><div class="qr-box" id="qrbox"></div><div><b>Вход с телефона</b><p class="muted">Наведите камеру телефона на код и подтвердите вход лицом. Вход по лицу включается на телефоне в «Безопасности».</p></div></div>`);
   $('#face')?.addEventListener('click', async () => {
@@ -202,7 +205,7 @@ async function offerFace() {
   S.offerFace = false;
   const key = 'face:' + (S.me?.phone || '');
   try { if (localStorage.getItem(key) || Number(localStorage.getItem('faceSkip') || 0) > Date.now()) return; } catch { return; }
-  if (!(await Passkey.hasFace())) return;
+  if (!Passkey.isPhone() || !(await Passkey.hasFace())) return; // on a computer the face is added from the phone (QR)
   const o = overlay(`<div class="glass modal" style="max-width:420px"><h2>${FACE_ICO} Входить по лицу?</h2><p class="muted">В следующий раз входите по Face ID или отпечатку — без кода из Telegram. С компьютера: отсканируйте телефоном QR-код на экране входа.</p>
     <div class="err" id="fe"></div><div class="foot"><button class="btn" data-act="cancel">Не сейчас</button><button class="btn primary" data-act="ok">Включить</button></div></div>`);
   o.addEventListener('click', async e => {
@@ -222,7 +225,8 @@ async function faceCard() {
     const [{ rows }, face] = await Promise.all([api('auth/passkeys'), Passkey.hasFace()]);
     el.innerHTML = `<h3>${FACE_ICO} Вход по лицу</h3><p class="muted">Face ID или отпечаток пальца вместо кода из Telegram. Работает для всех ролей этого номера. С компьютера — сканируйте телефоном QR-код на экране входа. Фото лица не сохраняется: телефон проверяет лицо сам, сервер получает только ключ.</p>
       ${rows.length ? `<div class="face-list">${rows.map(k => `<div class="face-row"><div><b>${esc(k.device || 'Устройство')}</b><div class="faint">добавлено ${fmt(k.created_at)} · вход ${fmt(k.last_used)}</div></div><button class="btn" data-act="facedel" data-id="${esc(k.cred_id)}">Удалить</button></div>`).join('')}</div>` : '<p class="muted"><b>Пока не включён.</b></p>'}
-      ${face ? '<button class="btn primary" data-act="faceadd" style="margin-top:12px">Включить на этом устройстве</button>' : '<p class="faint" style="margin:12px 0 0">На этом устройстве нет Face ID или отпечатка. Включите вход по лицу на телефоне.</p>'}`;
+      ${Passkey.isPhone() ? (face ? '<button class="btn primary" data-act="faceadd" style="margin-top:12px">Включить на этом телефоне</button>' : '<p class="faint" style="margin:12px 0 0">На этом телефоне нет Face ID или отпечатка.</p>')
+        : `<button class="btn primary" data-act="faceself" style="margin-top:12px">${FACE_ICO} Добавить Face ID с телефона</button><p class="faint" style="margin:8px 0 0">Появится QR-код — отсканируйте его камерой своего телефона и подтвердите лицом.</p>`}`;
   } catch (e) { el.innerHTML = `<h3>Вход по лицу</h3><p class="muted">${esc(e.message)}</p>`; }
 }
 
@@ -381,6 +385,60 @@ VIEWS.security = async main => {
   main.innerHTML = head('Безопасность') + `<div class="glass card"><h3>Сессия</h3><p class="muted">Вход по коду из Telegram. Автовыход через 30 минут бездействия, максимум 12 часов. Все важные действия записываются в журнал.</p><button class="btn" data-act="logout">Выйти</button></div><div class="glass card" id="facecard" style="margin-top:16px"><div class="skeleton"></div></div>${settings}`;
   faceCard();
 };
+
+/* ---------- Face ID for employees: pick a person, show a QR, they scan it with their phone and confirm with their face ---------- */
+VIEWS.faceid = async main => {
+  const { rows } = await api('staff');
+  S.faceRows = rows;
+  main.innerHTML = head('Face ID') + `<div class="glass card" style="margin-bottom:16px"><p class="muted" style="margin:0">Выберите сотрудника и нажмите <b>Face ID</b> — появится QR-код. Сотрудник сканирует его камерой <b>своего</b> телефона и подтверждает лицом. После этого он входит в админку, панель менеджера или приложение курьера по лицу, без кода из Telegram. Фото лица не сохраняется.</p>
+    <label class="field" style="margin-top:12px"><span>Поиск</span><input id="fq" placeholder="Имя или номер"></label></div><div class="glass scrollx"><table class="tbl"><thead><tr><th>Сотрудник</th><th>Роль</th><th>Филиал</th><th>Face ID</th><th></th></tr></thead><tbody id="fbody"></tbody></table></div>`;
+  const draw = () => {
+    const q = ($('#fq')?.value || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
+    const list = S.faceRows.filter(a => !q || (a.name || '').toLowerCase().includes(q) || (qd && (a.phone || '').includes(qd)));
+    $('#fbody').innerHTML = list.map(a => `<tr><td><b>${esc(a.name || '—')}</b><div class="faint">${esc(a.phone)}</div></td><td>${ROLE_NAMES[a.role] || a.role}</td><td>${esc(a.branch_name || '—')}</td>
+      <td>${a.face_n ? `<span class="pill ok">добавлен${a.face_n > 1 ? ' · ' + a.face_n : ''}</span>` : '<span class="pill">нет</span>'}</td>
+      <td class="acts">${a.active ? `<button class="btn sm primary" data-act="faceinvite" data-id="${a.id}">${icon('faceid', 16)} Face ID</button>` : '<span class="pill bad">отключён</span>'}${a.face_n ? ` <button class="btn sm" data-act="facewipe" data-id="${a.id}">Удалить</button>` : ''}</td></tr>`).join('')
+      || '<tr><td colspan="5"><div class="empty">Никого не найдено</div></td></tr>';
+  };
+  $('#fq').addEventListener('input', draw);
+  draw();
+};
+function faceInvite(id) {
+  const a = (S.faceRows || []).find(x => String(x.id) === String(id)) || (String(id) === String(S.me?.id) ? S.me : {});
+  let timer = null, closed = false;
+  const o = overlay(`<div class="glass modal" style="max-width:440px;text-align:center"><h2>${icon('faceid', 20)} Face ID: ${esc(a.name || a.phone || '')}</h2><div id="fi"><div class="skeleton" style="height:240px"></div></div>
+    <div class="foot" style="justify-content:center"><button class="btn" data-act="cancel">Закрыть</button></div></div>`);
+  const stop = () => { closed = true; clearTimeout(timer); o.remove(); };
+  const expired = box => { box.innerHTML = '<p class="muted">QR-код устарел.</p><button class="btn primary" data-act="fiagain">Показать новый</button>'; };
+  o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) stop(); else if (e.target.closest('[data-act=fiagain]')) start(); });
+  async function start() {
+    clearTimeout(timer);
+    const box = $('#fi', o);
+    try {
+      const r = await api(`staff/${id}/face-invite`, 'POST', {});
+      const until = Date.now() + r.expires_in * 1000;
+      box.innerHTML = `<div class="qr-box" style="width:240px;height:240px;margin:6px auto 0">${QR.svg(r.url, { level: 'L' })}</div>
+        <p class="muted" style="margin:14px 0 0">${esc(a.name || 'Сотрудник')} сканирует код камерой своего телефона и нажимает «Добавить мой Face ID».</p><p class="faint" id="fit" style="margin:8px 0 0"></p>`;
+      const poll = async () => {
+        if (closed) return;
+        const left = Math.round((until - Date.now()) / 1000), t = $('#fit', o);
+        if (left <= 0) return expired(box);
+        if (t) t.textContent = `Код действует ещё ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+        try {
+          const s = await api('staff/face-invite/status', 'POST', { token: r.token });
+          if (s.status === 'done') {
+            box.innerHTML = '<svg class="qr-tick" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44"/><path d="M28 50l14 14 27-30"/></svg><h3 style="margin:6px 0 0">Face ID добавлен</h3><p class="muted" style="margin:6px 0 0">Теперь этот сотрудник входит по лицу.</p>';
+            toast('Face ID добавлен'); if (S.tab === 'faceid') loadTab(); else faceCard(); return;
+          }
+          if (s.status === 'expired') return expired(box);
+        } catch { /* network hiccup: keep waiting */ }
+        timer = setTimeout(poll, 2000);
+      };
+      timer = setTimeout(poll, 1000);
+    } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  }
+  start();
+}
 
 /* ---------- delivery: zones (real district boundaries) or radius + prices per branch ---------- */
 VIEWS.delivery = async main => {
@@ -711,6 +769,9 @@ const ACT = {
   stafftoggle: async el => { const on = el.dataset.on === '1'; if (on && !(await ask('Отключить доступ?', 'Сотрудник не сможет войти.', 'Отключить'))) return; try { await api('staff/' + el.dataset.id, 'PUT', { active: on ? 0 : 1 }); loadTab(); } catch (e) { toast(e.message); } },
   staffdel: async el => { if (!(await ask('Удалить сотрудника?', 'Доступ будет закрыт навсегда.', 'Удалить'))) return; try { await api('staff/' + el.dataset.id, 'DELETE', null, true); loadTab(); } catch (e) { toast(e.message); } },
   openchat: el => openChat(el.dataset.id, el.dataset.name),
+  faceinvite: el => faceInvite(el.dataset.id),
+  faceself: () => faceInvite(S.me.id),
+  facewipe: async el => { if (!(await ask('Удалить Face ID?', 'Сотрудник снова будет входить по коду из Telegram, пока Face ID не добавят заново.', 'Удалить'))) return; try { await api(`staff/${el.dataset.id}/faces`, 'DELETE'); toast('Face ID удалён'); loadTab(); } catch (e) { toast(e.message); } },
   faceadd: async () => { try { await Passkey.enroll(api); try { localStorage.setItem('face:' + S.me.phone, '1'); } catch { /* private mode */ } toast('Вход по лицу включён'); faceCard(); } catch (e) { toast(Passkey.cancelled(e) ? 'Отменено' : e.message); } },
   facedel: async el => { if (!(await ask('Удалить устройство?', 'С него больше нельзя будет войти по лицу.', 'Удалить'))) return; try { await api('auth/passkeys/' + encodeURIComponent(el.dataset.id), 'DELETE'); try { localStorage.removeItem('face:' + S.me.phone); } catch { /* private mode */ } faceCard(); } catch (e) { toast(e.message); } },
   tfaon: async () => {
