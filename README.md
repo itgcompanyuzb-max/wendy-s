@@ -36,6 +36,15 @@ Data: SQLite file `data/app.db`; uploaded images in `uploads/`.
 - One face works for every role of the same number. Passkeys are bound to the site's domain: after moving to a new domain, turn it on again.
 - Admins add other admins in "Команда" > "+ Сотрудник" > role "Администратор (все права)".
 
+## Sign-in by camera (face recognition)
+- Admin "Face ID" > "Камера": the employee looks into the camera, turns the head towards the arrow (liveness), 4 shots are taken.
+  The browser (face-api.js, `public/vendor/face-api`, MIT) turns the face into 128 numbers; no photo is sent or stored.
+  The admin must tick that the employee gave WRITTEN consent.
+- Then "Войти по камере" on any device (admin, manager, courier): the face is matched on the server (table `admin_faces`).
+- Face prints are biometric data: by law (ZRU-547 / ZRU-1125) the server holding them must be in Uzbekistan,
+  with written consent and the database registered. They are stored encrypted (AES-256-GCM); key = `FACE_KEY` env, or `data/face.key`.
+- Limits: a plain web camera is weaker than Face ID; the head-turn check stops a still photo, not a good video or mask.
+
 ## Order lifecycle
 customer orders -> nearest OPEN branch that serves the address and has every item in stock (ties within 300 m: the less busy branch).
   "Serves" = the address is inside a delivery zone linked to the branch (admin "Доставка" > "Зоны доставки"); while no zone exists, each branch's delivery radius is used.

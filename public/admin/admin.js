@@ -58,7 +58,7 @@ async function api(path, method = 'GET', body, confirm) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401 && !/^auth\/(login|passkey|qr)/.test(path)) { signOut(j.error); throw new Error(j.error || 'Сессия истекла'); }
+  if (r.status === 401 && !/^auth\/(login|passkey|qr|face)/.test(path)) { signOut(j.error); throw new Error(j.error || 'Сессия истекла'); }
   if (!r.ok) throw Object.assign(new Error(j.error || 'Ошибка'), { data: j });
   return j;
 }
@@ -162,6 +162,7 @@ function renderLogin(msg, step = 1, st = {}) {
 
 /* ---------- sign-in by face: a button on phones, a QR code on computers (scan it with the phone, confirm with Face ID) ---------- */
 const FACE_ICO = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 16a3.5 3.5 0 0 0 5 0"/></svg>';
+const CAM_ICO = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 let QRP = null;
 const stopQR = () => { clearTimeout(QRP); QRP = null; };
 function loginDone(token) { stopQR(); S.token = token; sessionStorage.setItem('atoken', token); S.me = null; S.tab = null; S.offerFace = true; render(); }
@@ -169,8 +170,17 @@ async function loginExtras() {
   const alt = $('#alt');
   if (!alt || !Passkey.supported()) return;
   const phone = Passkey.isPhone(), face = phone; // computers sign in by scanning the QR with the phone
-  alt.innerHTML = (face ? `<div class="or"><span>или</span></div><button class="btn" type="button" id="face" style="width:100%">${FACE_ICO} Войти по лицу</button>` : '')
+  alt.innerHTML = `<div class="or"><span>или</span></div>`
+    + (FaceCam.supported() ? `<button class="btn" type="button" id="cam" style="width:100%">${CAM_ICO} Войти по камере</button>` : '')
+    + (face ? `<button class="btn" type="button" id="face" style="width:100%;margin-top:10px">${FACE_ICO} Войти по Face ID</button>` : '')
     + (phone ? '' : `<div class="qr-login"><div class="qr-box" id="qrbox"></div><div><b>Вход с телефона</b><p class="muted">Наведите камеру телефона на код и подтвердите вход лицом. Вход по лицу включается на телефоне в «Безопасности».</p></div></div>`);
+  $('#cam')?.addEventListener('click', async () => {
+    $('#err').textContent = '';
+    const r = await FaceCam.signIn();
+    if (!r) return;
+    try { const x = await api('auth/face/login', 'POST', { descriptor: r.descriptor, app: APP }); FaceCam.finish(r.window, true, 'Здравствуйте' + (x.name ? ', ' + x.name : '')); setTimeout(() => loginDone(x.token), 900); }
+    catch (e) { FaceCam.finish(r.window, false, e.message); }
+  });
   $('#face')?.addEventListener('click', async () => {
     $('#err').textContent = '';
     try { const r = await Passkey.signIn(api, { app: APP }); loginDone(r.token); }
@@ -390,15 +400,16 @@ VIEWS.security = async main => {
 VIEWS.faceid = async main => {
   const { rows } = await api('staff');
   S.faceRows = rows;
-  main.innerHTML = head('Face ID') + `<div class="glass card" style="margin-bottom:16px"><p class="muted" style="margin:0">Выберите сотрудника и нажмите <b>Face ID</b> — появится QR-код. Сотрудник сканирует его камерой <b>своего</b> телефона и подтверждает лицом. После этого он входит в админку, панель менеджера или приложение курьера по лицу, без кода из Telegram. Фото лица не сохраняется.</p>
-    <label class="field" style="margin-top:12px"><span>Поиск</span><input id="fq" placeholder="Имя или номер"></label></div><div class="glass scrollx"><table class="tbl"><thead><tr><th>Сотрудник</th><th>Роль</th><th>Филиал</th><th>Face ID</th><th></th></tr></thead><tbody id="fbody"></tbody></table></div>`;
+  main.innerHTML = head('Face ID') + `<div class="glass card" style="margin-bottom:16px"><p class="muted" style="margin:0"><b>Камера</b> — сотрудник смотрит в камеру этого компьютера или телефона, лицо запоминается. Потом он входит кнопкой «Войти по камере» на любом устройстве. Нужно его письменное согласие: это биометрические данные, по закону они хранятся на сервере в Узбекистане. Фото не сохраняется, только зашифрованный цифровой отпечаток лица.<br><b>Face ID</b> — QR-код: сотрудник сканирует его своим телефоном и подтверждает своим Face ID. Работает только с его телефона.</p>
+    <label class="field" style="margin-top:12px"><span>Поиск</span><input id="fq" placeholder="Имя или номер"></label></div><div class="glass scrollx"><table class="tbl"><thead><tr><th>Сотрудник</th><th>Роль</th><th>Филиал</th><th>Камера</th><th>Face ID</th><th></th></tr></thead><tbody id="fbody"></tbody></table></div>`;
   const draw = () => {
     const q = ($('#fq')?.value || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
     const list = S.faceRows.filter(a => !q || (a.name || '').toLowerCase().includes(q) || (qd && (a.phone || '').includes(qd)));
     $('#fbody').innerHTML = list.map(a => `<tr><td><b>${esc(a.name || '—')}</b><div class="faint">${esc(a.phone)}</div></td><td>${ROLE_NAMES[a.role] || a.role}</td><td>${esc(a.branch_name || '—')}</td>
+      <td>${a.cam_n ? '<span class="pill ok">добавлено</span>' : '<span class="pill">нет</span>'}</td>
       <td>${a.face_n ? `<span class="pill ok">добавлен${a.face_n > 1 ? ' · ' + a.face_n : ''}</span>` : '<span class="pill">нет</span>'}</td>
-      <td class="acts">${a.active ? `<button class="btn sm primary" data-act="faceinvite" data-id="${a.id}">${icon('faceid', 16)} Face ID</button>` : '<span class="pill bad">отключён</span>'}${a.face_n ? ` <button class="btn sm" data-act="facewipe" data-id="${a.id}">Удалить</button>` : ''}</td></tr>`).join('')
-      || '<tr><td colspan="5"><div class="empty">Никого не найдено</div></td></tr>';
+      <td class="acts">${a.active ? `<button class="btn sm primary" data-act="camenroll" data-id="${a.id}">${CAM_ICO} Камера</button> <button class="btn sm" data-act="faceinvite" data-id="${a.id}">${icon('faceid', 16)} Face ID</button>` : '<span class="pill bad">отключён</span>'}${a.cam_n ? ` <button class="btn sm" data-act="camwipe" data-id="${a.id}">Удалить лицо</button>` : ''}${a.face_n ? ` <button class="btn sm" data-act="facewipe" data-id="${a.id}">Удалить Face ID</button>` : ''}</td></tr>`).join('')
+      || '<tr><td colspan="6"><div class="empty">Никого не найдено</div></td></tr>';
   };
   $('#fq').addEventListener('input', draw);
   draw();
@@ -771,6 +782,14 @@ const ACT = {
   openchat: el => openChat(el.dataset.id, el.dataset.name),
   faceinvite: el => faceInvite(el.dataset.id),
   faceself: () => faceInvite(S.me.id),
+  camenroll: async el => {
+    const a = (S.faceRows || []).find(x => String(x.id) === el.dataset.id) || {};
+    const r = await FaceCam.enroll(a.name || a.phone || '');
+    if (!r) return;
+    try { await api(`staff/${el.dataset.id}/camface`, 'POST', { samples: r.samples, consent: true }); FaceCam.finish(r.window, true, 'Лицо добавлено'); loadTab(); }
+    catch (e) { FaceCam.finish(r.window, false, e.message); }
+  },
+  camwipe: async el => { if (!(await ask('Удалить лицо?', 'Сотрудник не сможет входить по камере, пока лицо не добавят заново.', 'Удалить'))) return; try { await api(`staff/${el.dataset.id}/camface`, 'DELETE'); toast('Лицо удалено'); loadTab(); } catch (e) { toast(e.message); } },
   facewipe: async el => { if (!(await ask('Удалить Face ID?', 'Сотрудник снова будет входить по коду из Telegram, пока Face ID не добавят заново.', 'Удалить'))) return; try { await api(`staff/${el.dataset.id}/faces`, 'DELETE'); toast('Face ID удалён'); loadTab(); } catch (e) { toast(e.message); } },
   faceadd: async () => { try { await Passkey.enroll(api); try { localStorage.setItem('face:' + S.me.phone, '1'); } catch { /* private mode */ } toast('Вход по лицу включён'); faceCard(); } catch (e) { toast(Passkey.cancelled(e) ? 'Отменено' : e.message); } },
   facedel: async el => { if (!(await ask('Удалить устройство?', 'С него больше нельзя будет войти по лицу.', 'Удалить'))) return; try { await api('auth/passkeys/' + encodeURIComponent(el.dataset.id), 'DELETE'); try { localStorage.removeItem('face:' + S.me.phone); } catch { /* private mode */ } faceCard(); } catch (e) { toast(e.message); } },

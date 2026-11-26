@@ -10,7 +10,7 @@ const tiles = () => (MAPKEY ? L.tileLayer(`https://tiles.api-maps.yandex.ru/v1/t
 async function api(path, method = 'GET', body) {
   const r = await fetch('/api/admin/' + path, { method, headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401 && !/^auth\/(request|verify|passkey)/.test(path)) { signOut(j.error); throw new Error(j.error || 'Сессия истекла'); }
+  if (r.status === 401 && !/^auth\/(request|verify|passkey|face)/.test(path)) { signOut(j.error); throw new Error(j.error || 'Сессия истекла'); }
   if (!r.ok) throw Object.assign(new Error(j.error || 'Ошибка'), { data: j });
   return j;
 }
@@ -28,7 +28,15 @@ function login(msg, step = 1, st = {}) {
     $('#root').innerHTML = frame(`<h1>Вход</h1><p class="muted" style="margin:0">Введите номер телефона. Код придёт в Telegram.</p>
       <label class="field"><span>Телефон</span><div style="display:flex;gap:8px;align-items:center"><span class="pill" style="height:46px;font-size:15px;padding:0 16px">+998</span><input id="ph" type="tel" inputmode="numeric" maxlength="12" placeholder="Номер телефона" value="${fmtPh(st.digits || '')}"></div></label>
       <button class="btn primary" id="go" style="width:100%;margin-top:18px" disabled>Получить код</button>
-      ${Passkey.supported() ? `<div class="or"><span>или</span></div><button class="btn" type="button" id="face" style="width:100%">${FACE_ICO} Войти по лицу</button>` : ''}`);
+      <div class="or"><span>или</span></div>${FaceCam.supported() ? `<button class="btn" type="button" id="cam" style="width:100%">Войти по камере</button>` : ''}
+      ${Passkey.supported() ? `<button class="btn" type="button" id="face" style="width:100%;margin-top:10px">${FACE_ICO} Войти по Face ID</button>` : ''}`);
+    $('#cam')?.addEventListener('click', async () => {
+      $('#err').textContent = '';
+      const r = await FaceCam.signIn();
+      if (!r) return;
+      try { const x = await api('auth/face/login', 'POST', { descriptor: r.descriptor, app: 'courier' }); FaceCam.finish(r.window, true, 'Здравствуйте' + (x.name ? ', ' + x.name : '')); setTimeout(() => { S.token = x.token; sessionStorage.setItem('ctoken', x.token); init(); }, 900); }
+      catch (er) { FaceCam.finish(r.window, false, er.message); }
+    });
     $('#face')?.addEventListener('click', async () => {
       $('#err').textContent = '';
       try { const r = await Passkey.signIn(api, { app: 'courier' }); S.token = r.token; sessionStorage.setItem('ctoken', r.token); init(); }
