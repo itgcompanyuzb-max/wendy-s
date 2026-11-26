@@ -74,8 +74,10 @@ async function refresh(first) {
     if (!first && !d.mine.length && !S.activeId && key === S.listKey) return;
     S.listKey = key;
     if (first || d.mine[0]?.id !== S.activeId || !$('#cmap') && d.mine.length) draw(); else if (!d.mine.length) drawList(); else tick();
+    const cb = $('#ccbtn'), un = d.mine[0]?.unread || 0; if (cb) cb.innerHTML = 'Написать клиенту' + (un ? ` <span class="pill bad">${un}</span>` : '');
   } catch { /* retry */ }
 }
+const PAY_RU = { card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' };
 const itemsHtml = o => `<ul>${o.items.map(i => `<li>${esc(i.name)} × ${i.qty}</li>`).join('')}</ul>`;
 function shell(inner) {
   const p = S.profile;
@@ -92,8 +94,8 @@ function draw() {
     <div class="kv"><span>Адрес</span><b style="text-align:right">${esc(a.address || '')}</b></div>
     ${[['Подъезд', a.entrance], ['Этаж', a.floor], ['Квартира', a.apartment], ['Домофон', a.intercom]].filter(x => x[1]).map(x => `<div class="kv"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}
     ${a.comment ? `<div class="kv"><span>Комментарий</span><b style="text-align:right">${esc(a.comment)}</b></div>` : ''}
-    <div class="kv"><span>Оплата</span><b>${esc({ card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' }[mine.payment] || mine.payment)} · ${money(mine.total)} so'm</b></div>
-    <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a><button class="btn" type="button" onclick="openCChat(${mine.id})">Написать клиенту${mine.unread ? ` <span class="pill bad">${mine.unread}</span>` : ''}</button></div>
+    <div class="kv"><span>Оплата</span><b>${esc(PAY_RU[mine.payment] || mine.payment)} · ${money(mine.total)} so'm</b></div>
+    <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a><button class="btn" type="button" id="ccbtn" onclick="openCChat(${mine.id})">Написать клиенту${mine.unread ? ` <span class="pill bad">${mine.unread}</span>` : ''}</button></div>
     <div id="donebox"></div></div>`);
   S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map); S.map.on('zoomend', () => { const el = S.mk.me && S.mk.me._icon && S.mk.me._icon.querySelector('.narrow'); if (el) el.style.width = el.style.height = aSize(S.map.getZoom()) + 'px'; });
   S.mk.dest = L.marker([a.lat, a.lng], { icon: L.divIcon({ html: '<svg width="44" height="56" viewBox="0 0 44 56" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))"><line x1="8" y1="6" x2="8" y2="50" stroke="#1d1d1f" stroke-width="3" stroke-linecap="round"/><rect x="8" y="4" width="32" height="22" fill="#fff" stroke="#1d1d1f" stroke-width="2"/><g fill="#1d1d1f"><rect x="8" y="4" width="8" height="7.33"/><rect x="24" y="4" width="8" height="7.33"/><rect x="16" y="11.33" width="8" height="7.33"/><rect x="32" y="11.33" width="8" height="7.33"/><rect x="8" y="18.66" width="8" height="7.34"/><rect x="24" y="18.66" width="8" height="7.34"/></g><circle cx="8" cy="50" r="5" fill="#fff" stroke="#1d1d1f" stroke-width="3"/></svg>', className: 'bm', iconSize: [44, 56], iconAnchor: [8, 50] }) }).addTo(S.map); // checkered flag = the customer's address
@@ -102,7 +104,7 @@ function draw() {
 function drawList() {
   S.activeId = null; if (S.geo != null) { navigator.geolocation.clearWatch(S.geo); S.geo = null; }
   const list = S.data.available;
-  shell(`<h3 style="margin:6px 4px 12px">Готовы к доставке (${list.length})</h3>${list.map(o => { const a = o.address || {}; return `<div class="glass ocard"><h3>№${o.id} · ${money(o.total)} so'm</h3>${itemsHtml(o)}<div class="kv"><span>Адрес</span><b style="text-align:right">${esc(a.address || '')}</b></div><div class="kv"><span>Оплата</span><b>${esc(o.payment)}</b></div><div class="swipe" data-act="accept" data-id="${o.id}"><div class="sw-fill"></div><div class="sw-label">Я забрал заказ</div><div class="sw-thumb">›</div></div></div>`; }).join('') || '<div class="glass card empty">Новых заказов пока нет. Когда касса отметит заказ готовым, здесь прозвучит сигнал.</div>'}
+  shell(`<h3 style="margin:6px 4px 12px">Готовы к доставке (${list.length})</h3>${list.map(o => { const a = o.address || {}; return `<div class="glass ocard"><h3>№${o.id} · ${money(o.total)} so'm</h3>${itemsHtml(o)}<div class="kv"><span>Адрес</span><b style="text-align:right">${esc(a.address || '')}</b></div><div class="kv"><span>Оплата</span><b>${esc(PAY_RU[o.payment] || o.payment)}</b></div><div class="swipe" data-act="accept" data-id="${o.id}"><div class="sw-fill"></div><div class="sw-label">Я забрал заказ</div><div class="sw-thumb">›</div></div></div>`; }).join('') || '<div class="glass card empty">Новых заказов пока нет. Когда касса отметит заказ готовым, здесь прозвучит сигнал.</div>'}
     ${S.profile.reviews.length ? `<h3 style="margin:22px 4px 10px">Отзывы обо мне</h3>${S.profile.reviews.slice(0, 8).map(r => `<div class="glass ocard" style="padding:14px"><b style="color:${r.stars < 3 ? 'var(--bad)' : '#ffc83d'}">${'★'.repeat(r.stars)}</b> <span class="faint">№${r.order_id}</span><div class="muted">${esc(r.comment) || '—'}</div></div>`).join('')}` : ''}`);
 }
 /* position + route */
