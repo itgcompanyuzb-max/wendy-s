@@ -156,6 +156,17 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     res.json({ token });
   });
 
+  /* ---------- sign-in by face (passkeys) + QR sign-in for computers ---------- */
+  function startSession(req, a, action = 'login') {
+    db.prepare('UPDATE admin_users SET failed=0, locked_until=0, last_login=CURRENT_TIMESTAMP WHERE id=?').run(a.id);
+    const token = crypto.randomBytes(32).toString('hex');
+    db.prepare('INSERT INTO admin_sessions (token_hash,admin_id,created,last_seen,ip) VALUES (?,?,?,?,?)').run(sha(token), a.id, now(), now(), ipOf(req));
+    req.admin = a; audit(req, action);
+    return token;
+  }
+  const faceLogin = require('./passkey')({ db, fail, audit, now, sha, ipOf, limited, hits, areaRoles, inList, startSession });
+  faceLogin.publicRoutes(router);
+
   /* ---------- everything below requires a valid session ---------- */
   function adminAuth(req, res, next) {
     const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -171,6 +182,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     next();
   }
   router.use(adminAuth);
+  faceLogin.privateRoutes(router);
   router.use((req, res, next) => ((req.admin.role === 'courier' && !/^\/(courier|auth)(\/|$)/.test(req.path)) ? fail(res, 403, 'Недостаточно прав') : next()));
 
   const need = (...roles) => (req, res, next) => (roles.includes(req.admin.role) ? next() : fail(res, 403, 'Недостаточно прав'));
@@ -352,7 +364,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     }
     if (req.body.coin_qr_ttl !== undefined) {
       const v = Math.trunc(Number(req.body.coin_qr_ttl));
-      if (!(v >= 30 && v <= 600)) return fail(res, 400, 'Срок QR-кода: от 30 до 600 секунд');
+      if (!(v >= 15 && v <= 600)) return fail(res, 400, 'Срок QR-кода: от 15 до 600 секунд');
       up.run('coin_qr_ttl', String(v));
     }
     if (req.body.product_image_shape !== undefined) up.run('product_image_shape', req.body.product_image_shape === 'circle' ? 'circle' : 'square');

@@ -56,7 +56,7 @@ async function api(path, method = 'GET', body, confirm) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401 && !path.startsWith('auth/login')) { signOut(j.error); throw new Error(j.error || 'Сессия истекла'); }
+  if (r.status === 401 && !/^auth\/(login|passkey|qr)/.test(path)) { signOut(j.error); throw new Error(j.error || 'Сессия истекла'); }
   if (!r.ok) throw Object.assign(new Error(j.error || 'Ошибка'), { data: j });
   return j;
 }
@@ -79,7 +79,7 @@ function overlay(html) { const o = document.createElement('div'); o.className = 
 function render(msg) {
   const root = $('#root');
   if (!S.token) { renderLogin(msg); return; }
-  if (!S.me) { api('auth/me').then(r => { if (!OK_ROLES.includes(r.admin.role)) { api('auth/logout', 'POST').catch(() => { }); return signOut(APP === 'admin' ? 'Этот вход только для администратора. Менеджерам: /manager/' : 'Этот вход для менеджеров филиалов. Администратору: /admin/'); } sessionStorage.setItem('panel', APP); S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
+  if (!S.me) { api('auth/me').then(r => { if (!OK_ROLES.includes(r.admin.role)) { api('auth/logout', 'POST').catch(() => { }); return signOut(APP === 'admin' ? 'Этот вход только для администратора. Менеджерам: /manager/' : 'Этот вход для менеджеров филиалов. Администратору: /admin/'); } sessionStorage.setItem('panel', APP); S.me = r.admin; S.branch = r.branch; if (S.me.role !== 'super') S.branchId = S.me.branch_id; S.tab = S.tab || NAV[S.me.role][0][0]; render(); offerFace(); }).catch(() => { }); root.innerHTML = '<div class="login"><div class="glass box"><div class="skeleton"></div></div></div>'; return; }
   bumpIdle();
   if (new URLSearchParams(location.search).get('next') === 'analytics' && ['super', 'manager'].includes(S.me.role)) { location.replace('/analytics/'); return; }
   const nav = NAV[S.me.role];
@@ -120,7 +120,8 @@ function renderLogin(msg, step = 1, st = {}) {
   if (step === 1) {
     $('#root').innerHTML = frame(`<h1>Вход</h1><p class="muted" style="margin:0">Введите номер телефона. Код придёт в Telegram.</p>
       <label class="field"><span>Телефон</span><div style="display:flex;gap:8px;align-items:center"><span class="pill" style="height:46px;font-size:15px;padding:0 16px">+998</span><input id="ph" type="tel" inputmode="numeric" maxlength="12" placeholder="Номер телефона" value="${fmtPh(st.digits || '')}" autofocus></div></label>
-      <button class="btn primary" id="go" style="width:100%;margin-top:18px" type="submit" disabled>Получить код</button>`);
+      <button class="btn primary" id="go" style="width:100%;margin-top:18px" type="submit" disabled>Получить код</button><div id="alt"></div>`);
+    loginExtras();
     const ph = $('#ph'), go = $('#go');
     const upd = () => { go.disabled = (st.digits || '').length !== 9; };
     ph.addEventListener('input', () => { let d = ph.value.replace(/\D/g, ''); if (d.startsWith('998') && d.length > 9) d = d.slice(3); st.digits = d.slice(0, 9); ph.value = fmtPh(st.digits); upd(); });
@@ -151,9 +152,78 @@ function renderLogin(msg, step = 1, st = {}) {
       const r = await api('auth/verify', 'POST', body);
       if (r.need_totp) { busy = false; return renderLogin('', 3, { ...st, code: cd.value }); }
       if (r.choose) { clearInterval(t); return renderChoose(r); }
-      clearInterval(t); S.token = r.token; sessionStorage.setItem('atoken', r.token); S.me = null; S.tab = null; render();
+      clearInterval(t); loginDone(r.token);
     } catch (er) { $('#err').textContent = er.message; cd.value = ''; busy = false; if (step === 3) { /* wrong TOTP: stay */ } }
   });
+}
+
+/* ---------- sign-in by face: a button on phones, a QR code on computers (scan it with the phone, confirm with Face ID) ---------- */
+const FACE_ICO = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 16a3.5 3.5 0 0 0 5 0"/></svg>';
+let QRP = null;
+const stopQR = () => { clearTimeout(QRP); QRP = null; };
+function loginDone(token) { stopQR(); S.token = token; sessionStorage.setItem('atoken', token); S.me = null; S.tab = null; S.offerFace = true; render(); }
+async function loginExtras() {
+  const alt = $('#alt');
+  if (!alt || !Passkey.supported()) return;
+  const phone = Passkey.isPhone(), face = phone || await Passkey.hasFace();
+  alt.innerHTML = (face ? `<div class="or"><span>или</span></div><button class="btn" type="button" id="face" style="width:100%">${FACE_ICO} Войти по лицу</button>` : '')
+    + (phone ? '' : `<div class="qr-login"><div class="qr-box" id="qrbox"></div><div><b>Вход с телефона</b><p class="muted">Наведите камеру телефона на код и подтвердите вход лицом. Вход по лицу включается на телефоне в «Безопасности».</p></div></div>`);
+  $('#face')?.addEventListener('click', async () => {
+    $('#err').textContent = '';
+    try { const r = await Passkey.signIn(api, { app: APP }); loginDone(r.token); }
+    catch (e) { $('#err').textContent = Passkey.cancelled(e) ? 'Вход по лицу не подтверждён. Если он ещё не включён — войдите по номеру и включите его в «Безопасности».' : e.message; }
+  });
+  if (!phone) startQR();
+}
+async function startQR() {
+  stopQR();
+  const box = $('#qrbox');
+  if (!box) return;
+  try {
+    const q = await api('auth/qr/start', 'POST', { app: APP });
+    box.innerHTML = QR.svg(q.url, { level: 'L' });
+    const until = Date.now() + (q.expires_in - 3) * 1000;
+    const poll = async () => {
+      if (!$('#qrbox')) return stopQR(); // left the login screen
+      if (Date.now() > until) return startQR();
+      try {
+        const s = await api('auth/qr/status', 'POST', { token: q.token });
+        if (s.status === 'ok') return loginDone(s.token);
+        if (s.status === 'expired') return startQR();
+      } catch { /* network hiccup: try again */ }
+      QRP = setTimeout(poll, 2000);
+    };
+    QRP = setTimeout(poll, 2000);
+  } catch (e) { box.innerHTML = `<p class="muted" style="padding:12px">${esc(e.message)}</p>`; }
+}
+// right after a sign-in by code: offer to turn on the face sign-in on this device (once; "not now" waits 30 days)
+async function offerFace() {
+  if (!S.offerFace) return;
+  S.offerFace = false;
+  const key = 'face:' + (S.me?.phone || '');
+  try { if (localStorage.getItem(key) || Number(localStorage.getItem('faceSkip') || 0) > Date.now()) return; } catch { return; }
+  if (!(await Passkey.hasFace())) return;
+  const o = overlay(`<div class="glass modal" style="max-width:420px"><h2>${FACE_ICO} Входить по лицу?</h2><p class="muted">В следующий раз входите по Face ID или отпечатку — без кода из Telegram. С компьютера: отсканируйте телефоном QR-код на экране входа.</p>
+    <div class="err" id="fe"></div><div class="foot"><button class="btn" data-act="cancel">Не сейчас</button><button class="btn primary" data-act="ok">Включить</button></div></div>`);
+  o.addEventListener('click', async e => {
+    const a = e.target.closest('[data-act]')?.dataset.act;
+    if (a === 'cancel' || e.target === o) { try { localStorage.setItem('faceSkip', String(Date.now() + 30 * 864e5)); } catch { /* private mode */ } return o.remove(); }
+    if (a === 'ok') {
+      try { await Passkey.enroll(api); try { localStorage.setItem(key, '1'); } catch { /* private mode */ } o.remove(); toast('Вход по лицу включён'); if (S.tab === 'security') loadTab(); }
+      catch (er) { $('#fe', o).textContent = Passkey.cancelled(er) ? 'Отменено' : er.message; }
+    }
+  });
+}
+async function faceCard() {
+  const el = $('#facecard');
+  if (!el) return;
+  const fmt = t => (t ? new Date(t * 1000).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+  try {
+    const [{ rows }, face] = await Promise.all([api('auth/passkeys'), Passkey.hasFace()]);
+    el.innerHTML = `<h3>${FACE_ICO} Вход по лицу</h3><p class="muted">Face ID или отпечаток пальца вместо кода из Telegram. Работает для всех ролей этого номера. С компьютера — сканируйте телефоном QR-код на экране входа. Фото лица не сохраняется: телефон проверяет лицо сам, сервер получает только ключ.</p>
+      ${rows.length ? `<div class="face-list">${rows.map(k => `<div class="face-row"><div><b>${esc(k.device || 'Устройство')}</b><div class="faint">добавлено ${fmt(k.created_at)} · вход ${fmt(k.last_used)}</div></div><button class="btn" data-act="facedel" data-id="${esc(k.cred_id)}">Удалить</button></div>`).join('')}</div>` : '<p class="muted"><b>Пока не включён.</b></p>'}
+      ${face ? '<button class="btn primary" data-act="faceadd" style="margin-top:12px">Включить на этом устройстве</button>' : '<p class="faint" style="margin:12px 0 0">На этом устройстве нет Face ID или отпечатка. Включите вход по лицу на телефоне.</p>'}`;
+  } catch (e) { el.innerHTML = `<h3>Вход по лицу</h3><p class="muted">${esc(e.message)}</p>`; }
 }
 
 /* the same number holds several roles: pick which one to enter */
@@ -161,7 +231,7 @@ function renderChoose(r) {
   $('#root').innerHTML = `<div class="login"><div class="glass box"><div class="brand" style="padding:0"><img class="logo" src="/img/brand.png" alt=""><span>Wendy's</span></div><h1>Войти как</h1><p class="muted" style="margin:0 0 6px">У этого номера несколько ролей</p>
     ${r.choose.map(c => `<button class="btn" style="width:100%;margin-top:12px;justify-content:flex-start" data-id="${c.id}">${esc(ROLE_NAMES[c.role] || c.role)}${c.branch ? ' · ' + esc(c.branch) : ''}</button>`).join('')}<div class="err" id="err"></div></div></div>`;
   $('#root').querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', async () => {
-    try { const x = await api('auth/choose', 'POST', { ticket: r.ticket, id: b.dataset.id }); S.token = x.token; sessionStorage.setItem('atoken', x.token); S.me = null; S.tab = null; render(); }
+    try { const x = await api('auth/choose', 'POST', { ticket: r.ticket, id: b.dataset.id }); loginDone(x.token); }
     catch (er) { $('#err').textContent = er.message; }
   }));
 }
@@ -200,7 +270,7 @@ VIEWS.orders = async main => {
     S.lastOrderIds = ids;
     const card = o => `<div class="oc ${fresh.has(o.id) ? 'fresh' : ''}">
       <div class="h"><b>№${o.id}</b><span class="faint" style="font-size:12px">${esc(String(o.created_at).slice(11, 16))}</span></div>
-      <div style="font-size:13px"><span class="pill ${o.type === 'delivery' ? 'info' : 'warn'}">${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'}</span> <span class="pill">${esc(PAY[o.payment] || o.payment)}</span></div>
+      <div style="font-size:13px"><span class="pill ${o.type === 'delivery' ? 'info' : 'warn'}">${o.type === 'delivery' ? 'Доставка' : 'В филиале'}</span> <span class="pill">${esc(PAY[o.payment] || o.payment)}</span></div>
       <ul>${o.items.map(i => `<li>${esc(i.name)} × ${i.qty}</li>`).join('')}</ul>
       <div class="muted" style="font-size:13px">${esc(o.user_name || '')} ${esc(o.phone || '')}<br>${o.type === 'delivery' && o.address ? esc(o.address.address) + (o.address.apartment ? ', кв. ' + esc(o.address.apartment) : '') : esc(o.branch_name || '') + ' · ' + (o.pickup_time === 'asap' ? 'побыстрее' : 'к ' + esc(o.pickup_time))}</div>
       ${o.courier_name ? `<div style="margin-top:6px" class="pill ok">${icon('couriers', 14)} ${esc(o.courier_name)}</div>` : ''}
@@ -308,7 +378,8 @@ VIEWS.security = async main => {
       <label class="field"><span>Фото товаров в меню (сайт и приложение)</span><select name="product_image_shape"><option value="square" ${s.product_image_shape !== 'circle' ? 'selected' : ''}>Квадрат со скруглёнными углами (как в приложении)</option><option value="circle" ${s.product_image_shape === 'circle' ? 'selected' : ''}>Круг</option></select></label>
       <label class="field"><span>О компании (текст на сайте, необязательно)</span><textarea name="about_text" rows="3">${esc(s.about_text || '')}</textarea></label><div style="margin-top:16px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`;
   }
-  main.innerHTML = head('Безопасность') + `<div class="glass card"><h3>Сессия</h3><p class="muted">Вход по коду из Telegram. Автовыход через 30 минут бездействия, максимум 12 часов. Все важные действия записываются в журнал.</p><button class="btn" data-act="logout">Выйти</button></div>${settings}`;
+  main.innerHTML = head('Безопасность') + `<div class="glass card"><h3>Сессия</h3><p class="muted">Вход по коду из Telegram. Автовыход через 30 минут бездействия, максимум 12 часов. Все важные действия записываются в журнал.</p><button class="btn" data-act="logout">Выйти</button></div><div class="glass card" id="facecard" style="margin-top:16px"><div class="skeleton"></div></div>${settings}`;
+  faceCard();
 };
 
 /* ---------- delivery: zones (real district boundaries) or radius + prices per branch ---------- */
@@ -472,7 +543,7 @@ VIEWS.reviews = async main => {
 VIEWS.coins = async main => {
   const d = await api('coins');
   const cs = Object.fromEntries((await api('settings')).rows.map(r => [r.key, r.value]));
-  main.innerHTML = head('WendyCoin') + `<div class="glass card" style="margin-bottom:16px"><h3>Настройки WendyCoin</h3><form data-form="coinset"><div class="g2"><label class="field"><span>Начисление за заказ, % от суммы</span><input type="number" min="0" max="100" name="coin_percent" value="${esc(cs.coin_percent)}"></label><label class="field"><span>Стоимость 1 WendyCoin при оплате, so'm</span><input type="number" min="1" name="coin_value" value="${esc(cs.coin_value || 1)}"></label><label class="field"><span>QR для оплаты в ресторане действует, секунд</span><input type="number" min="30" max="600" name="coin_qr_ttl" value="${esc(cs.coin_qr_ttl || 120)}"></label></div><p class="muted" style="margin:10px 0 0">Клиент показывает QR из приложения (кнопка «QR-код» на главной, рядом с балансом WendyCoin), касса или киоск сканирует его и списывает коины. Подключение — в разделе «POS-интеграция».</p><div style="margin-top:14px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`
+  main.innerHTML = head('WendyCoin') + `<div class="glass card" style="margin-bottom:16px"><h3>Настройки WendyCoin</h3><form data-form="coinset"><div class="g2"><label class="field"><span>Начисление за заказ, % от суммы</span><input type="number" min="0" max="100" name="coin_percent" value="${esc(cs.coin_percent)}"></label><label class="field"><span>Стоимость 1 WendyCoin при оплате, so'm</span><input type="number" min="1" name="coin_value" value="${esc(cs.coin_value || 1)}"></label><label class="field"><span>QR для оплаты в ресторане действует, секунд</span><input type="number" min="30" max="600" name="coin_qr_ttl" value="${esc(cs.coin_qr_ttl || 30)}"></label></div><p class="muted" style="margin:10px 0 0">Клиент показывает QR из приложения (кнопка «QR-код» на главной, рядом с балансом WendyCoin), касса или киоск сканирует его и списывает коины. Подключение — в разделе «POS-интеграция».</p><div style="margin-top:14px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`
     + `<div class="grid kpis"><div class="glass kpi"><small>Коинов у клиентов</small><b>${money(d.total)}</b><span class="pill info">в обороте</span></div>
     <div class="glass kpi"><small>Товаров для обмена</small><b>${d.products.filter(p => p.coin_price > 0).length}</b><span class="pill">из ${d.products.length}</span></div></div>
     <div class="grid cols2"><div class="glass card"><h3>Баланс клиентов</h3><div class="scrollx"><table class="tbl"><thead><tr><th>Клиент</th><th>WendyCoin</th><th></th></tr></thead><tbody>${d.customers.map(u => `<tr><td>${esc(u.name || 'Без имени')}<div class="faint">${esc(u.phone)}</div></td><td><b>${money(u.coins)}</b></td><td class="acts"><button class="btn sm" data-act="coinadj" data-id="${u.id}" data-name="${esc(u.name || u.phone)}">Изменить</button></td></tr>`).join('') || '<tr><td colspan="3"><div class="empty">Клиентов нет</div></td></tr>'}</tbody></table></div></div>
@@ -591,7 +662,7 @@ function openChat(uid, name) {
 function staffForm() {
   const isSuper = S.me.role === 'super';
   const o = overlay(`<form class="glass modal" id="sf"><h2>Новый сотрудник</h2><div class="g2"><label class="field"><span>Имя</span><input name="name"></label><label class="field"><span>Телефон (+998…)</span><input name="phone" type="tel" inputmode="numeric" placeholder="+998 90 123 45 67" required></label>
-    ${isSuper ? `<label class="field"><span>Роль</span><select name="role"><option value="manager">Менеджер филиала</option><option value="courier">Курьер</option><option value="staff">Сотрудник</option><option value="super">Super Admin</option></select></label><label class="field"><span>Филиал</span><select name="branch_id">${S.branches.map(b => `<option value="${b.id}">${esc(b.name || b.address)}</option>`).join('')}</select></label>` : `<label class="field"><span>Роль</span><select name="role"><option value="courier">Курьер</option><option value="staff">Сотрудник</option></select></label><div class="muted" style="margin-top:14px">Будет добавлен в ваш филиал${S.branch ? ' «' + esc(S.branch.name) + '»' : ''}.</div>`}
+    ${isSuper ? `<label class="field"><span>Роль</span><select name="role"><option value="manager">Менеджер филиала</option><option value="courier">Курьер</option><option value="staff">Сотрудник</option><option value="super">Администратор (все права)</option></select></label><label class="field"><span>Филиал</span><select name="branch_id">${S.branches.map(b => `<option value="${b.id}">${esc(b.name || b.address)}</option>`).join('')}</select></label>` : `<label class="field"><span>Роль</span><select name="role"><option value="courier">Курьер</option><option value="staff">Сотрудник</option></select></label><div class="muted" style="margin-top:14px">Будет добавлен в ваш филиал${S.branch ? ' «' + esc(S.branch.name) + '»' : ''}.</div>`}
 <div class="muted" style="grid-column:1/-1;margin-top:12px;font-size:13px">Вход по этому номеру: код придёт в Telegram. Менеджеры и сотрудники входят на /manager/, курьеры на /courier/</div></div><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Создать</button></div></form>`);
   o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) o.remove(); });
   $('#sf', o).addEventListener('submit', async e => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(e.target)); body.phone = '+998' + body.phone.replace(/\D/g, '').replace(/^998/, ''); await api('staff', 'POST', body); o.remove(); toast('Сотрудник создан'); loadTab(); } catch (er) { $('#fe', o).textContent = er.message; } });
@@ -640,6 +711,8 @@ const ACT = {
   stafftoggle: async el => { const on = el.dataset.on === '1'; if (on && !(await ask('Отключить доступ?', 'Сотрудник не сможет войти.', 'Отключить'))) return; try { await api('staff/' + el.dataset.id, 'PUT', { active: on ? 0 : 1 }); loadTab(); } catch (e) { toast(e.message); } },
   staffdel: async el => { if (!(await ask('Удалить сотрудника?', 'Доступ будет закрыт навсегда.', 'Удалить'))) return; try { await api('staff/' + el.dataset.id, 'DELETE', null, true); loadTab(); } catch (e) { toast(e.message); } },
   openchat: el => openChat(el.dataset.id, el.dataset.name),
+  faceadd: async () => { try { await Passkey.enroll(api); try { localStorage.setItem('face:' + S.me.phone, '1'); } catch { /* private mode */ } toast('Вход по лицу включён'); faceCard(); } catch (e) { toast(Passkey.cancelled(e) ? 'Отменено' : e.message); } },
+  facedel: async el => { if (!(await ask('Удалить устройство?', 'С него больше нельзя будет войти по лицу.', 'Удалить'))) return; try { await api('auth/passkeys/' + encodeURIComponent(el.dataset.id), 'DELETE'); try { localStorage.removeItem('face:' + S.me.phone); } catch { /* private mode */ } faceCard(); } catch (e) { toast(e.message); } },
   tfaon: async () => {
     const r = await api('auth/2fa/setup', 'POST');
     $('#tfa').innerHTML = `<p class="muted">Добавьте ключ в Google Authenticator / 1Password / Authy («ввести ключ вручную»):</p><div class="code">${esc(r.secret)}</div><div class="code" style="font-size:12px">${esc(r.uri)}</div>

@@ -27,6 +27,15 @@ Data: SQLite file `data/app.db`; uploaded images in `uploads/`.
   bearer-token auth (no cookies -> no CSRF), strict CSP on /admin, parameterized SQL, image magic-byte checks,
   confirmation required for deletes/settings, audit log of all important actions.
 
+## Sign-in by face (admin, manager, courier)
+- After signing in by phone code, the panel offers "Входить по лицу?" (also in "Безопасность" > "Вход по лицу").
+  This creates a passkey: the phone's Face ID / fingerprint unlocks it. No photo or biometric data reaches the server,
+  only a public key (table `admin_passkeys`), so nothing biometric has to be stored in Uzbekistan.
+- Next time: "Войти по лицу" on the phone, or on a computer scan the QR code on the login screen with the phone,
+  confirm with Face ID, the phone shows a tick and the computer opens the panel. A QR code lives 2 minutes and works once.
+- One face works for every role of the same number. Passkeys are bound to the site's domain: after moving to a new domain, turn it on again.
+- Admins add other admins in "Команда" > "+ Сотрудник" > role "Администратор (все права)".
+
 ## Order lifecycle
 customer orders -> nearest OPEN branch that serves the address and has every item in stock (ties within 300 m: the less busy branch).
   "Serves" = the address is inside a delivery zone linked to the branch (admin "Доставка" > "Зоны доставки"); while no zone exists, each branch's delivery radius is used.

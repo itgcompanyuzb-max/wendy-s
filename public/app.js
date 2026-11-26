@@ -448,7 +448,7 @@ function mapView(mode = 'delivery') {
   <div class="view map-view" id="mv">
     <div id="mapbox" style="position:absolute;left:0;right:0;top:0;bottom:300px"><div id="map"></div><img class="center-pin" id="cpin" src="/img/pin.png" alt="" style="top:50%"></div>
     <button class="map-x" id="mx">${I.xw()}</button>
-    <div class="seg with-x" id="seg"><button data-m="delivery">${I.walk(24, '#fff')} Доставка</button><button data-m="pickup">${I.fork(24)} В пиццерии</button></div>
+    <div class="seg with-x" id="seg"><button data-m="delivery">${I.walk(24, '#fff')} Доставка</button><button data-m="pickup">${I.fork(24)} В филиале</button></div>
     <div class="bubble up" id="b1" style="top:92px;left:56%">Выберите тип заказа</div>
     <button class="locate" id="loc">${I.locate()}</button>
     <div class="map-sheet" id="msheet"></div>
@@ -588,7 +588,7 @@ function renderPickupSheet() {
   const list = branches().filter(b => (!M.onlyOpen || isOpen(b)) && (!q || (b.name + ' ' + b.address + ' ' + b.city).toLowerCase().includes(q)));
   sh.innerHTML = `
     <div class="chip-country">${flag} Узбекистан</div>
-    <label class="field single" style="height:62px"><input id="bq" placeholder="Найти пиццерию" value="${esc(M.q)}" autocomplete="off"></label>
+    <label class="field single" style="height:62px"><input id="bq" placeholder="Найти филиал" value="${esc(M.q)}" autocomplete="off"></label>
     <div class="filters"><button class="f ${M.onlyOpen ? 'on' : ''}" onclick="M.onlyOpen=!M.onlyOpen;renderPickupSheet()">Открыто</button></div>
     ${(q || M.onlyOpen) ? `<div class="search-list" style="margin-top:12px">${list.map(b => `<div class="it" onclick="selectBranch(${b.id},true)"><b>${esc(b.city)}, ${esc(b.address)}</b><span>${isOpen(b) ? 'Открыто до ' + fmtT(b.close_time) : 'Закрыто'}</span></div>`).join('') || '<div class="empty" style="padding:20px">Ничего не найдено</div>'}</div>` : ''}`;
   const bq = $('#bq'); bq.oninput = () => { const pos = bq.selectionStart; M.q = bq.value; renderPickupSheet(); const n = $('#bq'); n.focus(); n.setSelectionRange(pos, pos); };
@@ -660,7 +660,7 @@ function productCard(p) {
     <div data-pill="${p.id}" onclick="event.stopPropagation()">${pillInner(p)}</div></div>`;
 }
 function headerTitle() {
-  if (St.mode === 'pickup') { const b = curBranch(); return b ? `${b.address}` : 'Выберите пиццерию'; }
+  if (St.mode === 'pickup') { const b = curBranch(); return b ? `${b.address}` : 'Выберите филиал'; }
   const a = curAddr(); return a ? a.address : 'Укажите адрес доставки';
 }
 function homeView() {
@@ -746,11 +746,11 @@ A.product = id => {
 A.addrSheet = () => Sh.open('addr', () => `<div class="grab"></div><div class="body">
   <div class="seg" style="position:static;margin:8px 0 18px;padding:5px">
     <button class="${St.mode === 'delivery' ? 'on' : ''}" onclick="A.setMode('delivery')">${I.walk(22, '#fff')} Доставка</button>
-    <button class="${St.mode === 'pickup' ? 'on' : ''}" onclick="A.setMode('pickup')">${I.fork(22)} В пиццерии</button></div>
+    <button class="${St.mode === 'pickup' ? 'on' : ''}" onclick="A.setMode('pickup')">${I.fork(22)} В филиале</button></div>
   ${St.mode === 'delivery' ? `
     ${St.addresses.map(a => `<div class="list-it ${a.id === St.addrId ? 'on' : ''}" onclick="A.pickAddr(${a.id})"><div style="min-width:0"><b>${esc(a.address)}</b><small>${esc([a.entrance && 'подъезд ' + a.entrance, a.floor && 'этаж ' + a.floor, a.apartment && 'кв. ' + a.apartment].filter(Boolean).join(', ') || { home: 'Дом', work: 'Работа', other: 'Другое' }[a.label])}</small></div><button onclick="event.stopPropagation();A.delAddr(${a.id})">${I.trash(22, '#8e8e93')}</button></div>`).join('')}
     <button class="btn gray" style="margin-top:6px" onclick="A.openMap('delivery')">${I.plus(20)} Добавить адрес</button>`
-    : `<div class="list-it" onclick="A.openMap('pickup')"><div><b>${esc(curBranch()?.address || 'Выберите пиццерию')}</b><small>${curBranch() ? esc(curBranch().city) + ' · ' + fmtT(curBranch().open_time) + ' - ' + fmtT(curBranch().close_time) : 'На карте'}</small></div>${I.right()}</div>`}
+    : `<div class="list-it" onclick="A.openMap('pickup')"><div><b>${esc(curBranch()?.address || 'Выберите филиал')}</b><small>${curBranch() ? esc(curBranch().city) + ' · ' + fmtT(curBranch().open_time) + ' - ' + fmtT(curBranch().close_time) : 'На карте'}</small></div>${I.right()}</div>`}
   </div>`);
 A.setMode = m => {
   St.mode = m; LS.set('mode', m);
@@ -831,7 +831,7 @@ function renderCheckout() {
     else if (St.quote && !St.quote.ok) { btnHTML = St.quote.error === 'closed' ? 'Пока не принимаем заказы' : St.quote.error === 'radius' ? 'Доставка недоступна' : 'Нет в наличии'; disabled = true; }
     else btnHTML = 'Оформить заказ';
   } else {
-    if (!b) { btnHTML = 'Выбрать пиццерию'; btnAct = "Sh.close('checkout');A.openMap('pickup',A.checkout)"; }
+    if (!b) { btnHTML = 'Выбрать филиал'; btnAct = "Sh.close('checkout');A.openMap('pickup',A.checkout)"; }
     else btnHTML = 'Оформить заказ';
   }
   const coinNeed = Math.ceil(t.total / (St.menu.settings.coin_value || 1)) + t.spent;
@@ -844,14 +844,14 @@ function renderCheckout() {
   const sl = b ? slots(b) : [];
   return `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 0"><button onclick="Sh.close('checkout')">${I.x()}</button></div>
   <div class="body" style="padding-top:0">
-    <div class="co-title">${del ? 'Доставка' : 'В пиццерии'}</div>
+    <div class="co-title">${del ? 'Доставка' : 'В филиале'}</div>
     ${del ? `
       <button class="co-row" onclick="A.checkoutAddr()"><span>${a ? `<b style="font-weight:600">${esc(a.address)}</b><small>${esc([a.entrance && 'подъезд ' + a.entrance, a.floor && 'этаж ' + a.floor, a.apartment && 'кв. ' + a.apartment].filter(Boolean).join(', '))}</small>` : 'Добавить адрес'}</span>${a ? I.right() : I.plus(30)}</button>
       <div class="co-sec">Время доставки</div>
       ${St.quote && !St.quote.ok ? `<div class="co-note">${I.clock(34)}<div><b>${St.quote.error === 'closed' ? 'Пока не принимаем заказы' : 'Доставка недоступна'}</b><span>${esc(St.quote.message)}</span></div></div>`
         : `<div class="co-note">${I.clock(34)}<div><b>Как можно скорее</b><span class="gray-t">Обычно 40–60 минут</span></div></div>${St.quote?.ok ? `<div class="co-note" style="margin-top:10px">${I.pinI(30)}<div><b>Готовит: ${esc(St.quote.branch.name)}</b><span class="gray-t">≈ ${St.quote.distance_km} км от вас</span></div></div>` : ''}`}`
     : `
-      <button class="co-row" onclick="Sh.close('checkout');A.openMap('pickup',A.checkout)"><span>${b ? `<b style="font-weight:600">${esc(b.city)}, ${esc(b.address)}</b><small>С ${fmtT(b.open_time)} до ${fmtT(b.close_time)}</small>` : 'Выбрать пиццерию'}</span>${I.right()}</button>
+      <button class="co-row" onclick="Sh.close('checkout');A.openMap('pickup',A.checkout)"><span>${b ? `<b style="font-weight:600">${esc(b.city)}, ${esc(b.address)}</b><small>С ${fmtT(b.open_time)} до ${fmtT(b.close_time)}</small>` : 'Выбрать филиал'}</span>${I.right()}</button>
       <div class="co-sec">Время выдачи</div>
       <div class="opts">
         <button class="opt ${St.pickupTime === 'asap' ? 'on' : ''} ${b && isOpen(b) ? '' : 'dis'}" onclick="${b && isOpen(b) ? "A.setTime('asap')" : "toast('Сейчас закрыто, выберите время')"}">Побыстрее</button>
@@ -939,7 +939,7 @@ function renderProfile() {
     </div>
     ${promos.length ? `<div class="h2">Акции</div>${promos.map(p => `<div class="tk"><div class="tk-l"><div><div class="tk-eb">${esc(loc(p, 'info') || 'НА ЛЮБОЙ ТИП ЗАКАЗА')}</div><div class="tk-h">${esc(loc(p, 'title'))}</div>${p.valid_until ? `<div class="tk-d">до ${new Date(p.valid_until + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</div>` : ''}</div>${St.promo?.code === p.code ? `<button class="tk-btn" onclick="A.removePromo();Sh.refresh('profile')">Отменить</button>` : `<button class="tk-btn" onclick="A.usePromo('${esc(p.code)}')">Применить</button>`}</div><div class="tk-r"><div class="tk-info">${I.info(11, '#bcbcc2')}</div><div class="tk-art"><img class="tk-gold" src="/img/coin.png" alt=""><div class="tk-pc">%</div><span class="tk-star s1">✦</span><span class="tk-star s2">✦</span></div></div></div>`).join('')}` : ''}
     ${St.orders.length ? `<div class="h2">Мои заказы</div>${St.orders.map(o => `<div class="ord"><div class="t"><span>Заказ №${o.id}</span><span>${money(o.total)}</span></div>
-      <div class="s"><span class="st-tag st-${esc(o.status)}">${ST_NAMES[o.status] || o.status}</span> · ${o.type === 'delivery' ? 'Доставка' : 'В пиццерии'} · ${esc(String(o.created_at).slice(0, 16))}<br>${o.items.map(i => esc(prod(i.product_id) ? loc(prod(i.product_id), 'name') : i.name) + ' × ' + i.qty).join(', ')}</div>${orderActions(o)}</div>`).join('')}` : ''}
+      <div class="s"><span class="st-tag st-${esc(o.status)}">${ST_NAMES[o.status] || o.status}</span> · ${o.type === 'delivery' ? 'Доставка' : 'В филиале'} · ${esc(String(o.created_at).slice(0, 16))}<br>${o.items.map(i => esc(prod(i.product_id) ? loc(prod(i.product_id), 'name') : i.name) + ' × ' + i.qty).join(', ')}</div>${orderActions(o)}</div>`).join('')}` : ''}
     <div style="height:20px"></div>
   </div>
   <a class="powered pf" href="https://t.me/anvarbek707" target="_blank" rel="noopener">Powered by <i></i> <b>ITG</b></a>`;

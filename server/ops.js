@@ -149,7 +149,7 @@ module.exports = function mountOps(app, { db, fail, auth }) {
   /* ---------- WendyCoin pay code: the customer shows a QR, the cashier or the kiosk scans it ---------- */
   // one live code per customer, short lifetime (admin setting), single use, only its hash is stored
   const ABC = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const ttl = () => Math.min(600, Math.max(30, Number(db.prepare("SELECT value FROM settings WHERE key='coin_qr_ttl'").get()?.value) || 120));
+  const ttl = () => Math.min(600, Math.max(15, Number(db.prepare("SELECT value FROM settings WHERE key='coin_qr_ttl'").get()?.value) || 30));
   const coinValue = () => Number(db.prepare("SELECT value FROM settings WHERE key='coin_value'").get()?.value) || 1;
   const cleanCode = c => String(c || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
   const maskPhone = p => String(p || '').replace(/^(\+998|\+7)\d+(\d{2})$/, '$1 *** ** $2');

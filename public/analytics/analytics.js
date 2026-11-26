@@ -17,7 +17,7 @@ async function api(path) {
 const PERIODS = [['today', 'Сегодня'], ['7', '7 дней'], ['30', '30 дней'], ['all', 'Всё время']];
 const STATUS = { new: 'Новые', cooking: 'Готовятся', ready: 'Готовы', delivering: 'В пути', done: 'Выполнены', cancelled: 'Отменены' };
 const PAY = { card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' };
-const TYPE = { delivery: 'Доставка', pickup: 'В пиццерии' };
+const TYPE = { delivery: 'Доставка', pickup: 'В филиале' };
 const COLORS = ['#e2203d', '#7aa7ff', '#ffc83d', '#34d17a', '#b78cff', '#ff9d4d'];
 
 function splitCard(title, obj, names) {
@@ -49,7 +49,7 @@ async function load() {
     <div class="glass card"><h3>Часы пик (заказы)</h3><div class="chart hours">${d.by_hour.map((n, h) => `<div class="col" title="${h}:00 — ${n}"><span>${n || ''}</span><i style="height:${Math.max(2, n / Math.max(1, ...d.by_hour) * 78)}%"></i><span>${h % 3 === 0 ? h : ''}</span></div>`).join('')}</div></div>
   </div>
   <div class="an-grid an-2">
-    <div class="glass card"><h3>Филиалы: куда идут заказы</h3>${hbars(d.by_branch, 'orders', b => b.name, b => `${money(b.revenue)} so'm · средний чек ${money(b.avg)} · доставка ${b.delivery} / в пиццерии ${b.pickup}`)}</div>
+    <div class="glass card"><h3>Филиалы: куда идут заказы</h3>${hbars(d.by_branch, 'orders', b => b.name, b => `${money(b.revenue)} so'm · средний чек ${money(b.avg)} · доставка ${b.delivery} / в филиале ${b.pickup}`)}</div>
     <div class="glass card"><h3>Самые продаваемые товары</h3>${hbars(d.top_products, 'qty', p => p.name, p => `${money(p.revenue)} so'm${p.best_branch && !St.branch && St.me.role === 'super' ? ' · больше всего: ' + p.best_branch : ''}`)}</div>
   </div>
   <div class="an-grid an-3">${splitCard('Тип заказа', d.by_type, TYPE)}${splitCard('Оплата', d.by_payment, PAY)}${splitCard('Статусы заказов', d.by_status, STATUS)}</div>
