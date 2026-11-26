@@ -89,9 +89,7 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
   /* ---------- signed in: add / remove an employee's face ---------- */
   function privateRoutes(router) {
     const canManage = (me, t) => me.role === 'super' || t.id === me.id || (me.role === 'manager' && t.branch_id === me.branch_id && ['staff', 'courier'].includes(t.role));
-    router.post('/staff/:id/camface', (req, res) => {
-      const t = db.prepare('SELECT * FROM admin_users WHERE id=?').get(Number(req.params.id));
-      if (!t || !canManage(req.admin, t)) return fail(res, 403, 'Недостаточно прав');
+    function saveFace(req, res, t, self) {
       if (!t.active || !t.phone) return fail(res, 400, 'Сотрудник отключён или без номера');
       if (req.body.consent !== true) return fail(res, 400, 'Нужно письменное согласие сотрудника на обработку биометрических данных');
       const samples = req.body.samples;
@@ -108,7 +106,20 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
       const ins = db.prepare('INSERT INTO admin_faces (phone, vec, created_at, created_by, consent_by) VALUES (?,?,?,?,?)');
       db.prepare('DELETE FROM admin_faces WHERE phone=?').run(t.phone); // re-taking replaces the old face
       for (const s of samples) ins.run(t.phone, seal(s), now(), req.admin.id, req.admin.id);
-      audit(req, 'face_added', 'admin', t.id, `камера, ${samples.length} снимка, согласие подтвердил администратор`);
+      audit(req, 'face_added', 'admin', t.id, `камера, ${samples.length} снимка, ${self ? 'согласие дал сам сотрудник' : 'согласие подтвердил администратор'}`);
+      res.json({ ok: true });
+    }
+    router.post('/staff/:id/camface', (req, res) => {
+      const t = db.prepare('SELECT * FROM admin_users WHERE id=?').get(Number(req.params.id));
+      if (!t || !canManage(req.admin, t)) return fail(res, 403, 'Недостаточно прав');
+      saveFace(req, res, t, t.id === req.admin.id);
+    });
+    // the signed-in person's own face (every role, couriers included: their area only reaches /auth and /courier)
+    router.get('/auth/camface', (req, res) => res.json({ n: db.prepare('SELECT COUNT(*) c FROM admin_faces WHERE phone=?').get(req.admin.phone || '').c }));
+    router.post('/auth/camface', (req, res) => saveFace(req, res, db.prepare('SELECT * FROM admin_users WHERE id=?').get(req.admin.id), true));
+    router.delete('/auth/camface', (req, res) => {
+      db.prepare('DELETE FROM admin_faces WHERE phone=?').run(req.admin.phone || '');
+      audit(req, 'face_removed', 'admin', req.admin.id, 'камера, сам');
       res.json({ ok: true });
     });
     router.delete('/staff/:id/camface', (req, res) => {

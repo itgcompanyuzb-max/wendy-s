@@ -112,7 +112,7 @@ const FaceCam = (() => {
   }
 
   /* sign in: straight look, head turn, straight look again (the same person) -> the face print to send */
-  function signIn(title = 'Вход по камере') {
+  function signIn(title = 'Вход по Face ID') {
     const w = ui(title);
     return run(w, async (w, alive) => {
       const a = await straight(w.video, w, alive);
@@ -126,13 +126,16 @@ const FaceCam = (() => {
   }
 
   /* add a face: the employee's written consent, a head turn, then 4 straight shots of the same person */
-  function enroll(name) {
-    const w = ui(`Лицо: ${name}`, `<label class="cam-consent"><input type="checkbox" id="camok"> Сотрудник дал письменное согласие на обработку биометрических данных (лицо). Хранится только цифровой отпечаток лица, без фото.</label>`);
+  // self = the person adds their own face (they agree themselves); otherwise an admin adds an employee's face
+  function enroll(name, self = false) {
+    const consent = self ? 'Я согласен(на) на обработку моих биометрических данных (лицо) для входа в систему. Хранится только зашифрованный цифровой отпечаток лица, без фото.'
+      : 'Сотрудник дал письменное согласие на обработку биометрических данных (лицо). Хранится только зашифрованный цифровой отпечаток лица, без фото.';
+    const w = ui(self ? 'Мой Face ID' : `Face ID: ${name}`, `<label class="cam-consent"><input type="checkbox" id="camok"> ${consent}</label>`);
     w.go.hidden = false; w.go.textContent = 'Начать';
-    w.hint('Отметьте согласие и нажмите «Начать». Сотрудник смотрит в камеру.');
+    w.hint(self ? 'Отметьте согласие и нажмите «Начать». Смотрите в камеру.' : 'Отметьте согласие и нажмите «Начать». Сотрудник смотрит в камеру.');
     let started = null;
     const begin = new Promise(r => { started = r; });
-    w.go.onclick = () => { if (!w.q('#camok').checked) return w.err('Без письменного согласия сотрудника лицо добавлять нельзя'); w.err(''); w.go.hidden = true; started(); };
+    w.go.onclick = () => { if (!w.q('#camok').checked) return w.err(self ? 'Отметьте согласие' : 'Без письменного согласия сотрудника лицо добавлять нельзя'); w.err(''); w.go.hidden = true; started(); };
     return run(w, async (w, alive) => {
       await begin;
       const first = await straight(w.video, w, alive);
