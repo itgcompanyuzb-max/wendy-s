@@ -554,3 +554,10 @@ svg { display: block; }
 .cl-exp { text-align: center; font-size: 13px; opacity: .75; margin: 6px 0 0; } .cl-exp a { text-decoration: underline; cursor: pointer; }
 .oxi { width: 30px; height: 30px; display: block; }
 .tc-stage > img { position: relative; width: 30px; height: 30px; }
+/* the 4-part status ring */
+.tc-ring circle { fill: none; stroke: var(--card3); stroke-width: 4; stroke-linecap: round; }
+.tc-ring circle.bg { fill: var(--card2); stroke: none; }
+.tc-ring circle.v { stroke: var(--or); }
+.od-status { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.od-status b { font-size: 20px; } .od-status small { display: block; color: var(--gray); font-size: 13px; margin-top: 3px; line-height: 1.4; }
+.od-status small em { font-style: normal; color: #fff; }

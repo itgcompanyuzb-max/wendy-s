@@ -12,6 +12,7 @@ const OXI = {
   chef: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14a4 4 0 1 1 2-7.5A4 4 0 0 1 17 7a4 4 0 0 1 0 7z"/><path d="M8 14v5h8v-5"/></svg>',
   bag: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
   wait: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  done: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   doc: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>',
 };
 
@@ -34,12 +35,18 @@ function etaInfo(r) {
   const title = left <= 15 ? tr2(`Ещё ${Math.max(1, left)}–${left + 5} мин`, `Yana ${Math.max(1, left)}–${left + 5} daqiqa`) : tr2(`Доставим к ${oxHM(from)}–${oxHM(to)}`, `${oxHM(from)}–${oxHM(to)} da yetkazamiz`);
   return { title, sub, stage };
 }
+// the status ring: 4 parts that fill one by one — accepted, ready, on the way, delivered
+const RING_STEPS = { new: 0, cooking: 1, ready: 2, delivering: 3, done: 4 };
+function stageRing(status, icon, title = '') {
+  const done = RING_STEPS[status] ?? 0, C = 2 * Math.PI * 21, part = C / 4, gap = 5;
+  const seg = i => `<circle class="${i < done ? 'v' : ''}" cx="24" cy="24" r="21" style="stroke-dasharray:${(part - gap).toFixed(2)} ${(C - part + gap).toFixed(2)};stroke-dashoffset:${(-(i * part) - gap / 2).toFixed(2)}"/>`;
+  return `<div class="tc-stage" title="${esc(title)}" aria-label="${done}/4"><svg class="tc-ring" viewBox="0 0 48 48"><circle class="bg" cx="24" cy="24" r="21"/>${[0, 1, 2, 3].map(seg).join('')}</svg>${OXI[icon] || ''}</div>`;
+}
 // the card under the map
 function trackCard(id, r) {
   const e = etaInfo(r), hasC = !!(r.courier && r.status === 'delivering');
-  const ring = { wait: 1, chef: 2, bag: 3, courier: 4 }[e.stage];
   return `<div class="tc-top"><div class="tc-txt"><b>${esc(e.title)}</b><span>${esc(e.sub)}</span></div>
-      <div class="tc-stage s${ring}" title="${esc(e.sub)}"><svg class="tc-ring" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21"/><circle class="v" cx="24" cy="24" r="21" style="stroke-dasharray:${(ring / 4) * 132} 132"/></svg>${OXI[e.stage]}</div></div>
+      ${stageRing(r.status, e.stage, e.sub)}</div>
     <div class="tc-acts">
       <button onclick="A.courierContact(${id})" ${hasC ? '' : 'disabled'}><i>${OXI.courier}${r.unread ? `<em>${r.unread}</em>` : ''}</i><span>${tr2('Курьер', 'Kuryer')}</span></button>
       <button onclick="A.addrInfo(${id})"><i>${OXI.pin}</i><span>${tr2('Адрес', 'Manzil')}</span></button>
@@ -73,6 +80,7 @@ A.orderInfo = async id => {
   Sh.open('orderinfo', () => `<div class="sh-head" style="padding:max(14px,env(safe-area-inset-top)) 16px 8px"><button onclick="Sh.close('orderinfo')">${I.x()}</button><b style="font-size:18px">${esc(ST_NAMES[o.status] || o.status)}</b><span style="width:28px"></span></div>
     <div class="body od">
       <div class="od-card">
+        <div class="od-status">${stageRing(o.status, { new: 'wait', cooking: 'chef', ready: 'bag', delivering: 'courier', done: 'done' }[o.status] || 'wait')}<div><b>${esc(ST_NAMES[o.status] || o.status)}</b><small>${tr2(`Этап ${RING_STEPS[o.status] ?? 0} из 4`, `${RING_STEPS[o.status] ?? 0}/4 bosqich`)}: ${[tr2('принят', 'qabul qilindi'), tr2('готов', 'tayyor'), del ? tr2('в пути', 'yo‘lda') : tr2('выдаётся', 'berilmoqda'), del ? tr2('доставлен', 'yetkazildi') : tr2('выдан', 'berildi')].map((t, i) => (i < (RING_STEPS[o.status] ?? 0) ? `<em>${t}</em>` : t)).join(' · ')}</small></div></div>
         <div class="od-head"><div><b>${tr2('Заказ', 'Buyurtma')} №${o.id}</b> <button class="od-copy" onclick="A.copyOrderNo(${o.id})" aria-label="copy">${I.copy ? I.copy(18) : '⧉'}</button><small>${esc(clDateFull(o.created_at))}</small></div><b>${money(o.total)}</b></div>
         <div class="od-kv"><small>${del ? tr2('Готовит', 'Tayyorlaydi') : tr2('Забрать в филиале', 'Filialdan olib ketish')}</small><b>${esc(o.branch_name || '')}</b></div>
         <div class="od-kv"><small>${tr2('Телефон для связи', 'Aloqa telefoni')}</small><b>${esc(St.user?.phone || '')}</b></div>
@@ -93,6 +101,7 @@ A.orderInfo = async id => {
         ${row(tr2('Способ оплаты', 'To‘lov usuli'), (PAY_NAMES[o.payment] || [o.payment, o.payment])[uzL() ? 1 : 0])}
         <div class="od-total"><span>${tr2('Итого', 'Jami')}</span><b>${money(o.total)}</b></div>
         ${o.status === 'done' && o.coins ? `<p class="gray-t" style="margin:8px 0 0">+${o.coins} WendyCoin ${tr2('за этот заказ', 'shu buyurtma uchun')}</p>` : ''}
+        ${o.status === 'done' && !o.stars ? `<button class="btn" style="margin-top:14px" onclick="Sh.close('orderinfo');A.rate(${o.id})">★ ${tr2('Оценить заказ', 'Buyurtmani baholash')}</button>` : ''}
       </div>
     </div>`, 'full');
 };
