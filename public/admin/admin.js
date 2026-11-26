@@ -29,6 +29,7 @@ const ICON = {
   security: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   stock: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 12l3 3 5-6"/>',
   theme: '<path d="M20 14A8 8 0 1 1 10 4a6.5 6.5 0 0 0 10 10z"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
   logout: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
 };
 const icon = (k, w = 22) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[k] || ''}</svg>`;
@@ -89,6 +90,7 @@ function render(msg) {
     ${nav.map(([k, t]) => (k === 'analytics' ? `<a class="nav" href="/analytics/">${icon(k)}<span>${t}</span></a>` : `<button class="nav ${k === S.tab ? 'on' : ''}" data-act="nav" data-tab="${k}">${icon(k)}<span>${t}</span>${k === 'orders' ? '<span class="dot" id="obadge" hidden></span>' : ''}</button>`)).join('')}
     <div class="sp"></div>
     ${S.me.role === 'super' ? '' : `<div class="who"><b>${esc(S.me.name || '')}</b><span class="muted">${ROLE_NAMES[S.me.role]}${S.branch ? ' · ' + esc(S.branch.name) : ''}</span></div>`}
+    ${Passkey.isPhone() ? '' : `<button class="nav" data-act="faceself">${icon('qr')}<span>QR Face ID</span></button>`}
     <button class="nav" data-act="theme">${icon('theme')}<span>Тема</span></button>
     <button class="nav" data-act="logout">${icon('logout')}<span>Выйти</span></button></aside><main id="main"></main></div>`;
   const on = root.querySelector('.nav.on'); if (on && innerWidth <= 900) on.scrollIntoView({ inline: 'center', block: 'nearest' });
