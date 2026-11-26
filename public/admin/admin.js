@@ -166,7 +166,7 @@ function loginDone(token) { stopQR(); S.token = token; sessionStorage.setItem('a
 async function loginExtras() {
   const alt = $('#alt');
   if (!alt || !Passkey.supported()) return;
-  const phone = Passkey.isPhone(), face = phone || await Passkey.hasFace();
+  const phone = Passkey.isPhone(), face = phone; // computers sign in by scanning the QR with the phone
   alt.innerHTML = (face ? `<div class="or"><span>или</span></div><button class="btn" type="button" id="face" style="width:100%">${FACE_ICO} Войти по лицу</button>` : '')
     + (phone ? '' : `<div class="qr-login"><div class="qr-box" id="qrbox"></div><div><b>Вход с телефона</b><p class="muted">Наведите камеру телефона на код и подтвердите вход лицом. Вход по лицу включается на телефоне в «Безопасности».</p></div></div>`);
   $('#face')?.addEventListener('click', async () => {
@@ -203,7 +203,7 @@ async function offerFace() {
   S.offerFace = false;
   const key = 'face:' + (S.me?.phone || '');
   try { if (localStorage.getItem(key) || Number(localStorage.getItem('faceSkip') || 0) > Date.now()) return; } catch { return; }
-  if (!(await Passkey.hasFace())) return;
+  if (!Passkey.isPhone() || !(await Passkey.hasFace())) return; // on a computer the face is added from the phone (QR)
   const o = overlay(`<div class="glass modal" style="max-width:420px"><h2>${FACE_ICO} Входить по лицу?</h2><p class="muted">В следующий раз входите по Face ID или отпечатку — без кода из Telegram. С компьютера: отсканируйте телефоном QR-код на экране входа.</p>
     <div class="err" id="fe"></div><div class="foot"><button class="btn" data-act="cancel">Не сейчас</button><button class="btn primary" data-act="ok">Включить</button></div></div>`);
   o.addEventListener('click', async e => {
@@ -223,7 +223,8 @@ async function faceCard() {
     const [{ rows }, face] = await Promise.all([api('auth/passkeys'), Passkey.hasFace()]);
     el.innerHTML = `<h3>${FACE_ICO} Вход по лицу</h3><p class="muted">Face ID или отпечаток пальца вместо кода из Telegram. Работает для всех ролей этого номера. С компьютера — сканируйте телефоном QR-код на экране входа. Фото лица не сохраняется: телефон проверяет лицо сам, сервер получает только ключ.</p>
       ${rows.length ? `<div class="face-list">${rows.map(k => `<div class="face-row"><div><b>${esc(k.device || 'Устройство')}</b><div class="faint">добавлено ${fmt(k.created_at)} · вход ${fmt(k.last_used)}</div></div><button class="btn" data-act="facedel" data-id="${esc(k.cred_id)}">Удалить</button></div>`).join('')}</div>` : '<p class="muted"><b>Пока не включён.</b></p>'}
-      ${face ? '<button class="btn primary" data-act="faceadd" style="margin-top:12px">Включить на этом устройстве</button>' : '<p class="faint" style="margin:12px 0 0">На этом устройстве нет Face ID или отпечатка. Включите вход по лицу на телефоне.</p>'}`;
+      ${Passkey.isPhone() ? (face ? '<button class="btn primary" data-act="faceadd" style="margin-top:12px">Включить на этом телефоне</button>' : '<p class="faint" style="margin:12px 0 0">На этом телефоне нет Face ID или отпечатка.</p>')
+        : `<button class="btn primary" data-act="faceself" style="margin-top:12px">${FACE_ICO} Добавить Face ID с телефона</button><p class="faint" style="margin:8px 0 0">Появится QR-код — отсканируйте его камерой своего телефона и подтвердите лицом.</p>`}`;
   } catch (e) { el.innerHTML = `<h3>Вход по лицу</h3><p class="muted">${esc(e.message)}</p>`; }
 }
 
@@ -401,7 +402,7 @@ VIEWS.faceid = async main => {
   draw();
 };
 function faceInvite(id) {
-  const a = (S.faceRows || []).find(x => String(x.id) === String(id)) || {};
+  const a = (S.faceRows || []).find(x => String(x.id) === String(id)) || (String(id) === String(S.me?.id) ? S.me : {});
   let timer = null, closed = false;
   const o = overlay(`<div class="glass modal" style="max-width:440px;text-align:center"><h2>${icon('faceid', 20)} Face ID: ${esc(a.name || a.phone || '')}</h2><div id="fi"><div class="skeleton" style="height:240px"></div></div>
     <div class="foot" style="justify-content:center"><button class="btn" data-act="cancel">Закрыть</button></div></div>`);
@@ -425,7 +426,7 @@ function faceInvite(id) {
           const s = await api('staff/face-invite/status', 'POST', { token: r.token });
           if (s.status === 'done') {
             box.innerHTML = '<svg class="qr-tick" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44"/><path d="M28 50l14 14 27-30"/></svg><h3 style="margin:6px 0 0">Face ID добавлен</h3><p class="muted" style="margin:6px 0 0">Теперь этот сотрудник входит по лицу.</p>';
-            toast('Face ID добавлен'); if (S.tab === 'faceid') loadTab(); return;
+            toast('Face ID добавлен'); if (S.tab === 'faceid') loadTab(); else faceCard(); return;
           }
           if (s.status === 'expired') return expired(box);
         } catch { /* network hiccup: keep waiting */ }
@@ -767,6 +768,7 @@ const ACT = {
   staffdel: async el => { if (!(await ask('Удалить сотрудника?', 'Доступ будет закрыт навсегда.', 'Удалить'))) return; try { await api('staff/' + el.dataset.id, 'DELETE', null, true); loadTab(); } catch (e) { toast(e.message); } },
   openchat: el => openChat(el.dataset.id, el.dataset.name),
   faceinvite: el => faceInvite(el.dataset.id),
+  faceself: () => faceInvite(S.me.id),
   facewipe: async el => { if (!(await ask('Удалить Face ID?', 'Сотрудник снова будет входить по коду из Telegram, пока Face ID не добавят заново.', 'Удалить'))) return; try { await api(`staff/${el.dataset.id}/faces`, 'DELETE'); toast('Face ID удалён'); loadTab(); } catch (e) { toast(e.message); } },
   faceadd: async () => { try { await Passkey.enroll(api); try { localStorage.setItem('face:' + S.me.phone, '1'); } catch { /* private mode */ } toast('Вход по лицу включён'); faceCard(); } catch (e) { toast(Passkey.cancelled(e) ? 'Отменено' : e.message); } },
   facedel: async el => { if (!(await ask('Удалить устройство?', 'С него больше нельзя будет войти по лицу.', 'Удалить'))) return; try { await api('auth/passkeys/' + encodeURIComponent(el.dataset.id), 'DELETE'); try { localStorage.removeItem('face:' + S.me.phone); } catch { /* private mode */ } faceCard(); } catch (e) { toast(e.message); } },
