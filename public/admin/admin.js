@@ -306,6 +306,11 @@ VIEWS.security = async main => {
       <h3 style="margin:22px 0 0">Сайт: ссылки в шапке и подвале</h3><p class="muted" style="margin:4px 0 0;font-size:13px">Пустые ссылки на сайте не показываются. Только https://</p><div class="g2">
       ${[['app_store_url', 'App Store'], ['google_play_url', 'Google Play'], ['instagram_url', 'Instagram'], ['telegram_url', 'Telegram'], ['facebook_url', 'Facebook']].map(([k, t]) => `<label class="field"><span>${t}</span><input name="${k}" value="${esc(s[k] || '')}" placeholder="https://"></label>`).join('')}</div>
       <label class="field"><span>Фото товаров в меню (сайт и приложение)</span><select name="product_image_shape"><option value="square" ${s.product_image_shape !== 'circle' ? 'selected' : ''}>Квадрат со скруглёнными углами (как в приложении)</option><option value="circle" ${s.product_image_shape === 'circle' ? 'selected' : ''}>Круг</option></select></label>
+      <h3 style="margin:22px 0 0">Реквизиты для публичной оферты</h3><p class="muted" style="margin:4px 0 0;font-size:13px">Подставляются в оферту и политику конфиденциальности в приложении. Телефон и e-mail берутся из полей выше.</p><div class="g2">
+      <label class="field"><span>Продавец (ООО / ИП, полное название)</span><input name="legal_name" value="${esc(s.legal_name || '')}" placeholder="ООО «...»"></label>
+      <label class="field"><span>ИНН (СТИР)</span><input name="legal_inn" value="${esc(s.legal_inn || '')}" inputmode="numeric"></label>
+      <label class="field"><span>Юридический адрес</span><input name="legal_address" value="${esc(s.legal_address || '')}"></label>
+      <label class="field"><span>Банковские реквизиты (р/с, банк, МФО)</span><input name="legal_bank" value="${esc(s.legal_bank || '')}"></label></div>
       <label class="field"><span>О компании (текст на сайте, необязательно)</span><textarea name="about_text" rows="3">${esc(s.about_text || '')}</textarea></label><div style="margin-top:16px"><button class="btn primary" type="submit">Сохранить</button></div></form></div>`;
   }
   main.innerHTML = head('Безопасность') + `<div class="glass card"><h3>Сессия</h3><p class="muted">Вход по коду из Telegram. Автовыход через 30 минут бездействия, максимум 12 часов. Все важные действия записываются в журнал.</p><button class="btn" data-act="logout">Выйти</button></div>${settings}`;

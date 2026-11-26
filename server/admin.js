@@ -326,6 +326,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.put('/settings', need('super'), confirmed, (req, res) => {
     const up = db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
     for (const k of ['delivery_fee', 'coin_percent', 'coin_value', 'brand', 'support_phone']) if (req.body[k] !== undefined) up.run(k, String(req.body[k]).slice(0, 200));
+    // company details printed in the public offer and the privacy policy
+    for (const k of ['legal_name', 'legal_inn', 'legal_address', 'legal_bank']) if (req.body[k] !== undefined) up.run(k, String(req.body[k]).replace(/[<>]/g, '').trim().slice(0, 300));
     for (const k of ['support_email', 'app_store_url', 'google_play_url', 'instagram_url', 'telegram_url', 'facebook_url']) {
       if (req.body[k] === undefined) continue;
       const v = String(req.body[k]).trim();
@@ -494,6 +496,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     items: JSON.parse(o.items_json).map(i => ({ name: i.name, qty: i.qty })),
     address: o.address_json ? JSON.parse(o.address_json) : null,
     customer: db.prepare('SELECT name,phone FROM users WHERE id=?').get(o.user_id),
+    unread: db.prepare("SELECT COUNT(*) c FROM order_chat WHERE order_id=? AND sender='user' AND seen_courier=0").get(o.id).c,
     branch: db.prepare('SELECT name,address,lat,lng FROM branches WHERE id=?').get(o.branch_id),
   });
   router.get('/courier/orders', need('courier'), (req, res) => {
@@ -502,6 +505,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     const mine = db.prepare("SELECT * FROM orders WHERE courier_id=? AND status='delivering' ORDER BY id").all(me.id);
     res.json({ available: avail.map(orderForCourier), mine: mine.map(orderForCourier) });
   });
+  require('./orderx').courierChat(router, { db, fail, need });
   router.post('/courier/orders/:id/accept', need('courier'), (req, res) => {
     const r = db.prepare("UPDATE orders SET courier_id=? WHERE id=? AND branch_id=? AND type='delivery' AND status='ready' AND courier_id IS NULL").run(req.admin.id, req.params.id, req.admin.branch_id);
     if (!r.changes) return fail(res, 409, 'Заказ уже взял другой курьер или он недоступен');

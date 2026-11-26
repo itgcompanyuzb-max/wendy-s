@@ -22,10 +22,11 @@ module.exports = function mountOps(app, { db, fail, auth }) {
     const br = db.prepare('SELECT name,address,lat,lng FROM branches WHERE id=?').get(o.branch_id);
     let courier = null;
     if (o.courier_id && o.status === 'delivering') {
-      const c = db.prepare('SELECT a.name, l.lat, l.lng, l.updated_at FROM admin_users a LEFT JOIN courier_location l ON l.courier_id=a.id WHERE a.id=?').get(o.courier_id);
-      if (c) courier = { name: c.name, lat: c.lat, lng: c.lng, updated_at: c.updated_at };
+      const c = db.prepare('SELECT a.name, a.phone, l.lat, l.lng, l.updated_at FROM admin_users a LEFT JOIN courier_location l ON l.courier_id=a.id WHERE a.id=?').get(o.courier_id);
+      if (c) courier = { name: c.name, phone: c.phone, lat: c.lat, lng: c.lng, updated_at: c.updated_at };
     }
-    res.json({ id: o.id, status: o.status, type: o.type, dest: addr ? { lat: addr.lat, lng: addr.lng, address: addr.address } : null, branch: br, courier });
+    const unread = db.prepare("SELECT COUNT(*) c FROM order_chat WHERE order_id=? AND sender='courier' AND seen_user=0").get(o.id).c;
+    res.json({ id: o.id, status: o.status, type: o.type, unread, created_at: o.created_at, accepted_at: o.accepted_at, ready_at: o.ready_at, dest: addr ? { lat: addr.lat, lng: addr.lng, address: addr.address } : null, branch: br, courier });
   });
 
   /* ---------- reviews ---------- */

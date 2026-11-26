@@ -93,7 +93,7 @@ function draw() {
     ${[['Подъезд', a.entrance], ['Этаж', a.floor], ['Квартира', a.apartment], ['Домофон', a.intercom]].filter(x => x[1]).map(x => `<div class="kv"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}
     ${a.comment ? `<div class="kv"><span>Комментарий</span><b style="text-align:right">${esc(a.comment)}</b></div>` : ''}
     <div class="kv"><span>Оплата</span><b>${esc({ card: 'Карта', click: 'Click', payme: 'Payme', cash: 'Наличные', coins: 'WendyCoin' }[mine.payment] || mine.payment)} · ${money(mine.total)} so'm</b></div>
-    <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a></div>
+    <div class="links"><a class="btn" href="tel:${esc(mine.customer?.phone || '')}">Позвонить клиенту</a><button class="btn" type="button" onclick="openCChat(${mine.id})">Написать клиенту${mine.unread ? ` <span class="pill bad">${mine.unread}</span>` : ''}</button></div>
     <div id="donebox"></div></div>`);
   S.map = L.map('cmap', { attributionControl: false, zoomControl: false, ...(MAPKEY ? { crs: L.CRS.EPSG3395 } : {}) }).setView([a.lat, a.lng], 14); tiles().addTo(S.map); S.map.on('zoomend', () => { const el = S.mk.me && S.mk.me._icon && S.mk.me._icon.querySelector('.narrow'); if (el) el.style.width = el.style.height = aSize(S.map.getZoom()) + 'px'; });
   S.mk.dest = L.marker([a.lat, a.lng], { icon: L.divIcon({ html: '<svg width="44" height="56" viewBox="0 0 44 56" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))"><line x1="8" y1="6" x2="8" y2="50" stroke="#1d1d1f" stroke-width="3" stroke-linecap="round"/><rect x="8" y="4" width="32" height="22" fill="#fff" stroke="#1d1d1f" stroke-width="2"/><g fill="#1d1d1f"><rect x="8" y="4" width="8" height="7.33"/><rect x="24" y="4" width="8" height="7.33"/><rect x="16" y="11.33" width="8" height="7.33"/><rect x="32" y="11.33" width="8" height="7.33"/><rect x="8" y="18.66" width="8" height="7.34"/><rect x="24" y="18.66" width="8" height="7.34"/></g><circle cx="8" cy="50" r="5" fill="#fff" stroke="#1d1d1f" stroke-width="3"/></svg>', className: 'bm', iconSize: [44, 56], iconAnchor: [8, 50] }) }).addTo(S.map); // checkered flag = the customer's address
@@ -182,6 +182,30 @@ async function swipeEnd() {
 document.addEventListener('pointerup', swipeEnd);
 document.addEventListener('pointercancel', swipeEnd);
 async function doAccept(id) { try { S.fitted = false; await api(`courier/orders/${id}/accept`, 'POST'); S.profile = await api('courier/me'); await refresh(true); } catch (er) { toast(er.message); refresh(true); } }
+/* chat with the customer about this order (the customer writes from the tracking screen) */
+const CC = { id: 0, timer: null, n: -1 };
+function openCChat(id) {
+  closeCChat(); CC.id = id; CC.n = -1;
+  const o = document.createElement('div'); o.className = 'overlay'; o.id = 'cchat';
+  o.innerHTML = `<div class="glass modal" style="max-width:440px;display:flex;flex-direction:column;max-height:86vh"><h2 style="margin:0 0 10px">Чат с клиентом · №${id}</h2>
+    <div id="ccl" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:180px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><input id="cci" maxlength="500" placeholder="Сообщение" style="flex:1;height:46px;border-radius:23px;border:0;padding:0 16px;background:var(--glass-2);color:var(--tx)"><button class="btn primary" id="ccs" type="button">Отправить</button></div>
+    <div class="foot"><button class="btn" type="button" id="ccx">Закрыть</button></div></div>`;
+  document.body.appendChild(o);
+  $('#ccx').onclick = closeCChat; o.addEventListener('click', e => { if (e.target === o) closeCChat(); });
+  const send = async () => { const i = $('#cci'), t = i.value.trim(); if (!t) return; i.value = ''; try { draw2((await api(`courier/orders/${id}/chat`, 'POST', { text: t })).messages); } catch (e) { toast(e.message); i.value = t; } };
+  $('#ccs').onclick = send; $('#cci').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  const draw2 = list => {
+    if (list.length === CC.n) return; CC.n = list.length;
+    const box = $('#ccl'); if (!box) return;
+    box.innerHTML = list.length ? list.map(m => `<div style="align-self:${m.sender === 'courier' ? 'flex-end' : 'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${m.sender === 'courier' ? 'var(--brand)' : 'var(--glass-2)'};color:${m.sender === 'courier' ? '#fff' : 'inherit'}">${esc(m.text)}</div>`).join('') : '<div class="muted" style="text-align:center;margin-top:20px">Сообщений пока нет</div>';
+    box.scrollTop = box.scrollHeight;
+  };
+  const load = async () => { try { draw2((await api(`courier/orders/${id}/chat`)).messages); } catch { /* try again */ } };
+  load(); CC.timer = setInterval(load, 4000);
+}
+function closeCChat() { clearInterval(CC.timer); $('#cchat')?.remove(); }
+
 async function doDone(id) { try { await api(`courier/orders/${id}/delivered`, 'POST'); toast('Заказ доставлен. Клиенту отправлен запрос на оценку'); S.fitted = false; S.profile = await api('courier/me'); await refresh(true); } catch (er) { toast(er.message); refresh(true); } }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b || b.classList.contains('swipe')) return;
