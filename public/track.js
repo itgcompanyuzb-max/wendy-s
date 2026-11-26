@@ -118,9 +118,10 @@ A.track = id => {
     if (r.status === 'done') { Sh.close('track'); A.rate(id); return; }
     const pts = [];
     const live = !!(r.courier && r.courier.lat != null); // the courier phone sends its real GPS position
-    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], pillIcon()); pts.push([r.dest.lat, r.dest.lng]); }
+    // the delivery address (flag pin) and the branch that cooks the order (dish pin)
+    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin-dest.png', iconSize: [45, 54], iconAnchor: [22, 53] })); pts.push([r.dest.lat, r.dest.lng]); }
     if (r.branch?.lat != null) { // the restaurant on the map; it frames the view until the courier's GPS arrives
-      mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/branch.png', iconSize: [34, 54], iconAnchor: [17, 51] }));
+      mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/pin-branch.png', iconSize: [45, 54], iconAnchor: [22, 53] }));
       if (!live) pts.push([r.branch.lat, r.branch.lng]);
     }
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';

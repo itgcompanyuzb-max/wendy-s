@@ -552,3 +552,5 @@ svg { display: block; }
 .terms-note a { color: #fff; text-decoration: underline; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .tc-ring circle.v { transition: none; } }
 .cl-exp { text-align: center; font-size: 13px; opacity: .75; margin: 6px 0 0; } .cl-exp a { text-decoration: underline; cursor: pointer; }
+.oxi { width: 30px; height: 30px; display: block; }
+.tc-stage > img { position: relative; width: 30px; height: 30px; }
