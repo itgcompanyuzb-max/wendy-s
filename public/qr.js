@@ -119,8 +119,8 @@ const QR = (() => {
   }
 
   // rounded dots, rounded finder "eyes", optional logo in the middle (modules under it are left out)
-  function svg(text, { logo = '', color = '#111', eye = '#111', bg = '#fff', logoSize = 0.24 } = {}) {
-    const { size, mod } = matrix(text, 'H');
+  function svg(text, { logo = '', color = '#111', eye = '#111', bg = '#fff', logoSize = 0.24, level = 'H' } = {}) {
+    const { size, mod } = matrix(text, level);
     const q = 3, n = size + q * 2;
     const hole = logo ? Math.ceil(size * logoSize / 2) * 2 + 1 : 0, h0 = (size - hole) / 2, h1 = h0 + hole;
     const isEye = (x, y) => (x < 7 && y < 7) || (x >= size - 7 && y < 7) || (x < 7 && y >= size - 7);

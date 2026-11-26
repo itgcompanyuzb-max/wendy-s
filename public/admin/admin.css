@@ -225,3 +225,23 @@ a.nav { text-decoration: none; }
   .tbl tr:hover td { background: none; }
   .scrollx { overflow-x: visible; }
 }
+
+/* sign-in by face / QR from a phone */
+.or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: var(--tx3); font-size: 13px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: .3; }
+.btn svg { flex: none; }
+.qr-login { display: flex; gap: 16px; align-items: center; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--stroke-soft); }
+.qr-login b { font-size: 15px; }
+.qr-login p { margin: 6px 0 0; font-size: 13px; line-height: 1.4; }
+.qr-box { width: 132px; height: 132px; flex: none; border-radius: 14px; overflow: hidden; background: #fff; display: grid; place-items: center; }
+.qr-box svg { width: 100%; height: 100%; display: block; }
+.face-list { display: grid; gap: 8px; margin-top: 10px; }
+.face-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--stroke-soft); }
+.modal h2 svg, .card h3 svg { vertical-align: -3px; margin-right: 6px; }
+.qr-phone .btn svg { margin-right: 8px; vertical-align: -5px; }
+.qr-tick { display: block; width: 96px; height: 96px; margin: 18px auto 6px; }
+.qr-tick circle { fill: var(--ok); animation: qr-pop .35s ease-out both; }
+.qr-tick path { fill: none; stroke: #fff; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 70; stroke-dashoffset: 70; animation: qr-draw .4s .25s ease-out forwards; }
+@keyframes qr-pop { from { transform: scale(.6); transform-origin: center; opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes qr-draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .qr-tick circle, .qr-tick path { animation: none; stroke-dashoffset: 0; } }
