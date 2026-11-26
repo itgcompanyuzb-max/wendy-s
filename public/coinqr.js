@@ -14,7 +14,7 @@ function renderCoinQR() {
       <p class="gray-t">${CQ.done.branch ? esc(CQ.done.branch) + '<br>' : ''}На балансе: ${cqFmt(CQ.done.coins)} WendyCoin</p>
       <button class="btn" onclick="Sh.close('coinqr')">Готово</button></div></div>`;
   }
-  const left = cqLeft(), total = CQ.total || 120;
+  const left = cqLeft(), total = CQ.total || 30;
   return `${head}<div class="body cq">
     <h2 class="cq-t">WendyCoin</h2>
     <p class="cq-sub">Покажите код кассиру или поднесите к сканеру киоска</p>
@@ -45,7 +45,7 @@ A.coinQR = () => {
     const left = cqLeft(), t = document.getElementById('cqt'), bar = document.querySelector('.cq-bar i');
     if (left <= 0) { CQ.code = ''; Sh.refresh('coinqr'); cqNew(); return; }
     if (t) t.textContent = `Обновится через ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-    if (bar) bar.style.width = (left / (CQ.total || 120)) * 100 + '%';
+    if (bar) bar.style.width = (left / (CQ.total || 30)) * 100 + '%';
   }, 1000);
   CQ.poll = setInterval(async () => {
     if (!CQ.code || CQ.done) return;
