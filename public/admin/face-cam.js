@@ -170,6 +170,31 @@ const FaceCam = (() => {
     });
   }
 
+  /* a face print from an uploaded photo (taken when the employee is added). The photo never leaves the browser.
+     Exactly one face must be on it. Three prints: the photo as is and slightly darker / lighter. */
+  async function fromPhoto(file) {
+    if (!file || !/^image\//.test(file.type)) throw new Error('Выберите фото (JPG или PNG)');
+    await load();
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      const max = 1024, k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const W = Math.round(img.naturalWidth * k), H = Math.round(img.naturalHeight * k);
+      const shot = async filter => {
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const g = c.getContext('2d'); g.filter = filter; g.drawImage(img, 0, 0, W, H);
+        return faceapi.detectAllFaces(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptors();
+      };
+      const first = await shot('none');
+      if (!first.length) throw new Error('На фото не найдено лицо. Нужно чёткое фото лица анфас, без очков и маски');
+      if (first.length > 1) throw new Error('На фото несколько лиц. Нужно фото только этого сотрудника');
+      if (first[0].detection.box.width < 80) throw new Error('Лицо на фото слишком маленькое. Нужно фото крупнее');
+      const out = [Array.from(first[0].descriptor)];
+      for (const f of ['brightness(0.85)', 'brightness(1.15)']) { const r = await shot(f); if (r.length === 1) out.push(Array.from(r[0].descriptor)); }
+      return out;
+    } finally { URL.revokeObjectURL(url); }
+  }
+
   // after the server answered: a tick or an error in the same window
   function finish(w, ok, text) {
     if (!w || !w.o.isConnected) return;
@@ -181,5 +206,5 @@ const FaceCam = (() => {
     } else { w.hint(''); w.err(text || 'Ошибка'); w.cancel.textContent = 'Закрыть'; w.cancel.onclick = () => w.o.remove(); }
   }
 
-  return { supported, load, signIn, enroll, finish };
+  return { supported, load, signIn, enroll, finish, fromPhoto };
 })();

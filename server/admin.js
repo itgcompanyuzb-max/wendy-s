@@ -396,7 +396,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     const where = req.admin.role === 'super' ? '' : 'WHERE a.branch_id=?';
     const rows = db.prepare(`SELECT a.id,a.phone,a.name,a.role,a.branch_id,a.active,a.totp_enabled,a.last_login,b.name branch_name,
       (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n,
-      (SELECT COUNT(*) FROM admin_faces f WHERE f.phone=a.phone) cam_n
+      (SELECT COUNT(*) FROM admin_faces f WHERE f.phone=a.phone) cam_n,
+      (SELECT src FROM admin_faces f WHERE f.phone=a.phone LIMIT 1) cam_src
       FROM admin_users a LEFT JOIN branches b ON b.id=a.branch_id ${where} ORDER BY a.id`).all(...(where ? [req.admin.branch_id] : []));
     res.json({ rows });
   });

@@ -370,14 +370,14 @@ VIEWS.security = async main => {
 VIEWS.faceid = async main => {
   const { rows } = await api('staff');
   S.faceRows = rows;
-  main.innerHTML = head('Face ID') + `<div class="glass card" style="margin-bottom:16px"><p class="muted" style="margin:0">Выберите сотрудника и нажмите <b>Face ID</b> — сайт откроет камеру этого компьютера или телефона. Сотрудник смотрит в камеру и поворачивает голову по стрелке, лицо запоминается. Потом он входит кнопкой «Войти по Face ID» на любом устройстве. Нужно его письменное согласие: это биометрические данные, по закону они хранятся на сервере в Узбекистане. Фото не сохраняется — только зашифрованный цифровой отпечаток лица.</p>
+  main.innerHTML = head('Face ID') + `<div class="glass card" style="margin-bottom:16px"><p class="muted" style="margin:0">Лицо сотрудника можно добавить двумя способами: <b>Фото</b> — загрузите чёткое фото его лица (или сразу при добавлении сотрудника), <b>Камера</b> — он смотрит в камеру и поводит головой по кругу. Потом он входит кнопкой «Войти по Face ID»: сайт сравнивает лицо в камере с сохранённым и впускает, если это тот же человек. Нужно его письменное согласие: это биометрические данные, по закону они хранятся на сервере в Узбекистане. Само фото не сохраняется — только зашифрованный цифровой отпечаток лица.</p>
     <label class="field" style="margin-top:12px"><span>Поиск</span><input id="fq" placeholder="Имя или номер"></label></div><div class="glass scrollx"><table class="tbl"><thead><tr><th>Сотрудник</th><th>Роль</th><th>Филиал</th><th>Face ID</th><th></th></tr></thead><tbody id="fbody"></tbody></table></div>`;
   const draw = () => {
     const q = ($('#fq')?.value || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
     const list = S.faceRows.filter(a => !q || (a.name || '').toLowerCase().includes(q) || (qd && (a.phone || '').includes(qd)));
     $('#fbody').innerHTML = list.map(a => `<tr><td><b>${esc(a.name || '—')}</b><div class="faint">${esc(a.phone)}</div></td><td>${ROLE_NAMES[a.role] || a.role}</td><td>${esc(a.branch_name || '—')}</td>
-      <td>${a.cam_n ? '<span class="pill ok">добавлен</span>' : '<span class="pill">нет</span>'}</td>
-      <td class="acts">${a.active ? `<button class="btn sm primary" data-act="camenroll" data-id="${a.id}">${icon('faceid', 16)} ${a.cam_n ? 'Снять заново' : 'Face ID'}</button>` : '<span class="pill bad">отключён</span>'}${a.cam_n ? ` <button class="btn sm" data-act="camwipe" data-id="${a.id}">Удалить</button>` : ''}</td></tr>`).join('')
+      <td>${a.cam_n ? `<span class="pill ok">${a.cam_src === 'photo' ? 'по фото' : 'с камеры'}</span>` : '<span class="pill">нет</span>'}</td>
+      <td class="acts">${a.active ? `<button class="btn sm primary" data-act="camenroll" data-id="${a.id}">${icon('faceid', 16)} ${a.cam_n ? 'Снять заново' : 'Камера'}</button> <button class="btn sm" data-act="camphoto" data-id="${a.id}">Фото</button>` : '<span class="pill bad">отключён</span>'}${a.cam_n ? ` <button class="btn sm" data-act="camwipe" data-id="${a.id}">Удалить</button>` : ''}</td></tr>`).join('')
       || '<tr><td colspan="5"><div class="empty">Никого не найдено</div></td></tr>';
   };
   $('#fq').addEventListener('input', draw);
@@ -701,9 +701,18 @@ function staffForm() {
   const isSuper = S.me.role === 'super';
   const o = overlay(`<form class="glass modal" id="sf"><h2>Новый сотрудник</h2><div class="g2"><label class="field"><span>Имя</span><input name="name"></label><label class="field"><span>Телефон (+998…)</span><input name="phone" type="tel" inputmode="numeric" placeholder="+998 90 123 45 67" required></label>
     ${isSuper ? `<label class="field"><span>Роль</span><select name="role"><option value="manager">Менеджер филиала</option><option value="courier">Курьер</option><option value="staff">Сотрудник</option><option value="super">Администратор (все права)</option></select></label><label class="field"><span>Филиал</span><select name="branch_id">${S.branches.map(b => `<option value="${b.id}">${esc(b.name || b.address)}</option>`).join('')}</select></label>` : `<label class="field"><span>Роль</span><select name="role"><option value="courier">Курьер</option><option value="staff">Сотрудник</option></select></label><div class="muted" style="margin-top:14px">Будет добавлен в ваш филиал${S.branch ? ' «' + esc(S.branch.name) + '»' : ''}.</div>`}
+<label class="field" style="grid-column:1/-1"><span>Фото лица для Face ID (необязательно)</span><input name="photo" type="file" accept="image/*"></label>
+<label class="cam-consent" style="grid-column:1/-1"><input type="checkbox" name="consent"> Сотрудник дал письменное согласие на обработку биометрических данных (лицо). Само фото не сохраняется — только зашифрованный цифровой отпечаток лица.</label>
 <div class="muted" style="grid-column:1/-1;margin-top:12px;font-size:13px">Вход по этому номеру: код придёт в Telegram. Менеджеры и сотрудники входят на /manager/, курьеры на /courier/</div></div><div class="err" id="fe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Создать</button></div></form>`);
   o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) o.remove(); });
-  $('#sf', o).addEventListener('submit', async e => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(e.target)); body.phone = '+998' + body.phone.replace(/\D/g, '').replace(/^998/, ''); await api('staff', 'POST', body); o.remove(); toast('Сотрудник создан'); loadTab(); } catch (er) { $('#fe', o).textContent = er.message; } });
+  $('#sf', o).addEventListener('submit', async e => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(e.target)), photo = body.photo, consent = !!body.consent; delete body.photo; delete body.consent; body.phone = '+998' + body.phone.replace(/\D/g, '').replace(/^998/, '');
+    const hasPhoto = photo && photo.size > 0;
+    if (hasPhoto && !consent) { $('#fe', o).textContent = 'Отметьте письменное согласие сотрудника или уберите фото'; return; }
+    let samples = null;
+    if (hasPhoto) { $('#fe', o).textContent = ''; toast('Проверяем фото…'); try { samples = await FaceCam.fromPhoto(photo); } catch (er) { $('#fe', o).textContent = er.message; return; } }
+    const { id } = await api('staff', 'POST', body);
+    if (samples) { try { await api(`staff/${id}/camface`, 'POST', { samples, consent: true, source: 'photo' }); } catch (er) { toast('Сотрудник создан, но фото не принято: ' + er.message); o.remove(); loadTab(); return; } }
+    o.remove(); toast('Сотрудник создан'); loadTab(); } catch (er) { $('#fe', o).textContent = er.message; } });
 }
 
 /* ---------- actions ---------- */
@@ -759,6 +768,22 @@ const ACT = {
     if (!r) return;
     try { await api(`staff/${el.dataset.id}/camface`, 'POST', { samples: r.samples, consent: true }); FaceCam.finish(r.window, true, 'Лицо добавлено'); loadTab(); }
     catch (e) { FaceCam.finish(r.window, false, e.message); }
+  },
+  camphoto: el => {
+    const a = (S.faceRows || []).find(x => String(x.id) === el.dataset.id) || {};
+    const o = overlay(`<form class="glass modal" style="max-width:460px"><h2>Фото для Face ID: ${esc(a.name || a.phone || '')}</h2>
+      <label class="field"><span>Фото лица</span><input name="photo" type="file" accept="image/*" required></label>
+      <label class="cam-consent"><input type="checkbox" name="consent" required> Сотрудник дал письменное согласие на обработку биометрических данных (лицо). Само фото не сохраняется — только зашифрованный цифровой отпечаток лица.</label>
+      <p class="faint" style="margin:10px 0 0">Нужно чёткое фото лица анфас, одно лицо в кадре, без очков и маски.</p>
+      <div class="err" id="pe"></div><div class="foot"><button type="button" class="btn" data-act="cancel">Отмена</button><button class="btn primary" type="submit">Сохранить</button></div></form>`);
+    o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act=cancel]')) o.remove(); });
+    $('form', o).addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = new FormData(e.target), btn = $('[type=submit]', o);
+      btn.disabled = true; $('#pe', o).textContent = 'Проверяем фото…';
+      try { const samples = await FaceCam.fromPhoto(f.get('photo')); await api(`staff/${el.dataset.id}/camface`, 'POST', { samples, consent: true, source: 'photo' }); o.remove(); toast('Фото добавлено — сотрудник может входить по Face ID'); loadTab(); }
+      catch (er) { $('#pe', o).textContent = er.message; btn.disabled = false; }
+    });
   },
   camwipe: async el => { if (!(await ask('Удалить лицо?', 'Сотрудник не сможет входить по камере, пока лицо не добавят заново.', 'Удалить'))) return; try { await api(`staff/${el.dataset.id}/camface`, 'DELETE'); toast('Лицо удалено'); loadTab(); } catch (e) { toast(e.message); } },
   facewipe: async el => { if (!(await ask('Удалить Face ID?', 'Сотрудник снова будет входить по коду из Telegram, пока Face ID не добавят заново.', 'Удалить'))) return; try { await api(`staff/${el.dataset.id}/faces`, 'DELETE'); toast('Face ID удалён'); loadTab(); } catch (e) { toast(e.message); } },

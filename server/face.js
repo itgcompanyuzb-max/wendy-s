@@ -13,6 +13,8 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
     created_at INTEGER NOT NULL, created_by INTEGER, consent_by INTEGER
   )`);
   db.exec('CREATE INDEX IF NOT EXISTS idx_admin_faces_phone ON admin_faces(phone)');
+  // where the face print came from: 'camera' (live, with the head circle) or 'photo' (a picture uploaded when the employee was added)
+  try { db.exec("ALTER TABLE admin_faces ADD COLUMN src TEXT DEFAULT 'camera'"); } catch { /* column exists */ }
 
   /* ---------- encryption at rest ---------- */
   function loadKey() {
@@ -40,6 +42,8 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
   /* ---------- matching ---------- */
   const MATCH = 0.42; // euclidean distance; face-api's usual "same person" line is 0.6, stricter here
   const MARGIN = 0.06; // the best person must beat the next one clearly
+  // a photo and a live camera differ in light, angle and lens, so a print taken from a photo is given a little more room
+  const PHOTO_SLACK = 0.06;
   const dist = (a, b) => { let s = 0; for (let i = 0; i < 128; i++) { const d = a[i] - b[i]; s += d * d; } return Math.sqrt(s); };
   const okVec = v => Array.isArray(v) && v.length === 128 && v.every(x => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) < 2);
   // the closest phone (and the runner-up) among the given rows
@@ -47,7 +51,7 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
     const best = new Map();
     for (const r of rows) {
       let v; try { v = open(r.vec); } catch { continue; } // a row sealed with another key
-      const d = dist(vec, v);
+      const d = dist(vec, v) - (r.src === 'photo' ? PHOTO_SLACK : 0);
       if (!best.has(r.phone) || d < best.get(r.phone)) best.set(r.phone, d);
     }
     const sorted = [...best].sort((x, y) => x[1] - y[1]);
@@ -72,7 +76,7 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
       if (!okVec(vec)) return fail(res, 400, 'Лицо не найдено');
       const roles = areaRoles(app);
       // only people who may enter this area take part in the search
-      const rows = db.prepare(`SELECT f.phone, f.vec FROM admin_faces f WHERE f.phone IN
+      const rows = db.prepare(`SELECT f.phone, f.vec, f.src FROM admin_faces f WHERE f.phone IN
         (SELECT phone FROM admin_users WHERE active=1 AND role IN (${inList(roles)}))`).all(...roles);
       const m = nearest(vec, rows);
       if (!m.phone || m.d > MATCH || m.next - m.d < MARGIN) {
@@ -92,10 +96,10 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
     function saveFace(req, res, t, self) {
       if (!t.active || !t.phone) return fail(res, 400, 'Сотрудник отключён или без номера');
       if (req.body.consent !== true) return fail(res, 400, 'Нужно письменное согласие сотрудника на обработку биометрических данных');
-      const samples = req.body.samples;
-      if (!Array.isArray(samples) || samples.length < 3 || samples.length > 6 || !samples.every(okVec)) return fail(res, 400, 'Не удалось снять лицо. Попробуйте ещё раз');
+      const samples = req.body.samples, src = req.body.source === 'photo' ? 'photo' : 'camera';
+      if (!Array.isArray(samples) || samples.length < (src === 'photo' ? 1 : 3) || samples.length > 6 || !samples.every(okVec)) return fail(res, 400, 'Не удалось снять лицо. Попробуйте ещё раз');
       // the same face already belongs to someone else? then sign-in would be ambiguous
-      const others = db.prepare('SELECT phone, vec FROM admin_faces WHERE phone<>?').all(t.phone);
+      const others = db.prepare('SELECT phone, vec, src FROM admin_faces WHERE phone<>?').all(t.phone);
       for (const s of samples) {
         const m = nearest(s, others);
         if (m.phone && m.d < MATCH + MARGIN) {
@@ -103,10 +107,10 @@ module.exports = function faceLogin({ db, fail, audit, now, ipOf, limited, hits,
           return fail(res, 400, `Это лицо очень похоже на лицо сотрудника «${who?.name || m.phone}». Добавьте другое лицо или удалите старое`);
         }
       }
-      const ins = db.prepare('INSERT INTO admin_faces (phone, vec, created_at, created_by, consent_by) VALUES (?,?,?,?,?)');
+      const ins = db.prepare('INSERT INTO admin_faces (phone, vec, created_at, created_by, consent_by, src) VALUES (?,?,?,?,?,?)');
       db.prepare('DELETE FROM admin_faces WHERE phone=?').run(t.phone); // re-taking replaces the old face
-      for (const s of samples) ins.run(t.phone, seal(s), now(), req.admin.id, req.admin.id);
-      audit(req, 'face_added', 'admin', t.id, `камера, ${samples.length} снимка, ${self ? 'согласие дал сам сотрудник' : 'согласие подтвердил администратор'}`);
+      for (const s of samples) ins.run(t.phone, seal(s), now(), req.admin.id, req.admin.id, src);
+      audit(req, 'face_added', 'admin', t.id, `${src === 'photo' ? 'фото' : 'камера'}, ${samples.length} снимка, ${self ? 'согласие дал сам сотрудник' : 'согласие подтвердил администратор'}`);
       res.json({ ok: true });
     }
     router.post('/staff/:id/camface', (req, res) => {
