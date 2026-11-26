@@ -245,3 +245,19 @@ a.nav { text-decoration: none; }
 @keyframes qr-pop { from { transform: scale(.6); transform-origin: center; opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes qr-draw { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .qr-tick circle, .qr-tick path { animation: none; stroke-dashoffset: 0; } }
+
+/* sign-in by camera */
+.cam-modal { max-width: 420px; text-align: center; }
+.cam-stage { position: relative; width: 300px; height: 300px; max-width: 100%; margin: 8px auto 0; }
+.cam-ticks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cam-ticks line { stroke: rgba(150,150,160,.45); stroke-width: 4; stroke-linecap: round; transition: stroke .2s; }
+.cam-ticks line.on { stroke: var(--ok); }
+.cam-wrap { position: absolute; inset: 34px; border-radius: 50%; overflow: hidden; background: #000; }
+.cam-wrap video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.cam-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); transition: border-color .2s; }
+.cam-ring.ok { border-color: var(--ok); } .cam-ring.warn { border-color: var(--warn); }
+.cam-hint { margin: 14px 0 0; font-size: 16px; font-weight: 600; min-height: 22px; }
+.cam-consent { display: flex; gap: 10px; align-items: flex-start; text-align: left; font-size: 13px; color: var(--tx2); margin: 8px 0 0; line-height: 1.4; }
+.cam-consent input { margin-top: 2px; width: 18px; height: 18px; flex: none; }
+@media (prefers-reduced-motion: reduce) { .cam-ring, .cam-ticks line { transition: none; } }
+.cam-modal [hidden] { display: none !important; }

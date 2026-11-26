@@ -166,6 +166,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   }
   const faceLogin = require('./passkey')({ db, fail, audit, now, sha, ipOf, limited, hits, areaRoles, inList, startSession });
   faceLogin.publicRoutes(router);
+  const camFace = require('./face')({ db, fail, audit, now, ipOf, limited, hits, areaRoles, inList, startSession, dataDir: require('./paths').dataDir });
+  camFace.publicRoutes(router);
 
   /* ---------- everything below requires a valid session ---------- */
   function adminAuth(req, res, next) {
@@ -183,6 +185,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   }
   router.use(adminAuth);
   faceLogin.privateRoutes(router);
+  camFace.privateRoutes(router);
   router.use((req, res, next) => ((req.admin.role === 'courier' && !/^\/(courier|auth)(\/|$)/.test(req.path)) ? fail(res, 403, 'Недостаточно прав') : next()));
 
   const need = (...roles) => (req, res, next) => (roles.includes(req.admin.role) ? next() : fail(res, 403, 'Недостаточно прав'));
@@ -392,7 +395,8 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.get('/staff', need('super', 'manager'), (req, res) => {
     const where = req.admin.role === 'super' ? '' : 'WHERE a.branch_id=?';
     const rows = db.prepare(`SELECT a.id,a.phone,a.name,a.role,a.branch_id,a.active,a.totp_enabled,a.last_login,b.name branch_name,
-      (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n
+      (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n,
+      (SELECT COUNT(*) FROM admin_faces f WHERE f.phone=a.phone) cam_n
       FROM admin_users a LEFT JOIN branches b ON b.id=a.branch_id ${where} ORDER BY a.id`).all(...(where ? [req.admin.branch_id] : []));
     res.json({ rows });
   });
