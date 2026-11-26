@@ -24,7 +24,7 @@ module.exports = function passkeys({ db, fail, audit, now, sha, ipOf, limited, h
   const QR_TTL = 120, CHALLENGE_TTL = 300;
   const challenges = new Map(); // id -> { challenge, exp, phone? }
   const qrs = new Map(); // sha(token) -> { app, exp, adminId, ip }
-  const sweep = () => { const t = now(); for (const m of [challenges, qrs]) for (const [k, v] of m) if (v.exp < t) m.delete(k); };
+  const sweep = () => { const t = now(); for (const m of [challenges, qrs, invites]) for (const [k, v] of m) if (v.exp < t) m.delete(k); };
   const rp = req => ({ rpID: req.hostname, origin: `${req.protocol}://${req.get('host')}` });
   // one face for every role of the same number: the WebAuthn user handle is derived from the phone
   const userHandle = phone => Buffer.from(sha('wendys-admin:' + phone).slice(0, 32));
@@ -39,6 +39,36 @@ module.exports = function passkeys({ db, fail, audit, now, sha, ipOf, limited, h
     return db.prepare(`SELECT * FROM admin_users WHERE phone=? AND active=1 AND role IN (${inList(roles)})
       ORDER BY CASE role WHEN 'super' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END, id LIMIT 1`).get(phone, ...roles);
   };
+
+  /* ---------- registration, shared by "turn on for myself" and "add an employee's face" ---------- */
+  async function regOptions(req, phone, name) {
+    const mine = db.prepare('SELECT cred_id, transports FROM admin_passkeys WHERE phone=?').all(phone);
+    return generateRegistrationOptions({
+      rpName: "Wendy's", rpID: rp(req).rpID,
+      userName: phone, userDisplayName: name ? `${name} (${phone})` : phone,
+      userID: userHandle(phone), attestationType: 'none', timeout: 60000,
+      excludeCredentials: mine.map(k => ({ id: k.cred_id, transports: k.transports ? k.transports.split(',') : undefined })),
+      authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+    });
+  }
+  async function saveKey(req, phone, response, challenge, device) {
+    const { rpID, origin } = rp(req);
+    let v;
+    try {
+      v = await verifyRegistrationResponse({ response, expectedChallenge: challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true });
+    } catch (e) { console.warn('[passkey] register:', e.message); v = null; }
+    if (!v?.verified) return false;
+    const c = v.registrationInfo.credential;
+    db.prepare('INSERT OR REPLACE INTO admin_passkeys (cred_id, phone, public_key, counter, transports, device, created_at) VALUES (?,?,?,?,?,?,?)')
+      .run(c.id, phone, Buffer.from(c.publicKey), c.counter, (c.transports || []).join(','), String(device || '').slice(0, 60), now());
+    return true;
+  }
+
+  /* ---------- an admin adds an employee's face from the computer: a one-time QR the employee scans with their phone ---------- */
+  const INVITE_TTL = 300;
+  const invites = new Map(); // sha(token) -> { adminId, by, exp, status: 'pending'|'done', challenge }
+  const ROLE_RU = { super: 'Администратор', manager: 'Менеджер филиала', staff: 'Сотрудник', courier: 'Курьер' };
+  const inviteOf = token => { const i = invites.get(sha(String(token || ''))); return i && i.exp >= now() ? i : null; };
 
   /* ---------- public: sign in ---------- */
   function publicRoutes(router) {
@@ -110,6 +140,37 @@ module.exports = function passkeys({ db, fail, audit, now, sha, ipOf, limited, h
       if (!a) return res.json({ status: 'expired' });
       res.json({ status: 'ok', token: startSession(req, a, 'login_qr') });
     });
+    // the employee's phone, opened from the admin's QR: who is being added, then the Face ID registration
+    router.post('/auth/enroll/info', (req, res) => {
+      const i = inviteOf(req.body.token);
+      if (!i || i.status !== 'pending') return res.json({ valid: false });
+      const a = db.prepare('SELECT name, phone, role FROM admin_users WHERE id=? AND active=1').get(i.adminId);
+      if (!a) return res.json({ valid: false });
+      res.json({ valid: true, name: a.name || '', phone: a.phone.slice(0, 4) + ' ** *** ' + a.phone.slice(-4, -2) + ' ' + a.phone.slice(-2), role: ROLE_RU[a.role] || a.role });
+    });
+    router.post('/auth/enroll/options', async (req, res) => {
+      if (throttle(req, res)) return;
+      const i = inviteOf(req.body.token);
+      if (!i || i.status !== 'pending') return fail(res, 400, 'QR-код устарел. Попросите показать новый');
+      const a = db.prepare('SELECT * FROM admin_users WHERE id=? AND active=1').get(i.adminId);
+      if (!a) return fail(res, 400, 'Сотрудник отключён');
+      const options = await regOptions(req, a.phone, a.name);
+      i.challenge = options.challenge;
+      res.json({ options });
+    });
+    router.post('/auth/enroll/finish', async (req, res) => {
+      if (throttle(req, res)) return;
+      const i = inviteOf(req.body.token);
+      if (!i || i.status !== 'pending' || !i.challenge) return fail(res, 400, 'QR-код устарел. Попросите показать новый');
+      const a = db.prepare('SELECT * FROM admin_users WHERE id=? AND active=1').get(i.adminId);
+      if (!a) return fail(res, 400, 'Сотрудник отключён');
+      const challenge = i.challenge; i.challenge = null;
+      if (!(await saveKey(req, a.phone, req.body.response, challenge, req.body.device))) return fail(res, 400, 'Не удалось сохранить. Попробуйте ещё раз');
+      i.status = 'done';
+      req.admin = { id: i.by }; audit(req, 'passkey_added', 'admin', a.id, `по QR от администратора, ${String(req.body.device || '').slice(0, 40)}`);
+      res.json({ ok: true, name: a.name || '' });
+    });
+
     // the phone page shows what it is about to approve
     router.post('/auth/qr/info', (req, res) => {
       const q = qrs.get(sha(String(req.body.token || '')));
@@ -125,14 +186,7 @@ module.exports = function passkeys({ db, fail, audit, now, sha, ipOf, limited, h
     });
     router.post('/auth/passkey/register-options', async (req, res) => {
       if (!req.admin.phone) return fail(res, 400, 'У аккаунта нет номера телефона');
-      const mine = db.prepare('SELECT cred_id, transports FROM admin_passkeys WHERE phone=?').all(req.admin.phone);
-      const options = await generateRegistrationOptions({
-        rpName: "Wendy's", rpID: rp(req).rpID,
-        userName: req.admin.phone, userDisplayName: req.admin.name ? `${req.admin.name} (${req.admin.phone})` : req.admin.phone,
-        userID: userHandle(req.admin.phone), attestationType: 'none', timeout: 60000,
-        excludeCredentials: mine.map(k => ({ id: k.cred_id, transports: k.transports ? k.transports.split(',') : undefined })),
-        authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
-      });
+      const options = await regOptions(req, req.admin.phone, req.admin.name);
       challenges.set('reg:' + req.admin.id, { challenge: options.challenge, exp: now() + CHALLENGE_TTL });
       res.json({ options });
     });
@@ -140,18 +194,35 @@ module.exports = function passkeys({ db, fail, audit, now, sha, ipOf, limited, h
       const ch = challenges.get('reg:' + req.admin.id);
       challenges.delete('reg:' + req.admin.id);
       if (!ch || ch.exp < now()) return fail(res, 400, 'Время истекло. Попробуйте ещё раз');
-      const { rpID, origin } = rp(req);
-      let v;
-      try {
-        v = await verifyRegistrationResponse({ response: req.body.response, expectedChallenge: ch.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true });
-      } catch (e) { console.warn('[passkey] register:', e.message); v = null; }
-      if (!v?.verified) return fail(res, 400, 'Не удалось сохранить. Попробуйте ещё раз');
-      const c = v.registrationInfo.credential;
       const device = String(req.body.device || '').slice(0, 60);
-      db.prepare('INSERT OR REPLACE INTO admin_passkeys (cred_id, phone, public_key, counter, transports, device, created_at) VALUES (?,?,?,?,?,?,?)')
-        .run(c.id, req.admin.phone, Buffer.from(c.publicKey), c.counter, (c.transports || []).join(','), device, now());
+      if (!(await saveKey(req, req.admin.phone, req.body.response, ch.challenge, device))) return fail(res, 400, 'Не удалось сохранить. Попробуйте ещё раз');
       audit(req, 'passkey_added', 'admin', req.admin.id, device);
       res.json({ ok: true });
+    });
+    // who may add / remove an employee's face: the owner for anyone, a manager for staff and couriers of their branch
+    const canManage = (me, t) => me.role === 'super' || t.id === me.id || (me.role === 'manager' && t.branch_id === me.branch_id && ['staff', 'courier'].includes(t.role));
+    router.post('/staff/:id/face-invite', (req, res) => {
+      const t = db.prepare('SELECT * FROM admin_users WHERE id=?').get(Number(req.params.id));
+      if (!t || !canManage(req.admin, t)) return fail(res, 403, 'Недостаточно прав');
+      if (!t.active) return fail(res, 400, 'Сотрудник отключён');
+      if (!t.phone) return fail(res, 400, 'У сотрудника нет номера телефона');
+      sweep(); for (const [k, v] of invites) if (v.exp < now() || v.adminId === t.id) invites.delete(k); // one live QR per employee
+      const token = crypto.randomBytes(24).toString('base64url');
+      invites.set(sha(token), { adminId: t.id, by: req.admin.id, exp: now() + INVITE_TTL, status: 'pending', challenge: null });
+      audit(req, 'face_invite', 'admin', t.id, t.phone);
+      res.json({ token, url: `${req.protocol}://${req.get('host')}/admin/face.html#${token}`, expires_in: INVITE_TTL });
+    });
+    router.post('/staff/face-invite/status', (req, res) => {
+      const i = inviteOf(req.body.token);
+      if (!i || i.by !== req.admin.id) return res.json({ status: 'expired' });
+      res.json({ status: i.status });
+    });
+    router.delete('/staff/:id/faces', (req, res) => {
+      const t = db.prepare('SELECT * FROM admin_users WHERE id=?').get(Number(req.params.id));
+      if (!t || !canManage(req.admin, t)) return fail(res, 403, 'Недостаточно прав');
+      const r = db.prepare('DELETE FROM admin_passkeys WHERE phone=?').run(t.phone || '');
+      audit(req, 'passkey_removed', 'admin', t.id, `все устройства (${r.changes})`);
+      res.json({ ok: true, removed: r.changes });
     });
     router.delete('/auth/passkeys/:id', (req, res) => {
       const r = db.prepare('DELETE FROM admin_passkeys WHERE cred_id=? AND phone=?').run(req.params.id, req.admin.phone);
