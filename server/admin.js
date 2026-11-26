@@ -64,6 +64,10 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     db.prepare('DELETE FROM admin_sessions WHERE admin_id=?').run(sup.id);
   }
 
+  /* ---------- Face ID was removed: delete what it stored (face prints, passkeys, the face-print key) ---------- */
+  db.exec('DROP TABLE IF EXISTS admin_faces; DROP TABLE IF EXISTS admin_passkeys');
+  try { fs.unlinkSync(path.join(require('./paths').dataDir, 'face.key')); } catch { /* not there */ }
+
   /* ---------- login rate limit (per IP) ---------- */
   const hits = new Map();
   function limited(ip) {
@@ -156,19 +160,6 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     res.json({ token });
   });
 
-  /* ---------- sign-in by face (passkeys) + QR sign-in for computers ---------- */
-  function startSession(req, a, action = 'login') {
-    db.prepare('UPDATE admin_users SET failed=0, locked_until=0, last_login=CURRENT_TIMESTAMP WHERE id=?').run(a.id);
-    const token = crypto.randomBytes(32).toString('hex');
-    db.prepare('INSERT INTO admin_sessions (token_hash,admin_id,created,last_seen,ip) VALUES (?,?,?,?,?)').run(sha(token), a.id, now(), now(), ipOf(req));
-    req.admin = a; audit(req, action);
-    return token;
-  }
-  const faceLogin = require('./passkey')({ db, fail, audit, now, sha, ipOf, limited, hits, areaRoles, inList, startSession });
-  faceLogin.publicRoutes(router);
-  const camFace = require('./face')({ db, fail, audit, now, ipOf, limited, hits, areaRoles, inList, startSession, dataDir: require('./paths').dataDir });
-  camFace.publicRoutes(router);
-
   /* ---------- everything below requires a valid session ---------- */
   function adminAuth(req, res, next) {
     const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -184,8 +175,6 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
     next();
   }
   router.use(adminAuth);
-  faceLogin.privateRoutes(router);
-  camFace.privateRoutes(router);
   router.use((req, res, next) => ((req.admin.role === 'courier' && !/^\/(courier|auth)(\/|$)/.test(req.path)) ? fail(res, 403, 'Недостаточно прав') : next()));
 
   const need = (...roles) => (req, res, next) => (roles.includes(req.admin.role) ? next() : fail(res, 403, 'Недостаточно прав'));
@@ -394,9 +383,7 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   /* staff / roles */
   router.get('/staff', need('super', 'manager'), (req, res) => {
     const where = req.admin.role === 'super' ? '' : 'WHERE a.branch_id=?';
-    const rows = db.prepare(`SELECT a.id,a.phone,a.name,a.role,a.branch_id,a.active,a.totp_enabled,a.last_login,b.name branch_name,
-      (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n,
-      (SELECT COUNT(*) FROM admin_faces f WHERE f.phone=a.phone) cam_n
+    const rows = db.prepare(`SELECT a.id,a.phone,a.name,a.role,a.branch_id,a.active,a.totp_enabled,a.last_login,b.name branch_name
       FROM admin_users a LEFT JOIN branches b ON b.id=a.branch_id ${where} ORDER BY a.id`).all(...(where ? [req.admin.branch_id] : []));
     res.json({ rows });
   });
@@ -486,7 +473,6 @@ module.exports = function mountAdmin(app, { db, fail, addChat, isOpenNow, sendCo
   router.get('/couriers', need('super', 'manager'), (req, res) => {
     const b = req.admin.role === 'super' ? null : req.admin.branch_id;
     const rows = db.prepare(`SELECT a.id,a.name,a.phone,a.active,a.branch_id,br.name branch_name,
-      (SELECT COUNT(*) FROM admin_passkeys p WHERE p.phone=a.phone) face_n,
       (SELECT COUNT(*) FROM orders o WHERE o.courier_id=a.id AND o.status='done' AND o.delivered_at>=?) month_n,
       (SELECT COUNT(*) FROM orders o WHERE o.courier_id=a.id AND o.status='done') total_n,
       (SELECT ROUND(AVG(stars),2) FROM reviews r WHERE r.courier_id=a.id) rating,
