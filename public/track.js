@@ -44,16 +44,8 @@ if (inApp()) {
     if (j !== lastInfo) { lastInfo = j; window.ReactNativeWebView.postMessage(JSON.stringify({ app: info })); }
   }, 1000);
 }
+// no banner drops from the top inside the app; a delivered order still opens the rating
 function showNotif(n) {
-  if (inApp()) { if (n.kind === 'delivered') setTimeout(() => A.rate(n.order_id), 700); return; }
-  const el = document.createElement('div');
-  el.className = 'nbanner';
-  el.innerHTML = `<b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ''}`;
-  const open = () => { el.remove(); haptic('light'); window.openNotif(n); };
-  swipeAway(el, open);
-  $('#app').appendChild(el);
-  haptic(n.kind === 'birthday' ? 'success' : 'medium');
-  setTimeout(() => el.remove(), 9000);
   if (n.kind === 'delivered') setTimeout(() => A.rate(n.order_id), 700);
 }
 async function pollNotifs() {
