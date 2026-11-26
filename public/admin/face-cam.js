@@ -1,6 +1,7 @@
 /* Camera face sign-in (face-api.js, runs in the browser). Shared by the admin, manager and courier pages.
    The browser turns the face into 128 numbers; only those numbers go to the server, never a photo.
-   A simple liveness check (turn the head towards the arrow, then back) stops a printed photo held up to the camera. */
+   Liveness: the face sits in a round frame with a ring of ticks around it; moving the head in a circle lights the ticks
+   on that side, and the ring has to be closed. A printed photo held up to the camera cannot do that. */
 const FaceCam = (() => {
   const LIB = '/vendor/face-api/face-api.js', MODELS = '/vendor/face-api/models';
   let ready = null;
@@ -32,20 +33,30 @@ const FaceCam = (() => {
     const p = r.landmarks.positions, l = p[36], rr = p[45], nose = p[30];
     const eyes = Math.hypot(rr.x - l.x, rr.y - l.y) || 1;
     const yaw = -(nose.x - (l.x + rr.x) / 2) / eyes; // > 0: nose moved to the right of the (mirrored) screen
-    return { yaw, size: r.detection.box.width / video.videoWidth, vec: Array.from(r.descriptor) };
+    const pitch = (nose.y - (l.y + rr.y) / 2) / eyes; // grows when the head tilts down
+    return { yaw, pitch, size: r.detection.box.width / video.videoWidth, vec: Array.from(r.descriptor) };
   }
 
-  /* the window: video in a circle, a hint line, an arrow for the head turn */
+  /* the window: video in a round frame, a ring of ticks around it, a hint line */
+  const TICKS = 60;
+  const ringSvg = () => {
+    let l = '';
+    for (let i = 0; i < TICKS; i++) {
+      const a = (i / TICKS) * 2 * Math.PI, sx = Math.sin(a), cy = -Math.cos(a);
+      l += `<line x1="${(150 + 132 * sx).toFixed(1)}" y1="${(150 + 132 * cy).toFixed(1)}" x2="${(150 + 146 * sx).toFixed(1)}" y2="${(150 + 146 * cy).toFixed(1)}"/>`;
+    }
+    return `<svg class="cam-ticks" viewBox="0 0 300 300" aria-hidden="true">${l}</svg>`;
+  };
   function ui(title, extraHtml = '') {
     const o = document.createElement('div');
     o.className = 'overlay';
     o.innerHTML = `<div class="glass modal cam-modal"><h2>${esc(title)}</h2>${extraHtml}
-      <div class="cam-wrap"><video playsinline muted autoplay></video><div class="cam-ring"></div><div class="cam-arrow" hidden></div></div>
+      <div class="cam-stage">${ringSvg()}<div class="cam-wrap"><video playsinline muted autoplay></video><div class="cam-ring"></div></div></div>
       <p class="cam-hint">Загрузка…</p><div class="err cam-err"></div>
       <div class="foot"><button class="btn" data-cam="cancel">Отмена</button><button class="btn primary" data-cam="go" hidden></button></div></div>`;
     document.body.appendChild(o);
     const $ = s => o.querySelector(s);
-    return { o, video: $('video'), ring: $('.cam-ring'), arrow: $('.cam-arrow'), hint: t => { $('.cam-hint').textContent = t; }, err: t => { $('.cam-err').textContent = t || ''; }, go: $('[data-cam=go]'), cancel: $('[data-cam=cancel]'), q: $ };
+    return { o, video: $('video'), ring: $('.cam-ring'), ticks: [...o.querySelectorAll('.cam-ticks line')], hint: t => { $('.cam-hint').textContent = t; }, err: t => { $('.cam-err').textContent = t || ''; }, go: $('[data-cam=go]'), cancel: $('[data-cam=cancel]'), q: $ };
   }
 
   async function startCamera(video) {
@@ -67,20 +78,26 @@ const FaceCam = (() => {
       await wait(120);
     }
   }
-  // liveness: turn the head towards the arrow (random side), within 12 seconds; measured from how the face looked straight
-  async function turn(v, w, alive, base) {
-    const side = Math.random() < 0.5 ? -1 : 1, until = Date.now() + 12000;
-    w.arrow.hidden = false; w.arrow.textContent = side < 0 ? '←' : '→';
-    w.hint(`Медленно поверните голову ${side < 0 ? 'влево' : 'вправо'} — по стрелке`);
-    try {
-      for (;;) {
-        if (!alive()) throw new Error('cancelled');
-        if (Date.now() > until) throw Object.assign(new Error('Не увидели поворот головы. Попробуйте ещё раз'), { retry: true });
-        const f = await look(v);
-        if (f && (f.yaw - base) * side > 0.12) return;
-        await wait(100);
+  // liveness: move the head in a circle; each direction lights the ticks on that side of the ring.
+  // `need` = the share of the ring to close (sign-up asks for almost all of it, sign-in for a part)
+  async function circle(v, w, alive, base, need) {
+    const lit = new Set(), until = Date.now() + 30000;
+    w.ticks.forEach(t => t.classList.remove('on'));
+    w.hint(need > 0.5 ? 'Медленно поводите головой по кругу, пока кольцо не станет зелёным' : 'Слегка поводите головой по кругу');
+    for (;;) {
+      if (!alive()) throw new Error('cancelled');
+      if (Date.now() > until) throw Object.assign(new Error('Кольцо не замкнулось. Попробуйте ещё раз, двигайте головой медленнее'), { retry: true });
+      const f = await look(v);
+      if (f) {
+        const dx = f.yaw - base.yaw, dy = -(f.pitch - base.pitch) * 1.6; // right / up on the screen
+        if (Math.hypot(dx, dy) > 0.09) {
+          const i = Math.round((((Math.atan2(dx, dy) / (2 * Math.PI)) * TICKS) + TICKS) % TICKS);
+          for (let k = -3; k <= 3; k++) { const n = (i + k + TICKS) % TICKS; if (!lit.has(n)) { lit.add(n); w.ticks[n].classList.add('on'); } }
+          if (lit.size >= need * TICKS) { if (navigator.vibrate) navigator.vibrate(15); return; }
+        }
       }
-    } finally { w.arrow.hidden = true; }
+      await wait(60);
+    }
   }
 
   // run a step-by-step camera task inside the window; resolves with its result or null if the person closed the window
@@ -111,12 +128,12 @@ const FaceCam = (() => {
     });
   }
 
-  /* sign in: straight look, head turn, straight look again (the same person) -> the face print to send */
+  /* sign in: straight look, part of the circle, straight look again (the same person) -> the face print to send */
   function signIn(title = 'Вход по Face ID') {
     const w = ui(title);
     return run(w, async (w, alive) => {
       const a = await straight(w.video, w, alive);
-      await turn(w.video, w, alive, a.yaw);
+      await circle(w.video, w, alive, a, 0.35);
       w.hint('Теперь снова смотрите прямо');
       const b = await straight(w.video, w, alive);
       if (dist(a.vec, b.vec) > 0.45) throw Object.assign(new Error('Лицо сменилось во время проверки. Попробуйте ещё раз'), { retry: true });
@@ -125,7 +142,7 @@ const FaceCam = (() => {
     });
   }
 
-  /* add a face: the employee's written consent, a head turn, then 4 straight shots of the same person */
+  /* add a face: written consent, a full circle of the head (closes the ring), then 4 straight shots of the same person */
   // self = the person adds their own face (they agree themselves); otherwise an admin adds an employee's face
   function enroll(name, self = false) {
     const consent = self ? 'Я согласен(на) на обработку моих биометрических данных (лицо) для входа в систему. Хранится только зашифрованный цифровой отпечаток лица, без фото.'
@@ -139,7 +156,7 @@ const FaceCam = (() => {
     return run(w, async (w, alive) => {
       await begin;
       const first = await straight(w.video, w, alive);
-      await turn(w.video, w, alive, first.yaw);
+      await circle(w.video, w, alive, first, 0.9);
       const shots = [first.vec];
       while (shots.length < 4) {
         w.hint(`Смотрите прямо… ${shots.length}/4`);
@@ -158,7 +175,7 @@ const FaceCam = (() => {
     if (!w || !w.o.isConnected) return;
     w.video.srcObject?.getTracks?.().forEach(t => t.stop());
     if (ok) {
-      w.q('.cam-wrap').outerHTML = '<svg class="qr-tick" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44"/><path d="M28 50l14 14 27-30"/></svg>';
+      w.q('.cam-stage').outerHTML = '<svg class="qr-tick" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44"/><path d="M28 50l14 14 27-30"/></svg>';
       w.hint(text || 'Готово'); w.err('');
       setTimeout(() => w.o.remove(), 1200);
     } else { w.hint(''); w.err(text || 'Ошибка'); w.cancel.textContent = 'Закрыть'; w.cancel.onclick = () => w.o.remove(); }
