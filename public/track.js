@@ -13,6 +13,7 @@ function orderActions(o) {
   if (o.status === 'delivering' && o.type === 'delivery') b.push(`<button class="pill" onclick="A.track(${o.id})">Отследить курьера</button>`);
   if (o.status === 'done') b.push(o.stars ? `<span class="gray-t">${'★'.repeat(o.stars)}${'☆'.repeat(5 - o.stars)} ваша оценка</span>` : `<button class="pill" onclick="A.rate(${o.id})">Оценить</button>`);
   if (!['done', 'cancelled'].includes(o.status) && o.type === 'delivery') b.push(`<button class="pill" onclick="A.track(${o.id})">Статус</button>`);
+  b.push(`<button class="pill" onclick="A.orderInfo(${o.id})">Детали</button>`);
   return b.length ? `<div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">${b.join('')}</div>` : '';
 }
 
@@ -24,6 +25,7 @@ window.openNotif = n => {
   if (!n) return;
   const act = n.kind === 'cart' ? 'cart' : n.kind === 'birthday' || n.kind === 'coins' ? 'coins' : n.action;
   if (n.kind === 'delivering') A.track(n.order_id);
+  else if (n.kind === 'chat') A.orderChat(n.order_id);
   else if (n.kind === 'delivered') A.rate(n.order_id);
   else if (act === 'cart') { Sh.closeAll(); if (cartCount()) A.cart(); }
   else if (act === 'coins') { Sh.closeAll(); A.coins(); }
@@ -42,16 +44,8 @@ if (inApp()) {
     if (j !== lastInfo) { lastInfo = j; window.ReactNativeWebView.postMessage(JSON.stringify({ app: info })); }
   }, 1000);
 }
+// no banner drops from the top inside the app; a delivered order still opens the rating
 function showNotif(n) {
-  if (inApp()) { if (n.kind === 'delivered') setTimeout(() => A.rate(n.order_id), 700); return; }
-  const el = document.createElement('div');
-  el.className = 'nbanner';
-  el.innerHTML = `<b>${esc(n.title)}</b>${n.body ? `<span>${esc(n.body)}</span>` : ''}`;
-  const open = () => { el.remove(); haptic('light'); window.openNotif(n); };
-  swipeAway(el, open);
-  $('#app').appendChild(el);
-  haptic(n.kind === 'birthday' ? 'success' : 'medium');
-  setTimeout(() => el.remove(), 9000);
   if (n.kind === 'delivered') setTimeout(() => A.rate(n.order_id), 700);
 }
 async function pollNotifs() {
@@ -116,8 +110,12 @@ A.track = id => {
     if (r.status === 'done') { Sh.close('track'); A.rate(id); return; }
     const pts = [];
     const live = !!(r.courier && r.courier.lat != null); // the courier phone sends its real GPS position
-    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], pillIcon()); pts.push([r.dest.lat, r.dest.lng]); }
-    if (r.branch && !live) pts.push([r.branch.lat, r.branch.lng]); // the restaurant is not drawn on the map; it only frames the view until the courier's GPS arrives
+    // the delivery address (flag pin) and the branch that cooks the order (dish pin)
+    if (r.dest) { mk('dest', [r.dest.lat, r.dest.lng], L.icon({ iconUrl: '/img/pin-dest.png', iconSize: [45, 54], iconAnchor: [22, 53] })); pts.push([r.dest.lat, r.dest.lng]); }
+    if (r.branch?.lat != null) { // the restaurant on the map; it frames the view until the courier's GPS arrives
+      mk('br', [r.branch.lat, r.branch.lng], L.icon({ iconUrl: '/img/pin-branch.png', iconSize: [45, 54], iconAnchor: [22, 53] }));
+      if (!live) pts.push([r.branch.lat, r.branch.lng]);
+    }
     let text = TRACK_TEXT[r.status] || r.status, sub = r.branch ? `Готовит: ${r.branch.name || r.branch.address}` : '';
     const c = r.courier;
     if (live) {
@@ -136,10 +134,12 @@ A.track = id => {
       sub = 'Курьер выехал к вам' + (c?.name ? ' · ' + c.name : '') + ' · ждём его геолокацию';
       if (r.dest && r.branch) drawRoute({ lat: r.branch.lat, lng: r.branch.lng }, r.dest);
     }
-    $('#tpanel').innerHTML = `<b>${esc(text)}</b><span>${esc(sub)}</span>`;
-    if (!T.fitted && pts.length) { T.map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 }); T.fitted = pts.length > 1; }
+    $('#tpanel').innerHTML = typeof trackCard === 'function' ? trackCard(id, r) : `<b>${esc(text)}</b><span>${esc(sub)}</span>`;
+    // frame the view again when what is shown changes (restaurant -> courier); the card covers the bottom of the map
+    const key = `${pts.length}:${live}`;
+    if (pts.length && T.fitted !== key) { T.map.invalidateSize(); T.map.fitBounds(pts, { paddingTopLeft: [50, 90], paddingBottomRight: [50, 60], maxZoom: 16 }); T.fitted = key; }
   };
-  upd(); T.timer = setInterval(upd, 4000);
+  setTimeout(upd, 220); T.timer = setInterval(upd, 4000); // after the map has its real size
 };
 
 /* ---------- rating ---------- */

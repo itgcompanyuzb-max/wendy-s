@@ -176,6 +176,11 @@ app.post('/api/auth/verify', wrap(async (req, res) => {
     const id = Number(db.prepare('INSERT INTO users (phone) VALUES (?)').run(phone).lastInsertRowid);
     user = db.prepare('SELECT * FROM users WHERE id=?').get(id);
   }
+  // the sign-in screen says: continuing means agreeing to the offer, the privacy policy and the WendyCoin rules
+  if (req.body.accept_terms) {
+    db.prepare('UPDATE users SET terms_at=CURRENT_TIMESTAMP, terms_ver=? WHERE id=?').run(String(req.body.accept_terms).slice(0, 20), user.id);
+    user = db.prepare('SELECT * FROM users WHERE id=?').get(user.id);
+  }
   const token = newToken();
   db.prepare('INSERT INTO sessions (token,user_id,role) VALUES (?,?,?)').run(token, user.id, 'user');
   res.json({ token, user, isNew });
@@ -595,6 +600,7 @@ app.post('/api/chat', auth, (req, res) => {
   if (m) res.json({ message: m });
 });
 require('./ops')(app, { db, fail, auth });
+require('./orderx')(app, { db, fail, auth }); // courier chat, legal documents, WendyCoin expiry
 // the cart is kept on the server too, for the "your cart is waiting" reminder
 app.put('/api/cart', auth, (req, res) => {
   const items = (Array.isArray(req.body.items) ? req.body.items : []).slice(0, 60)

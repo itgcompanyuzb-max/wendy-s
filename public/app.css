@@ -498,3 +498,66 @@ svg { display: block; }
 .toast, .nbanner { touch-action: none; transition: transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s; }
 .toast.drag, .nbanner.drag { transition: none; }
 .toast.gone, .nbanner.gone { transform: translateY(-140%) !important; opacity: 0; }
+
+/* tracking card: time window, stage ring, three buttons */
+.tpanel .tc-top { display: flex; align-items: center; gap: 14px; }
+.tpanel .tc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tpanel .tc-txt b { font-size: 24px; line-height: 1.15; }
+.tc-stage { position: relative; width: 58px; height: 58px; flex: none; display: grid; place-items: center; color: #fff; }
+.tc-stage > svg:not(.tc-ring) { position: relative; }
+.tc-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.tc-ring circle { fill: var(--card2); stroke: var(--card3); stroke-width: 4; }
+.tc-ring circle.v { fill: none; stroke: var(--or); stroke-linecap: round; transition: stroke-dasharray .6s; }
+.tc-acts { display: flex; justify-content: space-around; gap: 8px; margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.tc-acts button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 14px; color: #fff; }
+.tc-acts button:disabled { opacity: .35; }
+.tc-acts i { position: relative; width: 56px; height: 56px; border-radius: 50%; background: var(--card2); display: grid; place-items: center; font-style: normal; }
+.tc-acts em { position: absolute; top: -2px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--or); font: 700 12px/20px inherit; font-style: normal; }
+.tpanel .tc-acts span { color: #fff; font-size: 14px; text-align: center; line-height: 1.2; }
+
+/* order details */
+.od { padding: 6px 14px 30px; display: flex; flex-direction: column; gap: 12px; }
+.od-card { background: var(--card); border-radius: 24px; padding: 16px 18px; }
+.od-card h3 { margin: 0 0 10px; font-size: 20px; }
+.od-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.od-head b { font-size: 19px; } .od-head small { display: block; color: var(--gray); margin-top: 4px; font-size: 14px; }
+.od-copy { vertical-align: -3px; color: var(--gray); padding: 0 4px; }
+.od-kv { display: flex; flex-direction: column; gap: 3px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.od-kv small { color: var(--gray); font-size: 14px; } .od-kv b { font-size: 17px; font-weight: 600; }
+.od-btns { display: flex; justify-content: space-around; padding-top: 14px; }
+.od-btns button { display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 13px; color: #fff; }
+.od-btns i { width: 52px; height: 52px; border-radius: 50%; background: var(--card2); display: grid; place-items: center; font-style: normal; }
+.od-it { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.od-it:last-child { border-bottom: 0; }
+.od-it img, .od-it > span { width: 52px; height: 52px; border-radius: 14px; object-fit: cover; background: var(--card2); flex: none; }
+.od-it > div:nth-child(2) { flex: 1; min-width: 0; } .od-it b { font-size: 16px; } .od-it small { display: block; color: var(--gray); font-size: 13px; margin-top: 2px; }
+.od-pr { text-align: right; flex: none; }
+.od-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 16px; }
+.od-row span small { display: block; color: var(--gray); font-size: 13px; } .od-row b { font-weight: 600; text-align: right; } .od-row s { color: var(--gray); font-weight: 400; }
+.od-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--line); font-size: 20px; font-weight: 700; }
+
+/* chat with the courier */
+.oc-list { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.oc-m { align-self: flex-start; max-width: 80%; background: var(--card2); border-radius: 18px 18px 18px 6px; padding: 9px 13px; display: flex; flex-direction: column; gap: 3px; }
+.oc-m.me { align-self: flex-end; background: var(--or); border-radius: 18px 18px 6px 18px; }
+.oc-m span { font-size: 16px; white-space: pre-wrap; word-break: break-word; } .oc-m small { font-size: 11px; opacity: .6; align-self: flex-end; }
+.oc-bar { display: flex; gap: 8px; padding: 10px 14px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.oc-bar input { flex: 1; height: 48px; border-radius: 24px; background: var(--card2); border: 0; outline: 0; padding: 0 18px; font-size: 16px; color: #fff; }
+.oc-bar button { width: 48px; height: 48px; border-radius: 50%; background: var(--or); display: grid; place-items: center; flex: none; }
+
+/* legal documents + the consent line on the phone screen */
+.legal-doc { padding: 6px 20px 40px; line-height: 1.5; }
+.legal-doc h3 { font-size: 18px; margin: 20px 0 6px; } .legal-doc p { margin: 0 0 10px; font-size: 15px; color: #d8d8dc; }
+.terms-note { text-align: center; font-size: 13px; color: var(--gray); line-height: 1.45; margin: 12px 8px 0; }
+.terms-note a { color: #fff; text-decoration: underline; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .tc-ring circle.v { transition: none; } }
+.cl-exp { text-align: center; font-size: 13px; opacity: .75; margin: 6px 0 0; } .cl-exp a { text-decoration: underline; cursor: pointer; }
+.oxi { width: 30px; height: 30px; display: block; }
+.tc-stage > img { position: relative; width: 30px; height: 30px; }
+/* the 4-part status ring */
+.tc-ring circle { fill: none; stroke: var(--card3); stroke-width: 4; stroke-linecap: round; }
+.tc-ring circle.bg { fill: var(--card2); stroke: none; }
+.tc-ring circle.v { stroke: var(--or); }
+.od-status { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.od-status b { font-size: 20px; } .od-status small { display: block; color: var(--gray); font-size: 13px; margin-top: 3px; line-height: 1.4; }
+.od-status small em { font-style: normal; color: #fff; }

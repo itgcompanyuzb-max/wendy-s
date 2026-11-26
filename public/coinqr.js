@@ -79,6 +79,7 @@ function renderCoins() {
   return `<div class="cl-top">
       <div class="cl-h"><span>WendyCoin</span><button onclick="Sh.close('coins')" aria-label="close">${I.down(26)}</button></div>
       <div class="cl-big"><img src="/img/coin.png" alt=""><b>${cqFmt(coins)}</b></div>
+      <p class="cl-exp">${CL.exp ? `${cqFmt(CL.exp)} WendyCoin сгорят в ближайшие 7 дней · ` : 'WendyCoin действуют 30 дней · '}<a onclick="A.legalDoc('coins')">Правила</a></p>
       <div class="cl-qr"><span>QR-код для оплаты в ресторане</span><button onclick="A.coinQR()">${I.qr(22, '#111')} Открыть</button></div>
       ${coins ? `<button class="cl-main" onclick="Sh.close('coins');A.coinShop()">Обменять на товары</button>` : ''}
     </div>
@@ -92,6 +93,7 @@ A.coins = () => {
   CL.items = null; CL.err = ''; CL.tab = 'hist';
   haptic('light');
   Sh.open('coins', renderCoins, 'full');
+  CL.exp = 0; api('/coins/expiring').then(r => { CL.exp = r.in7days; Sh.refresh('coins'); }).catch(() => { });
   api('/coins/history').then(r => { CL.items = r.items; if (St.user) St.user.coins = r.coins; renderCoinBar(); }).catch(e => { CL.err = e.message; }).finally(() => Sh.refresh('coins'));
 };
 A.coinLog = A.coins;

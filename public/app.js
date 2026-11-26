@@ -301,7 +301,7 @@ A.support = () => Sh.open('support', () => `<div class="grab"></div><div class="
   <h2 style="margin:0 0 10px;font-size:26px">Поддержка</h2>
   <p class="gray-t" style="font-size:17px;line-height:1.4">Позвоните нам или напишите — поможем с заказом.</p>
   <a class="btn" style="margin-top:14px;text-decoration:none" href="tel:${esc((branches()[0]?.phone || '').replace(/[^+\d]/g, ''))}">Позвонить ${esc(branches()[0]?.phone || '')}</a></div>`);
-A.legal = () => Sh.open('legal', () => `<div class="grab"></div><div class="body" style="padding:24px 20px"><h2 style="margin:0 0 10px;font-size:24px">Правовые документы</h2><p class="gray-t" style="line-height:1.5">Пользовательское соглашение и политика конфиденциальности.<br><br>Картографические данные: © участники OpenStreetMap (openstreetmap.org/copyright).</p></div>`);
+// A.legal (the legal documents) lives in orders.js
 
 /* ============ phone ============ */
 let PH_DIGITS = '';
@@ -322,6 +322,7 @@ function phoneView() {
     <div class="err" id="err"></div>
     <div class="spacer"></div>
     <button class="btn" id="go" disabled>Продолжить</button>
+    ${window.termsNote ? termsNote() : ''}
   </div>`;
   const inp = $('#ph'), btn = $('#go'), btns = [btn];
   const upd = () => { btns.forEach(b => { b.disabled = PH_DIGITS.length !== ccOf().n; }); };
@@ -372,7 +373,7 @@ function codeView(o = {}) {
     if (ci.value.length === 4 && !busy) {
       busy = true;
       try {
-        const r = await api('/auth/verify', { body: { phone: ccOf().code + PH_DIGITS, code: ci.value }, noLogout: true });
+        const r = await api('/auth/verify', { body: { phone: ccOf().code + PH_DIGITS, code: ci.value, accept_terms: window.TERMS_VER || TERMS_VER }, noLogout: true });
         clearInterval(codeTimer);
         St.token = r.token; LS.set('token', r.token); St.user = r.user;
         await loadUserData();
@@ -715,7 +716,7 @@ function renderFab() {
   const n = cartCount();
   const act = (St.orders || []).find(o => ACTIVE.includes(o.status));
   f.innerHTML = n ? `<button class="cart-fab" onclick="A.cart()">${I.bag(30)}${money(totals().total)}</button>`
-    : act ? `<button class="cart-fab" onclick="haptic('medium');A.profile()">${I.receipt(28)}Мои заказы</button>` : '';
+    : act ? `<button class="cart-fab" onclick="haptic('medium');A.myOrders()">${I.receipt(28)}Мои заказы</button>` : '';
 }
 // keep the "Мои заказы" button's status fresh while an order is active
 function refreshOrders() {
